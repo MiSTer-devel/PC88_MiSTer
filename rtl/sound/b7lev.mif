@@ -1,0 +1,134 @@
+-- Copyright (C) 1991-2013 Altera Corporation
+-- Your use of Altera Corporation's design tools, logic functions 
+-- and other software and tools, and its AMPP partner logic 
+-- functions, and any output files from any of the foregoing 
+-- (including device programming or simulation files), and any 
+-- associated documentation or information are expressly subject 
+-- to the terms and conditions of the Altera Program License 
+-- Subscription Agreement, Altera MegaCore Function License 
+-- Agreement, or other applicable license agreement, including, 
+-- without limitation, that your use is for the sole purpose of 
+-- programming logic devices manufactured by Altera and sold by 
+-- Altera or its authorized distributors.  Please refer to the 
+-- applicable agreement for further details.
+
+-- Quartus II generated Memory Initialization File (.mif)
+
+WIDTH=16;
+DEPTH=128;
+
+ADDRESS_RADIX=HEX;
+DATA_RADIX=HEX;
+
+CONTENT BEGIN
+	[00..07]  :   0001;
+	[08..0C]  :   0002;
+	[0D..0F]  :   0003;
+	[10..12]  :   0004;
+	[13..14]  :   0005;
+	[15..16]  :   0006;
+	17  :   0007;
+	[18..19]  :   0008;
+	1A  :   0009;
+	1B  :   000A;
+	1C  :   000B;
+	1D  :   000C;
+	1E  :   000D;
+	1F  :   000F;
+	20  :   0010;
+	21  :   0011;
+	22  :   0013;
+	23  :   0015;
+	24  :   0017;
+	25  :   0019;
+	26  :   001B;
+	27  :   001E;
+	28  :   0020;
+	29  :   0023;
+	2A  :   0027;
+	2B  :   002A;
+	2C  :   002E;
+	2D  :   0032;
+	2E  :   0037;
+	2F  :   003C;
+	30  :   0041;
+	31  :   0047;
+	32  :   004D;
+	33  :   0054;
+	34  :   005C;
+	35  :   0064;
+	36  :   006E;
+	37  :   0077;
+	38  :   0082;
+	39  :   008E;
+	3A  :   009B;
+	3B  :   00A9;
+	3C  :   00B8;
+	3D  :   00C9;
+	3E  :   00DB;
+	3F  :   00EF;
+	40  :   0104;
+	41  :   011C;
+	42  :   0136;
+	43  :   0152;
+	44  :   0170;
+	45  :   0191;
+	46  :   01B6;
+	47  :   01DD;
+	48  :   0208;
+	49  :   0237;
+	4A  :   026A;
+	4B  :   02A2;
+	4C  :   02DF;
+	4D  :   0321;
+	4E  :   0369;
+	4F  :   03B8;
+	50  :   040E;
+	51  :   046C;
+	52  :   04D2;
+	53  :   0541;
+	54  :   05BB;
+	55  :   063F;
+	56  :   06CF;
+	57  :   076C;
+	58  :   0818;
+	59  :   08D3;
+	5A  :   099F;
+	5B  :   0A7D;
+	5C  :   0B6F;
+	5D  :   0C77;
+	5E  :   0D97;
+	5F  :   0ED0;
+	60  :   1027;
+	61  :   119B;
+	62  :   1332;
+	63  :   14ED;
+	64  :   16D0;
+	65  :   18DF;
+	66  :   1B1D;
+	67  :   1D8F;
+	68  :   203A;
+	69  :   2322;
+	6A  :   264D;
+	6B  :   29C2;
+	6C  :   2D86;
+	6D  :   31A1;
+	6E  :   361A;
+	6F  :   3AFC;
+	70  :   404D;
+	71  :   461A;
+	72  :   4C6D;
+	73  :   5351;
+	74  :   5AD5;
+	75  :   6306;
+	76  :   6BF4;
+	77  :   75B0;
+	78  :   804D;
+	79  :   8BDF;
+	7A  :   987D;
+	7B  :   A63D;
+	7C  :   B53B;
+	7D  :   C594;
+	7E  :   D765;
+	7F  :   EA2D;
+END;
