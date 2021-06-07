@@ -22,6 +22,10 @@ Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801mk2SR** f
 
 copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.rom+font.rom+2KO_BLANK_00.ROM+graphfont.bin+mh_disk.rom+8KO_BLANK_00.ROM+8KO_BLANK_00.ROM+kanji1.rom+kanji2.rom boot.rom
 
+## Known Issue
+- The core is shifted to the right
+- Gamma correction doesn't work properly
+
 ## TODO
 - Add Audio MIX
 - Update T80 cpu
