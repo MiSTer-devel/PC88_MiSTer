@@ -311,7 +311,7 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({en216p}),
+	.status_menumask({en400p}),
 
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
@@ -500,8 +500,8 @@ end
 
 
 assign VGA_SL = sl[1:0];
-//reg en216p = 0;
-//always @(posedge CLK_VIDEO) en216p <= ((HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080) && !forced_scandoubler && !scale);
+reg en400p = 0;
+always @(posedge CLK_VIDEO) en400p <= (HDMI_HEIGHT == 1080 && !forced_scandoubler && !scale);
 
 wire vga_de;
 video_freak video_freak
@@ -510,7 +510,7 @@ video_freak video_freak
 	.VGA_DE_IN(vga_de),
 	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
 	.ARY((!ar) ? 12'd3 : 12'd0),
-	.CROP_SIZE(0),
+	.CROP_SIZE(en400p ? 10'd400 : 10'd0),
 	.CROP_OFF(0),
 	.SCALE(status[4:3])
 );
