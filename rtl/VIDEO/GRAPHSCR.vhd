@@ -97,12 +97,15 @@ signal	GRAMADRb:std_logic_vector(13 downto 0);
 signal	MONOFL0	:std_logic_vector(7 downto 0);
 signal	MONOFL1	:std_logic_vector(7 downto 0);
 signal	MONOFL2	:std_logic_vector(7 downto 0);
+signal  BUFWEL : std_logic;
 
 begin
-	buf0	:graphbuf port map(clk,WDAT0,RADR,WADR,BUFWE,RDAT0);
-	buf1	:graphbuf port map(clk,WDAT1,RADR,WADR,BUFWE,RDAT1);
-	buf2	:graphbuf port map(clk,WDAT2,RADR,WADR,BUFWE,RDAT2);
-	bufe	:graphbuf port map(clk,WDATE,RADR,WADR,BUFWE,RDATE);
+	buf0    :graphbuf port map(clk,WDAT0,RADR,WADR,BUFWEL,RDAT0);
+	buf1    :graphbuf port map(clk,WDAT1,RADR,WADR,BUFWEL,RDAT1);
+	buf2    :graphbuf port map(clk,WDAT2,RADR,WADR,BUFWEL,RDAT2);
+	bufe    :graphbuf port map(clk,WDATE,RADR,WADR,BUFWEL,RDATE);
+
+	BUFWEL <= BUFWE when LINEEN='1' else '0';
 	
 	WDAT0<=GRAMDAT0 when LINEEN='1' else (others=>'0');
 	WDAT1<=GRAMDAT1 when LINEEN='1' else (others=>'0');
