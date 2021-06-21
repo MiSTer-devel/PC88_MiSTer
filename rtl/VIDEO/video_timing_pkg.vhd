@@ -16,7 +16,7 @@ package VIDEO_TIMING_pkg is
 	constant HSY	:integer	:=12;
 	constant HBP	:integer	:=HUWIDTH-HUVIS-HFP-HSY;
 	constant HIV	:integer	:=HFP+HSY+HBP;
-	constant VFP	:integer	:=11;
+	constant VFP    :integer    :=80; -- originally 11
 	constant VSY	:integer	:=2;
 	constant VBP	:integer	:=VWIDTH-VVIS-VFP-VSY;
 	constant VBP2	:integer	:=VWIDTH-VVIS2-VFP-VSY;
