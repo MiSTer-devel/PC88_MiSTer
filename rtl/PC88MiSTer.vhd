@@ -1036,14 +1036,6 @@ port(
 );
 end component;
 
-component HEX2SEGn
-	port(
-		HEX	:in std_logic_vector(3 downto 0);
-		DOT	:in std_logic;
-		SEG	:out std_logic_vector(7 downto 0)
-	);
-end component;
-
 signal	cVer		:std_logic;
 signal	cHS			:std_logic;
 signal	cN			:std_logic;
