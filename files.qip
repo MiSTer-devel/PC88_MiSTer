@@ -53,16 +53,13 @@ set_global_assignment -name VHDL_FILE rtl/sound/noisegen.vhd
 set_global_assignment -name HEX_FILE rtl/diskemu_mister/sramdefault.hex
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/wrotecont.vhd
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/tracktable.vhd
-set_global_assignment -name VHDL_FILE rtl/diskemu_mister/sramram.vhd
 set_global_assignment -name QIP_FILE rtl/diskemu_mister/sramram.qip
 set_global_assignment -name SOURCE_FILE rtl/diskemu_mister/sramram.cmp
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/sramcont.vhd
-set_global_assignment -name VHDL_FILE rtl/diskemu_mister/sectram.vhd
 set_global_assignment -name QIP_FILE rtl/diskemu_mister/sectram.qip
 set_global_assignment -name SOURCE_FILE rtl/diskemu_mister/sectram.cmp
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/sasidev.vhd
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/mkgapsync.vhd
-set_global_assignment -name VHDL_FILE rtl/diskemu_mister/fecbuf.vhd
 set_global_assignment -name QIP_FILE rtl/diskemu_mister/fecbuf.qip
 set_global_assignment -name SOURCE_FILE rtl/diskemu_mister/fecbuf.cmp
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/FDemu.vhd
@@ -126,7 +123,6 @@ set_global_assignment -name VHDL_FILE rtl/USART/txframe.vhd
 set_global_assignment -name VHDL_FILE rtl/SPI/SPI_IF.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/SUBunitsMiSTer.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/mmapsub.vhd
-set_global_assignment -name VHDL_FILE rtl/SUBunit/SUBunits.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/INTSUB.vhd
 set_global_assignment -name VHDL_FILE rtl/cpuclk.vhd
 set_global_assignment -name VHDL_FILE rtl/rtc/rtc4990MiSTer.vhd
