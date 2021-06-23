@@ -81,7 +81,6 @@ set_global_assignment -name VHDL_FILE rtl/LIB/delayer.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/digifilter.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/clkdiv.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/intchk.vhd
-set_global_assignment -name VHDL_FILE rtl/LIB/delayon.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/average.vhd
 set_global_assignment -name VHDL_FILE rtl/CPU/T80/T80.vhd
 set_global_assignment -name VHDL_FILE rtl/CPU/T80/T80_ALU.vhd
@@ -119,7 +118,6 @@ set_global_assignment -name VHDL_FILE rtl/VIDEO/GraphALU.vhd
 set_global_assignment -name VHDL_FILE rtl/VIDEO/GRAPHSCR.vhd
 set_global_assignment -name VHDL_FILE rtl/VIDEO/CRTCREGS.vhd
 set_global_assignment -name QIP_FILE rtl/VIDEO/graphbuf.qip
-set_global_assignment -name VHDL_FILE rtl/VIDEO/DBGLINE.vhd
 set_global_assignment -name VHDL_FILE rtl/VIDEO/textscr2.vhd
 set_global_assignment -name QIP_FILE rtl/Font/fontram.qip
 set_global_assignment -name VHDL_FILE rtl/USART/e8251.vhd
@@ -134,8 +132,6 @@ set_global_assignment -name VHDL_FILE rtl/cpuclk.vhd
 set_global_assignment -name VHDL_FILE rtl/rtc/rtc4990MiSTer.vhd
 set_global_assignment -name VHDL_FILE rtl/RTC/rtcbody.vhd
 set_global_assignment -name VHDL_FILE rtl/Cyc5/romcopy.vhd
-set_global_assignment -name VHDL_FILE rtl/CMT/cmtmod.vhd
-set_global_assignment -name VHDL_FILE rtl/CMT/cmtdem.vhd
 set_global_assignment -name VHDL_FILE rtl/sdramcde0cvDEMU2.vhd
 set_global_assignment -name QIP_FILE rtl/TEXTRAM.qip
 set_global_assignment -name VHDL_FILE rtl/IO_RD.vhd
