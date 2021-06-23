@@ -125,7 +125,7 @@ set_global_assignment -name VHDL_FILE rtl/SUBunit/SUBunitsMiSTer.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/mmapsub.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/INTSUB.vhd
 set_global_assignment -name VHDL_FILE rtl/cpuclk.vhd
-set_global_assignment -name VHDL_FILE rtl/rtc/rtc4990MiSTer.vhd
+set_global_assignment -name VHDL_FILE rtl/RTC/rtc4990MiSTer.vhd
 set_global_assignment -name VHDL_FILE rtl/RTC/rtcbody.vhd
 set_global_assignment -name VHDL_FILE rtl/Cyc5/romcopy.vhd
 set_global_assignment -name VHDL_FILE rtl/sdramcde0cvDEMU2.vhd
