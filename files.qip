@@ -32,7 +32,6 @@ set_global_assignment -name VHDL_FILE rtl/sound/OPN/OPNFM.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/OPN/OPNA.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/OPN/OPNREG.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/OPN/OPN.vhd
-set_global_assignment -name QIP_FILE rtl/sound/OPN/ram16x32.qip
 set_global_assignment -name VHDL_FILE rtl/sound/FMcommon/envelope_pkg.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/FMcommon/envcont.vhd
 set_global_assignment -name QIP_FILE rtl/sound/FMcommon/TLtbl.qip
