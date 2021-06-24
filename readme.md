@@ -4,7 +4,7 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 
 ## Features
 * Modes N, N88V1L, N88V1H, N88V2
-* CPU Speeds (4MHz and 8MGz)
+* CPU Speeds (4MHz and 8MHz)
 * 2 Floppy Drives using D88 format
 * Sound chip YM2603 by default and ADPCM (incomplete)
 
