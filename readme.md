@@ -2,6 +2,12 @@
 
 This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/21233167-1.html) core by Puu-san.
 
+## Features
+* Modes N, N88V1L, N88V1H, N88V2
+* CPU Speeds (4MHz and 8MGz)
+* 2 Floppy Drives using D88 format
+* Sound chip YM2603 by default and ADPCM (incomplete)
+
 ## Installation
 Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801mk2SR** folder on the root/games of the card, and place PC8801 floppies (\*.D88) inside this folder. 
 - boot.rom = PC8801 MKII SR BIOS file.  Required to start the core.
@@ -24,10 +30,12 @@ copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.ro
 
 ## Known Issues
 - One pixel is missing on right
+- Timing issues
 - Gamma correction doesn't work properly
 - Scandoubler FX doesn't work properly
 
 ## TODO
-- Add Audio MIX
 - Update T80 cpu
+- Add choice Sound YM2203 or YM2603 on the OSD
+- Add Audio Mix
 - ...
