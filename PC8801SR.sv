@@ -185,6 +185,10 @@ assign VGA_SCALER = 0;
 
 assign LED_POWER = 0;
 assign BUTTONS = 0;
+assign AUDIO_MIX = 0;
+assign USER_OUT = 0;
+assign HDMI_FREEZE = 0;
+assign UART_TXD = 0;
 
 //////////////////////////////////////////////////////////////////
 wire hdd_active = sd_rd[2] || sd_wr[2];
@@ -212,7 +216,7 @@ parameter CONF_STR = {
 	"OA,Basic mode,Terminal,Basic;",
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
-	"OD,Disk boot,Disable,Enable;",
+	"OD,Disk boot,Enable,Disable;",
 	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"J,Fire 1,Fire 2;",
 	"V,v",`BUILD_DATE
@@ -442,7 +446,7 @@ PC88MiSTer PC88_top
 	.pFd_sync(FDsync),
 
 	.pLed(disk_led),
-	.pDip({clkmode,2'b0,CDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
+	.pDip({clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
 	.pPsw(2'b11),
 
 	.pVideoR(red),
