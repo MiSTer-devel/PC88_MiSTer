@@ -10,9 +10,9 @@ package VIDEO_TIMING_pkg is
 	constant HVIS	:integer	:=640;
 	constant HUVIS	:integer	:=HVIS/DOTPU;
 	constant VVIS	:integer	:=400;
-	constant VVIS2	:integer	:=480;
+	constant VVIS2	:integer	:=400; -- originaly 480
 	constant CPD	:integer	:=3;
-	constant HFP	:integer	:=3;
+	constant HFP	:integer	:=2; -- originaly 3
 	constant HSY	:integer	:=12;
 	constant HBP	:integer	:=HUWIDTH-HUVIS-HFP-HSY;
 	constant HIV	:integer	:=HFP+HSY+HBP;

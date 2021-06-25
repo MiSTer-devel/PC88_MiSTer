@@ -68,7 +68,7 @@ begin
 					'0' when HUCOUNT<HIV else
 					'1';
 	VRTC		<=	'1' when VCOUNT<VIV else '0';
-	HRTC        <=    '1' when 0 < HUCOUNT and HUCOUNT <HIV +1  else '0';
+	HRTC        <=    '1' when HUCOUNT<HIV else '0';
 
 	process	(clk,rstn)begin
 		if(rstn='0')then

@@ -303,7 +303,6 @@ wire [63:0] img_size;
 
 wire [65:0] ps2_key;
 wire [64:0] sysrtc;
-wire forced_scandoubler;
 wire [21:0] gamma_bus;
 wire  [7:0] uart1_mode;
 wire [31:0] uart1_speed;
@@ -331,7 +330,6 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 	.img_readonly(img_readonly),
 	.img_size(img_size),
 
-	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
 
 	.ioctl_download(ioctl_download),
@@ -482,7 +480,7 @@ end
 
 
 //////////////////   SD LED   ///////////////////
-reg sd_act;
+// reg sd_act;
 
 always @(posedge clk_sys) begin
 	reg old_mosi, old_miso;
@@ -491,10 +489,10 @@ always @(posedge clk_sys) begin
 	old_mosi <= SD_MOSI;
 	old_miso <= SD_MISO;
 
-	sd_act <= 0;
+	// sd_act <= 0;
 	if(timeout < 1000000) begin
 		timeout <= timeout + 1;
-		sd_act <= 1;
+		// sd_act <= 1;
 	end
 
 	if((old_mosi ^ SD_MOSI) || (old_miso ^ SD_MISO)) timeout <= 0;
@@ -505,53 +503,47 @@ end
 
 assign VGA_SL = sl[1:0];
 reg en400p = 0;
-always @(posedge CLK_VIDEO) en400p <= (HDMI_HEIGHT == 1080 && !forced_scandoubler && !scale);
+always @(posedge CLK_VIDEO) en400p <= (HDMI_HEIGHT == 1080 &&  !scale);
 
 wire vga_de;
+
 video_freak video_freak
 (
-	.*,
-	.VGA_DE_IN(vga_de),
-	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
-	.ARY((!ar) ? 12'd3 : 12'd0),
-	.CROP_SIZE(en400p ? 10'd400 : 10'd0),
-	.CROP_OFF(0),
-	.SCALE(status[4:3])
+    .*,
+    .VGA_DE_IN(vga_de),
+    .ARX((!ar) ? 12'd4 : (ar - 1'd1)),
+    .ARY((!ar) ? 12'd3 : 12'd0),
+    .CROP_SIZE(en400p ? 10'd400 : 10'd0),
+    .CROP_OFF(0),
+    .SCALE(status[4:3])
 );
+
 
 wire [2:0] scale = status[17:15];
 wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
-wire       scandoubler = (scale || forced_scandoubler);
 
-wire freeze = 0;
+// wire freeze = 0;
 wire freeze_sync;
 
-video_mixer #(640, 0, 1) mixer
+assign CE_PIXEL=ce_pix;
+
+gamma_fast gamma
 (
-	.CLK_VIDEO(CLK_VIDEO),
-	
-	.hq2x(scale == 1),
-	.scandoubler(scale || forced_scandoubler),
-	.gamma_bus(gamma_bus),
+    .clk_vid(CLK_VIDEO),
+    .ce_pix(CE_PIXEL),
 
-	.ce_pix(ce_pix),
-	.R(red),
-	.G(green),
-	.B(blue),
-	.HSync(HSync),
-	.VSync(VSync),
-	.HBlank(HBlank),
-	.VBlank(VBlank),
+    .gamma_bus(gamma_bus),
 
-	.CE_PIXEL(CE_PIXEL),
-	.VGA_R(VGA_R),
-	.VGA_G(VGA_G),
-	.VGA_B(VGA_B),
-	.VGA_VS(VGA_VS),
-	.VGA_HS(VGA_HS),
-	.VGA_DE(vga_de)
+    .HSync(HSync),
+    .VSync(VSync),
+    .DE(vid_de),
+    .RGB_in( {red,green,blue}),
+   
+
+    .HSync_out(VGA_HS),
+    .VSync_out(VGA_VS),
+    .DE_out(vga_de),
+    .RGB_out({VGA_R,VGA_G,VGA_B})
 );
-
-
 
 endmodule
