@@ -384,7 +384,7 @@ assign AUDIO_S = 1;
 wire disk_led;
 
 wire [7:0] red, green, blue;
-wire HBlank, VBlank, HSync, VSync, ce_pix, vid_de;
+wire HSync, VSync, ce_pix, vid_de;
 
 PC88MiSTer PC88_top
 (
@@ -452,8 +452,6 @@ PC88MiSTer PC88_top
 	.pVideoB(blue),
 	.pVideoHS(HSync),
 	.pVideoVS(VSync),
-	.pVideoHB(HBlank),
-	.pVideoVB(VBlank),
 	.pVideoEN(vid_de),
 	.pVideoClk(ce_pix),
 

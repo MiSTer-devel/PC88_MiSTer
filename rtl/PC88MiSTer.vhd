@@ -88,8 +88,6 @@ port(
 	pVideoB		: out std_logic_vector(7 downto 0);
 	pVideoHS		: out std_logic;
 	pVideoVS		: out std_logic;
-	pVideoHB        :out std_logic;
-	pVideoVB        :out std_logic;
 	pVideoEn	: out std_logic;
 	pVideoClk	: out std_logic;
 	pSndL			: out std_logic_vector(15 downto 0);
@@ -2011,11 +2009,6 @@ port map(
 	pVideoHS<=VidHS;
 	pVideoEn<=vidEN;
 	pVideoClk<=gclk;
-
-	--pVideoHB<= not VID_HRTC;
-	--pVideoVB<= not VID_VRTC;
-	pVideoHB<= HRTC;
-	pVideoVB<= VRTC;
 	
 	CRTC_CURL<=	CURL;
 	CRTC_CURC<=	CURC;
