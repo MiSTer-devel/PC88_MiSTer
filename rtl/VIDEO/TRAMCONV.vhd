@@ -72,7 +72,7 @@ signal	STATE	:STATE_T;
 signal	lVRET,lHRET	:std_logic;
 signal	rTVRMODE	:std_logic;
 signal	rTMODE		:std_logic;
-signal	rCOLOR		:std_logic;
+-- signal	rCOLOR		:std_logic;
 signal	COL			:std_logic_vector(7 downto 0);
 signal	RDDAT		:std_logic_vector(7 downto 0);
 signal	RDADR		:std_logic_vector(15 downto 0);
@@ -107,7 +107,7 @@ begin
 			lHRET<='1';
 			rTVRMODE<='0';
 			rTMODE<='0';
-			rCOLOR<='0';
+			-- rCOLOR<='0';
 			BUSREQn<='1';
 			MRAM_RDn<='1';
 			BUS_USE<='0';
@@ -134,7 +134,7 @@ begin
 						CDSTADR<=(others=>'0');
 						rTVRMODE<=TVRMODE;
 						rTMODE<=TMODE;
-						rCOLOR<=COLOR;
+						-- rCOLOR<=COLOR;
 						TVRAM_ADR<=(others=>'0');
 						LINECNT<=0;
 						CURATR<="00000111";

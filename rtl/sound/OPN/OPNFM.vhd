@@ -207,7 +207,7 @@ type INTST_t is(
 	IS_CMIX
 );
 signal	INTST	:INTST_t;
-signal	TBPS	:integer range 0 to 15;
+-- signal	TBPS	:integer range 0 to 15;
 
 signal	keyc	:std_logic;
 
@@ -219,7 +219,7 @@ signal	Blk		:std_logic_vector(2 downto 0);
 signal	Fnum	:std_logic_vector(10 downto 0);
 signal	Note	:std_logic_vector(1 downto 0);
 signal	Mult	:std_logic_vector(3 downto 0);
-signal	Detune	:std_logic_vector(2 downto 0);
+-- signal	Detune	:std_logic_vector(2 downto 0);
 signal	SFnum	:std_logic_vector(15 downto 0);
 signal	MSFnum	:std_logic_vector(15 downto 0);
 signal	FBsrc	:std_logic_vector(15 downto 0);
@@ -229,7 +229,7 @@ signal	add13,add23,add24,add234,add1234	:std_logic_vector(15 downto 0);
 
 --enverope parameter
 signal	AR		:std_logic_vector(4 downto 0);
-signal	KS		:std_logic_vector(1 downto 0);
+-- signal	KS		:std_logic_vector(1 downto 0);
 signal	DR		:std_logic_vector(4 downto 0);
 signal	SLlevel	:std_logic_vector(15 downto 0);
 signal	RR		:std_logic_vector(3 downto 0);
@@ -237,7 +237,7 @@ signal	SR		:std_logic_vector(4 downto 0);
 signal	TL		:std_logic_vector(6 downto 0);
 signal	EVAL	:std_logic_vector(6 downto 0);
 signal	TLlevel	:std_logic_vector(15 downto 0);
-signal	envcalc	:std_logic;
+-- signal	envcalc	:std_logic;
 signal	envsin	:std_logic_vector(15 downto 0);
 signal	TLVAL	:std_logic_vector(15 downto 0);
 signal	senL,senR	:std_logic;
@@ -382,7 +382,7 @@ begin
 		if(rstn='0')then
 			INT_RADR<=(others=>'0');
 			INTST<=IS_IDLE;
-			TBPS<=0;
+			-- TBPS<=0;
 			intend<='0';
 			envst_1a<=es_OFF;
 			envst_1b<=es_OFF;
@@ -396,7 +396,7 @@ begin
 			envst_3b<=es_OFF;
 			envst_3c<=es_OFF;
 			envst_3d<=es_OFF;
-			envcalc<='0';
+			-- envcalc<='0';
 			thitawd<=(others=>'0');
 			thitawr<='0';
 			elevwr<='0';
@@ -413,7 +413,7 @@ begin
 				thitawr<='0';
 				elevwr<='0';
 				intend<='0';
-				envcalc<='0';
+				-- envcalc<='0';
 				intend<='0';
 				case FMSTATE is
 				when FS_C1Oa | FS_C1Ob | FS_C1Oc | FS_C1Od |
@@ -502,7 +502,7 @@ begin
 							end case;
 							INTST<=IS_READDETMUL;
 						when IS_READDETMUL =>
-							Detune<=INT_RDAT(6 downto 4);
+							-- Detune<=INT_RDAT(6 downto 4);
 							Mult<=INT_RDAT(3 downto 0);
 							INTST<=IS_CALCTHITA;
 						when IS_CALCTHITA =>	--with set AR
@@ -564,7 +564,7 @@ begin
 							INTST<=IS_READKSAR;
 						when IS_READKSAR =>
 							TLlevel<=TLval;
-							KS<=INT_RDAT(7 downto 6);
+							-- KS<=INT_RDAT(7 downto 6);
 							AR<=INT_RDAT(4 downto 0);
 							INT_RADR<=INT_RADR+x"10";
 							INTST<=IS_READDR;
@@ -579,7 +579,7 @@ begin
 						when IS_READSLRR =>
 							TL<='0' & INT_RDAT(7 downto 4) & "00";
 							RR<=INT_RDAT(3 downto 0);
-							envcalc<='1';
+							-- envcalc<='1';
 							INTST<=IS_CALCENVW;
 						when IS_CALCENVW =>
 							SLlevel<=TLval;

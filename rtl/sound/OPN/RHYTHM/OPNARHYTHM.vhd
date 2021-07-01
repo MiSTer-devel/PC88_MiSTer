@@ -42,7 +42,8 @@ type ADDR_ARRAY is array (natural range <>) of ADDR_TYPE;
 signal	ROMADDR	:ADDR_ARRAY(0 to 5);
 subtype PCMDAT_TYPE is std_logic_vector(3 downto 0);
 type PCMDAT_ARRAY is array (natural range <>) of PCMDAT_TYPE;
-signal	PCMDAT,PCMDATl	:PCMDAT_ARRAY(0 to 5);
+--signal	PCMDATl	:PCMDAT_ARRAY(0 to 5);
+signal	PCMDAT	:PCMDAT_ARRAY(0 to 5);
 subtype SNDDAT_TYPE is std_logic_vector(15 downto 0);
 type SNDDAT_ARRAY is array (natural range <>) of SNDDAT_TYPE;
 signal	SNDDAT	:SNDDAT_ARRAY(0 to 5);
@@ -330,7 +331,7 @@ begin
 					if(KEY(i)='0')then
 						ROMADDR(i)<=(others=>'0');
 					elsif(pcmcarry(i)='1')then
-						PCMDATl(i)<=PCMDAT(i);
+						-- PCMDATl(i)<=PCMDAT(i);
 						ROMADDR(i)<=ROMADDR(i)+1;
 					end if;
 				end loop;

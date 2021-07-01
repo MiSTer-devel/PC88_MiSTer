@@ -84,8 +84,8 @@ signal	fmwrbit		:std_logic;
 signal	mfmwrbit	:std_logic;
 signal	txwrbit		:std_logic;
 signal	txwrbitex	:std_logic;
-signal	fmtxend		:std_logic;
-signal	mfmtxend	:std_logic;
+-- signal	fmtxend		:std_logic;
+-- signal	mfmtxend	:std_logic;
 signal	txend		:std_logic;
 signal	modsftfm		:std_logic;
 signal	modsftmfm		:std_logic;
@@ -421,7 +421,7 @@ begin
 		break	=>'0',
 		
 		txemp	=>fmtxemp,
-		txend	=>fmtxend,
+		-- txend	=>fmtxend,
 		
 		bitout	=>fmwrbit,
 		writeen	=>open,
@@ -439,7 +439,7 @@ begin
 		break	=>'0',
 		
 		txemp	=>mfmtxemp,
-		txend	=>mfmtxend,
+		-- txend	=>mfmtxend,
 		
 		bitout	=>mfmwrbit,
 		writeen	=>open,

@@ -41,9 +41,9 @@ signal	lINTbn	:std_logic_vector(7 downto 0);
 signal	INTbn	:std_logic_vector(7 downto 0);
 signal	INTcn	:std_logic_vector(7 downto 0);
 signal	INTln	:std_logic_vector(7 downto 0);
-signal	INTmn	:std_logic_vector(7 downto 0);
-signal	VECoe	:std_logic;
-signal	lM1n	:std_logic;
+-- signal	INTmn	:std_logic_vector(7 downto 0);
+-- signal	VECoe	:std_logic;
+-- signal	lM1n	:std_logic;
 signal	INTing	:integer range 0 to 3;
 signal	SEND	:std_logic;
 signal	INTmsk	:std_logic_vector(7 downto 0);
@@ -52,9 +52,9 @@ signal	INTlev	:std_logic_vector(3 downto 0);
 signal	IOWRn	:std_logic;
 signal	lIOWRn	:std_logic_vector(1 downto 0);
 signal	M1nb	:std_logic;
-signal	RDnb	:std_logic;
+-- signal	RDnb	:std_logic;
 signal	M1nc	:std_logic;
-signal	VECOEc	:std_logic;
+-- signal	VECOEc	:std_logic;
 signal	INTRQ	:std_logic_vector(7 downto 0);
 signal	INTRQm	:std_logic_vector(7 downto 0);
 signal	INTCLR	:std_logic;
@@ -77,11 +77,11 @@ begin
 		if(rstn='0')then
 			INTbn<=(others=>'1');
 			M1nb<='1';
-			RDnb<='1';
+			-- RDnb<='1';
 		elsif(clk' event and clk='1')then
 			INTbn<=INT7n & INT6n & INT5n & INT4n & INT3n & INT2n & INT1n & INT0n ;
 			M1nb<=M1n;
-			RDnb<=RDn;
+			-- RDnb<=RDn;
 		end if;
 	end process;
 
@@ -102,7 +102,7 @@ begin
 		end if;
 	end process;
 	
-	INTmn<=INTbn or (not INTmsk);
+	-- INTmn<=INTbn or (not INTmsk);
 
 	IOWRn<=IORQn or WRn;
 	
@@ -132,8 +132,8 @@ begin
 	variable INTx	:integer range 0 to 7;
 	begin
 		if(rstn='0')then
-			VECoe<='0';
-			lM1n<='1';
+			-- VECoe<='0';
+			-- lM1n<='1';
 			INTn<='1';
 			INTing<=0;
 			DATOUT<=(others=>'1');
@@ -169,7 +169,7 @@ begin
 					DATOUT(7 downto 4)<=x"0";
 					DATOUT(3 downto 1)<=conv_std_logic_vector(INTx,3);
 					DATOUT(0)<='0';
-					VECOE<='1';
+					-- VECOE<='1';
 					if(M1nb='0')then
 						INTing<=3;
 					end if;
@@ -178,7 +178,7 @@ begin
 						if(SEND='1')then
 							INTn<='1';
 							INTing<=0;
-							VECOE<='0';
+							-- VECOE<='0';
 							INTCLRN<=INTx;
 							INTCLR<='1';
 							SEND<='0';
@@ -197,10 +197,10 @@ begin
 	process(cpuclk,rstn)begin
 		if(rstn='0')then
 			M1nc<='1';
-			VECOEc<='0';
+			-- VECOEc<='0';
 		elsif(cpuclk' event and cpuclk='0')then
 			M1nc<=M1n;
-			VECOEc<=VECOE;
+			-- VECOEc<=VECOE;
 		end if;
 	end process;
 	

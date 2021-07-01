@@ -1065,12 +1065,12 @@ signal	CPU_clk		:std_logic;
 signal	BUSRQ_n		:std_logic;
 signal	BUSACK_n	:std_logic;
 signal	RAM_WAIT	:std_logic;
-signal	LOADER_rstn :std_logic;
+-- signal	LOADER_rstn :std_logic;
 signal	CLR_ADR		:std_logic_vector(18 downto 0);
 signal	CLR_WDAT	:std_logic_vector(7 downto 0);
 signal	CLR_WR		:std_logic;
 signal	CLR_OE		:std_logic;
-signal	CLR_rstn	:std_logic;
+-- signal	CLR_rstn	:std_logic;
 signal	gclk		:std_logic;
 signal	clkcount	:integer range 0 to 5000000;
 signal	slowclk		:std_logic;
@@ -1270,10 +1270,12 @@ signal	SEG3	:std_logic_vector(3 downto 0);
 signal	SEG4	:std_logic_vector(3 downto 0);
 signal	SEG5	:std_logic_vector(3 downto 0);
 
-signal RMODE,MMODE	:std_logic;
-signal EROMSEL1,EROMSEL0	:std_logic;
+signal RMODE	:std_logic;
+signal MMODE	:std_logic;
+signal EROMSEL1	:std_logic;
+signal EROMSEL0 :std_logic;
 signal	IEROM	:std_logic;
-signal	TCNVDONE	:std_logic;
+-- signal	TCNVDONE	:std_logic;
 
 signal	beepsig	:std_logic;
 signal	beepen	:std_logic;
@@ -1321,7 +1323,7 @@ signal	FRAMWR		:std_logic;
 
 --DISK emulation
 signal	EMUINITDONE	:std_logic;
-signal	KBRX		:std_logic;
+-- signal	KBRX		:std_logic;
 
 signal	FDE_ADDR	:std_logic_vector(22 downto 0);
 signal	FDE_ADDRW	:std_logic_vector(RAMAWIDTH-1 downto 0);
@@ -1603,7 +1605,7 @@ port map(
 		CPURD			=>RAM_RD,
 		CPUWAIT			=>RAM_WAIT,
 		CPUCLK			=>cpuclkb,
-		CPURSTn			=>CLR_rstn,
+		-- CPURSTn			=>CLR_rstn,
 		MRAMDAT			=>TCNV_RDAT,
 		
 		SUBADR			=>SUBADR,
@@ -1663,7 +1665,7 @@ port map(
 	);
 
 	CLR_OE<='0';
-	loader_rstn<=CLR_rstn;
+	-- loader_rstn<=CLR_rstn;
 	
 	LOADER_ACK<=not RAM_WAIT;
 	
@@ -1711,7 +1713,7 @@ port map(
 	
 	VRET		=>VRTC,
 	HRET		=>HRTC,
-	DONE		=>TCNVDONE,
+	-- DONE		=>TCNVDONE,
 	
 	clk			=>clk21m,
 	rstn		=>srstn
@@ -1801,7 +1803,7 @@ port map(
 	KBDATOUT=>KBDATOUT,
 
 	KBDAT	=>open,
-	KBRX	=>KBRX,
+	-- KBRX	=>KBRX,
 	KBEN	=>'1',
 
 	monout	=>open,

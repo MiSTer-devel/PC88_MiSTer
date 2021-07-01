@@ -135,14 +135,15 @@ constant clockwtime	:integer	:=50000;	--usec
 constant cwaitcnt	:integer	:=clockwtime*86;	--clocks
 signal	CLOCKWAIT	:integer range 0 to cwaitcnt;
 signal	clkcount	:integer range 0 to 20;
-signal	pCPUWR,pCPURD		:std_logic;
-signal	pCPUADR			:std_logic_vector(AWIDTH-1 downto 0);
+-- signal	pCPUWR		:std_logic;
+-- signal	pCPURD		:std_logic;
+-- signal	pCPUADR			:std_logic_vector(AWIDTH-1 downto 0);
 constant allzero	:std_logic_vector(12 downto 0)	:=(others=>'0');
 
 constant REFINT		:integer	:=CLKMHZ*REFCYC/20;
 signal	REFCNT	:integer range 0 to REFINT-1;
 signal	SUBCLKb	:std_logic;
-signal	CLKMb	:std_logic;
+-- signal	CLKMb	:std_logic;
 
 signal	CPUADRb	:std_logic_vector(AWIDTH-1 downto 0);
 signal	CPUWDATb:std_logic_vector(7 downto 0);
@@ -251,9 +252,9 @@ begin
 			clkcount	<=0;
 			CPUWAITb	<='0';
 			VIDWAITb	<='0';
-			pCPUWR		<='0';
-			pCPURD		<='0';
-			pCPUADR		<=(others=>'0');
+			-- pCPUWR		<='0';
+			-- pCPURD		<='0';
+			-- pCPUADR		<=(others=>'0');
 			REFCNT		<=REFINT-1;
 			SUBWAITb	<='0';
 			lCPUWR		<=(others=>'0');
@@ -1236,9 +1237,9 @@ begin
 								end if;
 							end if;
 						end if;
-						pCPURD<=CPURD;
-						pCPUWR<=CPUWR;
-						pCPUADR<=CPUADR;
+						-- pCPURD<=CPURD;
+						-- pCPUWR<=CPUWR;
+						-- pCPUADR<=CPUADR;
 					end if;
 				when others =>
 					MEMCKE		<='1';
@@ -1384,7 +1385,7 @@ begin
 		if(memclk' event and memclk='1')then
 		if(rstn='0')then
 			CPURSTn<='0';
-			CLKMb<='0';
+			-- CLKMb<='0';
 			CLKSFT<=(others=>'0');
 		else
 			if(STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL)then
@@ -1392,7 +1393,7 @@ begin
 			else
 				CPURSTn<='1';
 				if(clkcount=20)then
-					CLKMb<=CLOCKM;
+					-- CLKMb<=CLOCKM;
 					if(CLOCKM='1')then
 						CLKSFT<="000001111100000111111";
 					else

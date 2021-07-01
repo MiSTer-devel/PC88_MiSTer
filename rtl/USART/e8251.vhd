@@ -40,13 +40,13 @@ signal	CLEN	:std_logic_vector(1 downto 0);
 signal	PEN		:std_logic;
 signal	PEV		:std_logic;
 signal	STOP	:std_logic_vector(1 downto 0);
-signal	SYNCCH1	:std_logic_vector(7 downto 0);
-signal	SYNCCH2	:std_logic_vector(7 downto 0);
-signal	EH		:std_logic;
+-- signal	SYNCCH1	:std_logic_vector(7 downto 0);
+-- signal	SYNCCH2	:std_logic_vector(7 downto 0);
+-- signal	EH		:std_logic;
 signal	IR		:std_logic;
 signal	RTS		:std_logic;
 signal	ER		:std_logic;
-signal	SBRK	:std_logic;
+-- signal	SBRK	:std_logic;
 signal	RxEN	:std_logic;
 signal	DTR		:std_logic;
 signal	TxEN	:std_logic;
@@ -335,16 +335,16 @@ begin
 						cmdnum<=cn_cmd;
 					end if;
 				when cn_sync1 =>
-					SYNCCH1<=IOWDAT;
+					-- SYNCCH1<=IOWDAT;
 					cmdnum<=cn_sync2;
 				when cn_sync2 =>
-					SYNCCH2<=IOWDAT;
+					-- SYNCCH2<=IOWDAT;
 					cmdnum<=cn_cmd;
 				when cn_cmd =>
 					TxEN<=IOWDAT(0);
 					DTR<=IOWDAT(1);
 					RxEN<=IOWDAT(2);
-					SBRK<=IOWDAT(3);
+					-- SBRK<=IOWDAT(3);
 					pereset<=IOWDAT(4);
 					oereset<=IOWDAT(4);
 					fereset<=IOWDAT(4);
@@ -352,7 +352,7 @@ begin
 					if(IOWDAT(6)='1')then
 						cmdnum<=cn_mode;
 					end if;
-					EH<=IOWDAT(7);
+					-- EH<=IOWDAT(7);
 				when others=>
 				end case;
 			end if;

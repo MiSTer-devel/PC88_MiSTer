@@ -597,7 +597,7 @@ signal	MON1,MON0	:std_logic;
 signal	TC			:std_logic;
 signal	FDC_CEn		:std_logic;
 signal	FD_USEL		:std_logic_vector(1 downto 0);
-signal	FD_HDS		:std_logic_vector(1 downto 0);
+-- signal	FD_HDS		:std_logic_vector(1 downto 0);
 signal	FD_hmssft	:std_logic;
 signal	FD_int0		:integer range 0 to (BR_300_D*sysclk/1000000);
 signal	FD_int1		:integer range 0 to (BR_300_D*sysclk/1000000);
@@ -606,7 +606,7 @@ signal	PPI_CSn		:std_logic;
 signal	PSEN		:std_logic;
 signal	FDC_BUSY	:std_logic;
 signal	MONEN		:std_logic;
-signal	FDDEN		:std_logic;
+-- signal	FDDEN		:std_logic;
 signal	EN1,EN0		:std_logic;
 signal	MON1S,MON0S	:std_logic;
 
@@ -734,8 +734,8 @@ begin
 		drv1hd		=>RV1,
 		drv1hdi		=>'1',		--IBM 1.44MB format
 		
-		drv0hds		=>FD_HDS(0),
-		drv1hds		=>FD_HDS(1),
+		--drv0hds		=>FD_HDS(0),
+		--drv1hds		=>FD_HDS(1),
 		
 		drv0int		=>FD_int0,
 		drv1int		=>FD_int1,
@@ -918,7 +918,7 @@ port map(
 	FDC_USELn<=	"1110" when FD_USEL="00" else
 				"1101" when FD_USEL="01" else
 				"1111";
-	FDDEN<=FDC_BUSY or MONEN or fde_cpyen;
+	-- FDDEN<=FDC_BUSY or MONEN or fde_cpyen;
 
 	EN0<='1' when FDC_BUSY='1' and FD_USEL="00" else '0';
 	EN1<='1' when FDC_BUSY='1' and FD_USEL="01" else '0';

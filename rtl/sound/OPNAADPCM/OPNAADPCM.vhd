@@ -71,7 +71,7 @@ signal	adpcmsig	:std_logic_vector(15 downto 0);
 signal	adpcmlev	:std_logic_vector(23 downto 0);
 signal	adpcmint	:std_logic_vector(7 downto 0);
 signal	playstate	:std_logic;
-signal	mulwr		:std_logic;
+-- signal	mulwr		:std_logic;
 signal	playsft	:std_logic;
 
 type cpustate_t is (
@@ -382,14 +382,14 @@ begin
 	process(clk,rstn)begin
 		if(rstn='0')then
 			playstate<='0';
-			mulwr<='0';
+			-- mulwr<='0';
 		elsif(clk' event and clk='1')then
-			mulwr<='0';
+			-- mulwr<='0';
 			if(ADPCMWR='1')then
 				playstate<='1';
 			elsif(playstate='1')then
 				if(calcbusy='0')then
-					mulwr<='1';
+					-- mulwr<='1';
 					playstate<='0';
 				end if;
 			end if;

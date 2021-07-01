@@ -73,13 +73,13 @@ signal	EOT		:std_logic_vector(7 downto 0);
 signal	GPL		:std_logic_vector(7 downto 0);
 signal	HD		:std_logic;
 signal	H		:std_logic_vector(7 downto 0);
-signal	HLT		:std_logic_vector(6 downto 0);
-signal	HUT		:std_logic_vector(3 downto 0);
+-- signal	HLT		:std_logic_vector(6 downto 0);
+-- signal	HUT		:std_logic_vector(3 downto 0);
 signal	MF		:std_logic;
 signal	MT		:std_logic;
 signal	N		:std_logic_vector(7 downto 0);
 signal	Nf		:std_logic_vector(7 downto 0);
-signal	NCN		:integer range 0 to maxtrack;
+-- signal	NCN		:integer range 0 to maxtrack;
 signal	ND		:std_logic;
 signal	PCN0	:std_logic_vector(7 downto 0);
 signal	PCN1	:std_logic_vector(7 downto 0);
@@ -89,7 +89,7 @@ signal	cPCN	:std_logic_vector(7 downto 0);
 signal	PCN		:std_logic_vector(7 downto 0);
 signal	R		:std_logic_vector(7 downto 0);
 signal	cntR	:std_logic_vector(7 downto 0);
-signal	RW		:std_logic;
+-- signal	RW		:std_logic;
 signal	SC		:std_logic_vector(7 downto 0);
 signal	SK		:std_logic;
 signal	SRT		:std_logic_vector(3 downto 0);
@@ -98,7 +98,7 @@ signal	ST0		:std_logic_vector(7 downto 0);
 signal	ST1		:std_logic_vector(7 downto 0);
 signal	ST2		:std_logic_vector(7 downto 0);
 signal	ST3		:std_logic_vector(7 downto 0);
-signal	STP		:std_logic_vector(1 downto 0);
+-- signal	STP		:std_logic_vector(1 downto 0);
 signal	US		:std_logic_vector(1 downto 0);
 
 --status bit
@@ -136,7 +136,7 @@ signal	sideb	:std_logic;
 signal	uselb	:std_logic_vector(1 downto 0);
 signal	DxBclr	:std_logic;
 signal	SEclr	:std_logic;
-signal	iSE		:std_logic;
+-- signal	iSE		:std_logic;
 signal	SISen	:std_logic;
 signal	SISclr	:std_logic;
 
@@ -145,12 +145,12 @@ signal	IORD_DAT	:std_logic;
 signal	IORD_STA	:std_logic;
 signal	lIOWR_DAT	:std_logic;
 signal	lIORD_DAT	:std_logic;
-signal	lIORD_STA	:std_logic;
+-- signal	lIORD_STA	:std_logic;
 signal	datnum		:integer range 0 to 20;
 --signal	lWDAT		:std_logic_vector(7 downto 0);
 signal	CPUWR_DAT	:std_logic;
 signal	CPURD_DAT	:std_logic;
-signal	CPURD_STA	:std_logic;
+-- signal	CPURD_STA	:std_logic;
 signal	CPUWR_DATf	:std_logic;
 signal	lCPURD_DAT	:std_logic_vector(1 downto 0);
 signal	lCPUWR_DAT	:std_logic_vector(1 downto 0);
@@ -294,12 +294,12 @@ signal	fmmf8det	:std_logic;
 signal	fmmfbdet	:std_logic;
 signal	fmmfcdet	:std_logic;
 signal	fmmfedet	:std_logic;
-signal	fmcurwid	:integer range 0 to maxbwidth*2;
+-- signal	fmcurwid	:integer range 0 to maxbwidth*2;
 signal	mfmrxdat	:std_logic_vector(7 downto 0);
 signal	mfmrxed		:std_logic;
 signal	mfmma1det	:std_logic;
 signal	mfmmc2det	:std_logic;
-signal	mfmcurwid	:integer range 0 to maxbwidth;
+-- signal	mfmcurwid	:integer range 0 to maxbwidth;
 
 signal	txdat		:std_logic_vector(7 downto 0);
 signal	fmtxwr		:std_logic;
@@ -329,7 +329,7 @@ signal	RDDAT_DAT	:std_logic_vector(7 downto 0);
 signal	nturns		:integer range 0 to 3;
 signal	indexb		:std_logic;
 signal	lindex		:std_logic;
-signal	contdata	:std_logic;
+-- signal	contdata	:std_logic;
 signal	track0b		:std_logic;
 signal	track0s		:std_logic;
 
@@ -643,17 +643,17 @@ begin
 		if(rstn='0')then
 			lIOWR_DAT<='0';
 			lIORD_DAT<='0';
-			lIORD_STA<='0';
+			-- lIORD_STA<='0';
 --			lWDAT<=(others=>'0');
 			CPUWRDAT<=(others=>'0');
 			CPUWR_DAT<='0';
 			CPURD_DAT<='0';
-			CPURD_STA<='0';
+			-- CPURD_STA<='0';
 			DRQ<='0';
 		elsif(sclk' event and sclk='1')then
 			CPUWR_DAT<='0';
 			CPURD_DAT<='0';
-			CPURD_STA<='0';
+			-- CPURD_STA<='0';
 			DMARDx<='0';
 			DMAWRx<='0';
 			if(IOWR_DAT='1')then
@@ -664,9 +664,9 @@ begin
 			if(IORD_DAT='0' and lIORD_DAT='1')then
 				CPURD_DAT<='1';
 			end if;
-			if(IORD_STA='0' and lIORD_STA='1')then
-				CPURD_STA<='1';
-			end if;
+			-- if(IORD_STA='0' and lIORD_STA='1')then
+			-- 	CPURD_STA<='1';
+			-- end if;
 			if(DMAWR='1')then
 				CPUWRDAT<=WDAT;
 			elsif(DMAWR='0' and lDMAWR='1')then
@@ -682,7 +682,7 @@ begin
 			end if;
 			lIOWR_DAT<=IOWR_DAT;
 			lIORD_DAT<=IORD_DAT;
-			lIORD_STA<=IORD_STA;
+			-- lIORD_STA<=IORD_STA;
 			lDMAWR<=DMAWR;
 			lDMARD<=DMARD;
 --			lWDAT<=WDAT;
@@ -712,20 +712,20 @@ begin
 			EOT		<=(others=>'0');
 			GPL		<=(others=>'0');
 			HD		<='0';
-			HLT		<=(others=>'0');
-			HUT		<=(others=>'0');
+			-- HLT		<=(others=>'0');
+			-- HUT		<=(others=>'0');
 			MF		<='0';
 			MT		<='0';
 			N		<=(others=>'0');
-			NCN		<=0;
+			-- NCN		<=0;
 			ND		<='0';
 			H		<=(others=>'0');
 			R		<=(others=>'0');
-			RW		<='0';
+			-- RW		<='0';
 			SC		<=(others=>'0');
 			SK		<='0';
 			SRT		<=(others=>'0');
-			STP		<=(others=>'0');
+			-- STP		<=(others=>'0');
 			US		<=(others=>'0');
 			datnum	<=0;
 			EXEC	<='0';
@@ -1056,7 +1056,7 @@ begin
 							US<=CPUWRDAT(1 downto 0);
 							HD<=CPUWRDAT(2);
 --							HD<='0';
-							NCN<=0;
+							-- NCN<=0;
 							C<=x"00";
 							RD_CMD<='0';
 							datnum<=datnum+1;
@@ -1111,13 +1111,13 @@ begin
 					case datnum is
 					when 1 =>
 						if(CPUWR_DAT='1')then
-							HUT<=CPUWRDAT(3 downto 0);
+							-- HUT<=CPUWRDAT(3 downto 0);
 							SRT<=CPUWRDAT(7 downto 4);
 							datnum<=datnum+1;
 						end if;
 					when 2 =>
 						if(CPUWR_DAT='1')then
-							HLT<=CPUWRDAT(7 downto 1);
+							-- HLT<=CPUWRDAT(7 downto 1);
 							ND<=CPUWRDAT(0);
 							RD_CMD<='1';
 							datnum<=0;
@@ -1157,7 +1157,7 @@ begin
 						end if;
 					when 2 =>
 						if(CPUWR_DAT='1')then
-							NCN<=conv_integer(CPUWRDAT);
+							-- NCN<=conv_integer(CPUWRDAT);
 							C<=CPUWRDAT;
 							RD_CMD<='0';
 							datnum<=datnum+1;
@@ -1256,7 +1256,7 @@ begin
 			rxH<=(others=>'0');
 			rxR<=(others=>'0');
 			rxN<=(others=>'0');
-			contdata<='0';
+			-- contdata<='0';
 			TCclr<='0';
 			INT<='0';
 			INTs<='0';
@@ -1285,7 +1285,7 @@ begin
 			sWC<='0';
 			sDD<='0';
 			sMD<='0';
-			iSE<='0';
+			-- iSE<='0';
 			sSH<='0';
 			txdat<=(others=>'0');
 			fmtxwr<='0';
@@ -1349,7 +1349,7 @@ begin
 					sEN<='0';
 					sSH<='0';
 					sMD<='0';
-					contdata<='0';
+					-- contdata<='0';
 					sRQM<='0';
 					sCM<='0';
 					DETSECT<='0';
@@ -1491,7 +1491,7 @@ begin
 							end if;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							end_EXEC<='1';
 							execstate<=es_IDLE;
 						end if;
@@ -1503,7 +1503,7 @@ begin
 						sMA<='0';
 						PCN<=cPCN;
 						INT<='1';
-						iSE<='0';
+						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					end if;
@@ -1519,7 +1519,7 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='1';
+							-- iSE<='1';
 							execstate<=es_idle;
 						end if;
 					when es_windex =>
@@ -1730,7 +1730,7 @@ begin
 									sIC<="01";
 									sWC<='1';
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 									end_EXEC<='1';
 									execstate<=es_IDLE;
 								end if;
@@ -1837,7 +1837,7 @@ begin
 									PCN<=cPCN;
 									sIC<="00";
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 								end if;
 								RDDAT_DAT<=fmrxdat;
 								sDIOd<='1';
@@ -1856,7 +1856,7 @@ begin
 									PCN<=cPCN;
 									sIC<="00";
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 								end if;
 								RDDAT_DAT<=mfmrxdat;
 								sDIOd<='1';
@@ -1880,7 +1880,7 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							end_EXEC<='1';
 							execstate<=es_IDLE;
 						end if;
@@ -1940,7 +1940,7 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									INT<='1';
-									iSE<='1';
+									-- iSE<='1';
 									end_EXEC<='1';
 								elsif(R>=EOT)then
 									sEN<='1';
@@ -1950,12 +1950,12 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									INT<='1';
-									iSE<='1';
+									-- iSE<='1';
 									end_EXEC<='1';
 								else
 									nturns<=0;
 									crcclr<='1';
-									contdata<='1';
+									-- contdata<='1';
 									DETSECT<='0';
 									execstate<=es_IAM0;
 								end if;
@@ -1967,7 +1967,7 @@ begin
 								sDD<='1';
 								PCN<=cPCN;
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 								execstate<=es_idle;
 								end_EXEC<='1';
 							end if;
@@ -1983,7 +1983,7 @@ begin
 						sUS<=US;
 						PCN<=cPCN;
 						INT<='1';
-						iSE<='0';
+						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					elsif(execstate/=es_seek and lindex='1' and indexb='0')then
@@ -2016,7 +2016,7 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							sIC<="01";
 							sND<='1';
 							sMA<='1';
@@ -2031,7 +2031,7 @@ begin
 						sMA<='0';
 						PCN<=cPCN;
 						INT<='1';
-						iSE<='0';
+						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					end if;
@@ -2047,7 +2047,7 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='1';
+							-- iSE<='1';
 							execstate<=es_idle;
 						end if;
 					when es_windex =>
@@ -2267,7 +2267,7 @@ begin
 									sIC<="01";
 									sWC<='1';
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 									end_EXEC<='1';
 									execstate<=es_IDLE;
 								end if;
@@ -2339,7 +2339,7 @@ begin
 									PCN<=cPCN;
 									sIC<="00";
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 								end if;
 								sRQM<='1';
 								sDIOd<='0';
@@ -2401,7 +2401,7 @@ begin
 								PCN<=cPCN;
 								sIC<="00";
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 							end if;
 							sRQM<='1';
 							sDIOd<='0';
@@ -2432,7 +2432,7 @@ begin
 							PCN<=cPCN;
 							sIC<="01";
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							execstate<=es_IDLE;
 							end_EXEC<='1';
 						end if;
@@ -2446,7 +2446,7 @@ begin
 								PCN<=cPCN;
 								sIC<="00";
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 							end if;
 							sRQM<='1';
 							sDIOd<='0';
@@ -2508,11 +2508,11 @@ begin
 								sUS<=US;
 								PCN<=cPCN;
 								INT<='1';
-								iSE<='1';
+								-- iSE<='1';
 								end_EXEC<='1';
 							else
 								nturns<=0;
-								contdata<='1';
+								-- contdata<='1';
 								crcclr<='1';
 								execstate<=es_IAM0;
 							end if;
@@ -2788,7 +2788,7 @@ begin
 								sMA<='1';
 								PCN<=cPCN;
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 								end_EXEC<='1';
 								execstate<=es_IDLE;
 							end if;
@@ -2801,7 +2801,7 @@ begin
 						sMA<='0';
 						PCN<=cPCN;
 						INT<='1';
-						iSE<='0';
+						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					end if;
@@ -3004,7 +3004,7 @@ begin
 								sUS<=US;
 								PCN<=cPCN;
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 								setC<='1';
 								if(rxH=x"00")then
 									resH<='1';
@@ -3023,7 +3023,7 @@ begin
 								sMA<='0';
 								PCN<=cPCN;
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 								end_EXEC<='1';
 								execstate<=es_IDLE;
 								crcclr<='1';
@@ -3050,7 +3050,7 @@ begin
 							end if;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							end_EXEC<='1';
 							execstate<=es_IDLE;
 						end if;
@@ -3062,7 +3062,7 @@ begin
 						sMA<='0';
 						PCN<=cPCN;
 						INT<='1';
-						iSE<='0';
+						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					end if;
@@ -3078,7 +3078,7 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='1';
+							-- iSE<='1';
 							execstate<=es_idle;
 						end if;
 					when es_windex =>
@@ -3289,7 +3289,7 @@ begin
 									sIC<="01";
 									sWC<='1';
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 									end_EXEC<='1';
 									execstate<=es_IDLE;
 								end if;
@@ -3398,7 +3398,7 @@ begin
 									PCN<=cPCN;
 									sIC<="00";
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 								end if;
 								COMPDAT<=fmrxdat;
 								sDIOd<='0';
@@ -3417,7 +3417,7 @@ begin
 									PCN<=cPCN;
 									sIC<="00";
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 								end if;
 								COMPDAT<=mfmrxdat;
 								sDIOd<='0';
@@ -3458,7 +3458,7 @@ begin
 								sUS<=US;
 								PCN<=cPCN;
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 								end_EXEC<='1';
 								execstate<=es_IDLE;
 							end if;
@@ -3469,7 +3469,7 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							end_EXEC<='1';
 							execstate<=es_IDLE;
 						end if;
@@ -3534,7 +3534,7 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									INT<='1';
-									iSE<='1';
+									-- iSE<='1';
 									end_EXEC<='1';
 								elsif(R>=EOT)then
 									sEN<='1';
@@ -3544,12 +3544,12 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									INT<='1';
-									iSE<='1';
+									-- iSE<='1';
 									end_EXEC<='1';
 								else
 									nturns<=0;
 									crcclr<='1';
-									contdata<='1';
+									-- contdata<='1';
 									DETSECT<='0';
 									execstate<=es_IAM0;
 								end if;
@@ -3561,7 +3561,7 @@ begin
 								sDD<='1';
 								PCN<=cPCN;
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 								execstate<=es_idle;
 								end_EXEC<='1';
 							end if;
@@ -3577,7 +3577,7 @@ begin
 						sHD<=HD;
 						sUS<=US;
 						INT<='1';
-						iSE<='0';
+						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					elsif(lindex='1' and indexb='0')then
@@ -3588,7 +3588,7 @@ begin
 							PCN<=cPCN;
 							sIC<="00";
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							end_EXEC<='1';
 							execstate<=es_IDLE;
 						end if;
@@ -3600,7 +3600,7 @@ begin
 						sMA<='0';
 						PCN<=cPCN;
 						INT<='1';
-						iSE<='0';
+						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					end if;
@@ -3747,7 +3747,7 @@ begin
 									PCN<=cPCN;
 									sIC<="00";
 									INT<='1';
-									iSE<='0';
+									-- iSE<='0';
 								end if;
 								sRQM<='1';
 								sDIOd<='0';
@@ -3784,7 +3784,7 @@ begin
 								PCN<=cPCN;
 								sIC<="00";
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 							end if;
 							sRQM<='1';
 							sDIOd<='0';
@@ -3821,7 +3821,7 @@ begin
 							PCN<=cPCN;
 							sIC<="01";
 							INT<='1';
-							iSE<='0';
+							-- iSE<='0';
 							execstate<=es_IDLE;
 							end_EXEC<='1';
 						end if;
@@ -3835,7 +3835,7 @@ begin
 								PCN<=cPCN;
 								sIC<="00";
 								INT<='1';
-								iSE<='0';
+								-- iSE<='0';
 							end if;
 							sRQM<='1';
 							sDIOd<='0';
@@ -4091,7 +4091,7 @@ begin
 							PCN<=cPCN;
 							sIC<="00";
 							INTs<='1';
-							iSE<='1';
+							-- iSE<='1';
 							sRQM<='1';
 							end_EXEC<='1';
 						elsif(seek_err='1')then
@@ -4100,7 +4100,7 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							INTs<='1';
-							iSE<='1';
+							-- iSE<='1';
 							sRQM<='1';
 							end_EXEC<='1';
 							execstate<=es_idle;
@@ -4424,7 +4424,7 @@ port map(
 	DetMFC	=>fmmfcdet,
 	DetMFE	=>fmmfedet,
 	
-	curlen	=>fmcurwid,
+	-- curlen	=>fmcurwid,
 	
 	clk		=>fclk,
 	rstn	=>rstn
@@ -4446,7 +4446,7 @@ port map(
 	DetMA1	=>mfmma1det,
 	DetMC2	=>mfmmc2det,
 	
-	curlen	=>mfmcurwid,
+	-- curlen	=>mfmcurwid,
 	
 	clk		=>fclk,
 	rstn	=>rstn

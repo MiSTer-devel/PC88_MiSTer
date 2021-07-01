@@ -144,8 +144,8 @@ signal	KB_WRn		:std_logic;
 signal	KB_BUSY		:std_logic;
 signal	KB_RXED		:std_logic;
 signal	KB_RESET	:std_logic;
-signal	KB_COL		:std_logic;
-signal	KB_PERR		:std_logic;
+-- signal	KB_COL		:std_logic;
+-- signal	KB_PERR		:std_logic;
 signal	WAITCNT		:integer range 0 to 5;
 constant waitcont	:integer	:=1;
 constant waitsep	:integer	:=20;
@@ -201,8 +201,8 @@ begin
 	BUSY	=>KB_BUSY,
 	RXED	=>KB_RXED,
 	RESET	=>KB_RESET,
-	COL		=>KB_COL,
-	PERR	=>KB_PERR,
+	-- COL		=>KB_COL,
+	-- PERR	=>KB_PERR,
 	
 	KBCLKIN	=>KBCLKIN,
 	KBCLKOUT=>KBCLKOUT,

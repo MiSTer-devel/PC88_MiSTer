@@ -205,8 +205,8 @@ begin
 	MONOFL2<=(others=>MONOEN(2));
 	
 	process (clk,rstn)
-	variable VVISCOUNT :integer range 0 to VIV-1;
-	variable VVISCV	:std_logic_vector(8 downto 0);
+	-- variable VVISCOUNT :integer range 0 to VIV-1;
+	-- variable VVISCV	:std_logic_vector(8 downto 0);
 	variable BNXTDOT	:std_logic_vector(7 downto 0);
 	begin
 		if(rstn='0')then
@@ -223,12 +223,12 @@ begin
 				RADR<=(others=>'0');
 			end if;
 
-			if(VCOUNT>=VIV)then
-				VVISCOUNT:=VCOUNT-VIV;
-			else
-				VVISCOUNT:=0;
-			end if;
-			VVISCV:=conv_std_logic_vector(VVISCOUNT,9);
+			-- if(VCOUNT>=VIV)then
+			--	VVISCOUNT:=VCOUNT-VIV;
+			-- else
+			--	VVISCOUNT:=0;
+			--end if;
+			-- VVISCV:=conv_std_logic_vector(VVISCOUNT,9);
 
 			if(UCOUNT=4)then
 				if(VCOUNT>=VIV and HUCOUNT>=HIV)then

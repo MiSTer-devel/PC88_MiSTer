@@ -41,7 +41,7 @@ signal	XINT		:std_logic_vector(16 downto 0);
 signal	XINTw		:std_logic_vector(17+intwidth downto 0);
 signal	SIG		:std_logic;
 signal	lSIG		:std_logic;
-signal	CARRYb	:std_logic;
+-- signal	CARRYb	:std_logic;
 
 type state_t is (
 	st_IDLE,
@@ -128,7 +128,7 @@ begin
 			Xdelta<=(others=>'0');
 			lXdelta<=(others=>'0');
 			OUTDAT<=(others=>'0');
-			CARRYb<='0';
+			-- CARRYb<='0';
 			SIG<='0';
 			lSIG<='0';
 		elsif(clk' event and clk='1')then
@@ -148,7 +148,7 @@ begin
 					lSIG<='0';
 					state<=st_IDLE;
 				elsif(WR='1')then
-					CARRYb<=CARRY;
+					-- CARRYb<=CARRY;
 					if(CARRY='1')then
 						lXdelta<=Xdelta;
 						PCMDAT<=INDAT;

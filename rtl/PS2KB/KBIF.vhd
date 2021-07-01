@@ -45,7 +45,7 @@ signal	LASTCLK	:std_logic;
 constant BITCNT		:integer	:=STCLK*SFTCYC/1000;
 constant TOCNT		:integer	:=TOUT*SFTCYC/1000;
 signal	TIMECNT	:integer range 0 to BITCNT;
-signal	LASTWRn		:std_logic;
+-- signal	LASTWRn		:std_logic;
 signal	RXDAT	:std_logic_vector(7 downto 0);
 
 component PARGEN
@@ -82,10 +82,10 @@ begin
 			COL<='0';
 			PERR<='0';
 			TIMECNT<=0;
-			LASTWRn<='1';
+			-- LASTWRn<='1';
 		elsif(clk' event and clk='1')then
 			LASTCLK<=KBCLKIN;
-			LASTWRn<=WRn;
+			-- LASTWRn<=WRn;
 			RXED<='0';
 			if(RESET='1')then
 				STATE<=ST_IDLE;

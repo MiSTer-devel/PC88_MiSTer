@@ -191,10 +191,10 @@ signal	wrprot	:std_logic_vector(1 downto 0);
 signal	diskmode0	:std_logic_vector(1 downto 0);
 signal	diskmode1	:std_logic_vector(1 downto 0);
 signal	diskmode		:std_logic_vector(1 downto 0);
-signal	fde_wrmode	:std_logic_vector(7 downto 0);
+-- signal	fde_wrmode	:std_logic_vector(7 downto 0);
 signal	fde_modeset	:std_logic_vector(1 downto 0);
 
-signal	fde_wrote	:std_logic_vector(3 downto 0);
+-- signal	fde_wrote	:std_logic_vector(3 downto 0);
 
 signal	tblramwr	:std_logic;
 signal	tblramsel	:std_logic;
@@ -237,10 +237,10 @@ signal	fdsectwr		:std_logic;
 
 signal	bytecount	:integer range 0 to 2047;
 signal	mfm		:std_logic;
-signal	mfm0		:std_logic;
-signal	mfm1		:std_logic;
-signal	mfm0m		:std_logic;
-signal	mfm1m		:std_logic;
+-- signal	mfm0		:std_logic;
+-- signal	mfm1		:std_logic;
+-- signal	mfm0m		:std_logic;
+-- signal	mfm1m		:std_logic;
 signal	numsect	:std_logic_vector(15 downto 0);
 signal	sectcount:std_logic_vector(15 downto 0);
 signal	cursecthead	:std_logic_vector(31 downto 0);
@@ -894,8 +894,8 @@ begin
 			fdstate<=fs_idle;
 			swait:=0;
 			mfm<='0';
-			mfm0<='0';
-			mfm1<='0';
+			-- mfm0<='0';
+			-- mfm1<='0';
 			trackno<=(others=>'0');
 			track_curaddr<=(others=>'0');
 			img_rd<='0';
@@ -1013,10 +1013,10 @@ begin
 					if(img_busy='0')then
 						mfm<=not img_rddat(6);
 						case emustate is
-						when es_fload0 =>
-							mfm0<=not img_rddat(6);
-						when es_fload1 =>
-							mfm1<=not img_rddat(6);
+						-- when es_fload0 =>
+							-- mfm0<=not img_rddat(6);
+						-- when es_fload1 =>
+							-- mfm1<=not img_rddat(6);
 						when others =>
 						end case;
 						track_curaddr<=(others=>'0');
@@ -1943,8 +1943,8 @@ begin
 				'0' when fbufstate=ss_idle else
 				'1';
 	
-	mfm0m<=	fdc_mfm when fdc_wrenn='0' else mfm0;
-	mfm1m<=	fdc_mfm when fdc_wrenn='0' else mfm1;
+	-- mfm0m<=	fdc_mfm when fdc_wrenn='0' else mfm0;
+	-- mfm1m<=	fdc_mfm when fdc_wrenn='0' else mfm1;
 
 	fdc_usel<=	"00" when fdc_useln="10" else
 					"01" when fdc_useln="01" else
@@ -1965,9 +1965,9 @@ begin
 		ramwait		=>fde_ramwait,
 
 		rdfdmode		=>"0000" & diskmode1 & diskmode0,
-		curfdmode	=>fde_wrmode,
+		-- curfdmode	=>fde_wrmode,
 		modeset		=>"00" & fde_modeset,
-		wrote			=>fde_wrote,
+		-- wrote			=>fde_wrote,
 		wprot			=>"00" & wrprot,
 		tracklen		=>fde_tracklen,
 		

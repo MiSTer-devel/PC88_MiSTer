@@ -45,7 +45,7 @@ signal	REG		:std_logic_vector(7 downto 0);
 signal	PA,PB,PC:std_logic_vector(7 downto 0);
 signal	RD		:std_logic;
 signal	WR		:std_logic;
-signal	MODE	:std_logic_vector(1 downto 0);
+-- signal	MODE	:std_logic_vector(1 downto 0);
 begin
 	RD<='1' when CSn='0' and RDn='0' else '0';
 	WR<='1' when CSn='0' and WRn='0' else '0';
@@ -71,7 +71,7 @@ begin
 				when "11" =>
 					REG<=DATIN;
 					if(DATIN(7)='1')then	--mode select
-						MODE<=DATIN(6 downto 5);
+						-- MODE<=DATIN(6 downto 5);
 						OE_A<=not DATIN(4);
 						OE_CH<=not DATIN(3);
 						OE_B<=not DATIN(1);
