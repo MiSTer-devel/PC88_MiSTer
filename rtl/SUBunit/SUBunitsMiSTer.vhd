@@ -27,14 +27,14 @@ port(
 	SUBIO_PCLI		:in std_logic_vector(3 downto 0);
 	SUBIO_PCLO		:out std_logic_vector(3 downto 0);
 	
-	dmon0			:out std_logic_vector(7 downto 0);
-	dmon1			:out std_logic_vector(7 downto 0);
-	dmon2			:out std_logic_vector(7 downto 0);
-	dmon3			:out std_logic_vector(7 downto 0);
-	dmon4			:out std_logic_vector(7 downto 0);
-	dmon5			:out std_logic_vector(7 downto 0);
-	dmon6			:out std_logic_vector(7 downto 0);
-	dmon7			:out std_logic_vector(7 downto 0);
+	-- dmon0			:out std_logic_vector(7 downto 0);
+	-- dmon1			:out std_logic_vector(7 downto 0);
+	-- dmon2			:out std_logic_vector(7 downto 0);
+	-- dmon3			:out std_logic_vector(7 downto 0);
+	-- dmon4			:out std_logic_vector(7 downto 0);
+	-- dmon5			:out std_logic_vector(7 downto 0);
+	-- dmon6			:out std_logic_vector(7 downto 0);
+	-- dmon7			:out std_logic_vector(7 downto 0);
 	
 	FD_SYNC		:in std_logic_Vector(1 downto 0);
 	
