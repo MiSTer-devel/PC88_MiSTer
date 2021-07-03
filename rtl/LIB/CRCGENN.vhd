@@ -83,7 +83,7 @@ begin
 		end if;
 	end process;
 
-	process(CRCbuf)begin
+	process(CRCbuf,CLRDAT)begin
 		for i in 0 to WIDTH-1 loop
 			CRCdir(i)<=CRCbuf(WIDTH-i-1);
 			CLRDATdir(i)<=CLRDAT(WIDTH-i-1);

@@ -1994,7 +1994,7 @@ port map(
 	vidG8<=vidG3 & vidG3 & vidG3(2 downto 1);
 	vidB8<=vidB3 & vidB3 & vidB3(2 downto 1);
 	
-	process(gclk,rstn)begin
+	process(gclk,srstn)begin
 		if(srstn='0')then
 			hdmiclk<='0';
 		elsif(gclk' event and gclk='1')then

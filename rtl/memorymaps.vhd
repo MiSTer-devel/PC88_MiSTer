@@ -223,7 +223,7 @@ begin
 	
 	IO71<=	"1111111" & IEROMn;
 	
-	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71)begin
+	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71,extwe,extre,extsel)begin
 		if(CPU_IORQn='1' or CPU_RDn='1')then
 			CPU_RDAT<=(others=>'1');
 			CPU_OE<='0';
