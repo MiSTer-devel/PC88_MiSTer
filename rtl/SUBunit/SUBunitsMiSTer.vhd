@@ -575,8 +575,8 @@ signal	CPUrstn	:std_logic;
 signal	EMUINITDONEb	:std_logic;
 signal	IDAT	:std_logic_vector(7 downto 0);
 signal	CPUDAT	:std_logic_vector(7 downto 0);
-signal	IDAT_IO12	:std_logic_vector(7 downto 0);
-signal	IO12_OE		:std_logic;
+-- signal	IDAT_IO12	:std_logic_vector(7 downto 0);
+-- signal	IO12_OE		:std_logic;
 signal	IDAT_PPI	:std_logic_vector(7 downto 0);
 signal	PPI_OE		:std_logic;
 signal	IDAT_FDC	:std_logic_vector(7 downto 0);
@@ -675,7 +675,7 @@ begin
 	
 	CPUDAT<=	IDAT_INT	when INT_OE='1'  else
 				RAMRDAT when RAMCE='1' and RDn='0' else
-				IDAT_IO12	when IO12_OE='1' else
+				-- IDAT_IO12	when IO12_OE='1' else
 				IDAT_PPI	when PPI_OE='1' else
 				IDAT_FDC	when FDC_OE='1'  else
 				(others=>'Z');
