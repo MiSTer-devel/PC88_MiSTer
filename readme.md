@@ -1,6 +1,8 @@
 # [NEC PC8801](https://en.wikipedia.org/wiki/PC88) for [MiSTer Platform](https://github.com/MiSTer-devel/Main_MiSTer/wiki)
 
 This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/21233167-1.html) core by Puu-san.
+Thanks for the help of Alanswx and Kitrinx
+Thanks to Sorgelig
 
 ## Features
 * Modes N, N88V1L, N88V1H, N88V2
@@ -31,9 +33,16 @@ copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.ro
 ## Known Issues
 - Timing issues
 - Gamma correction doesn't seem to change anything (?)
+- Some floppy formats are not implemented (like for YS1, YS2, ...)
+- ADPCM (incomplete)
+- Some games have severe graphical issues
 
 ## TODO
 - Update T80 cpu
 - Add choice Sound YM2203 or YM2603 on the OSD
 - Add Audio Mix
+- Add Mouse support required for some games
+- Add support of multi-resolution
+- Add support of cassettes
+- Add support of other models like PC8801MC
 - ...
