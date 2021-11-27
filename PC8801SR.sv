@@ -296,7 +296,6 @@ wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din;
 wire        sd_buff_wr;
-wire [15:0] sd_req_type = 0;
 wire  [3:0] img_mounted;
 wire  [3:0] img_readonly;
 wire [63:0] img_size;
@@ -316,15 +315,14 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 	.status(status),
 	.status_menumask({en400p}),
 
-	.sd_lba(sd_lba),
+	.sd_lba('{sd_lba,sd_lba,sd_lba,sd_lba}),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
+	.sd_buff_din('{sd_buff_din,sd_buff_din,sd_buff_din,sd_buff_din}),
 	.sd_buff_wr(sd_buff_wr),
-	.sd_req_type(sd_req_type),
  
 	.img_mounted(img_mounted),
 	.img_readonly(img_readonly),
