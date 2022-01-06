@@ -206,7 +206,6 @@ parameter CONF_STR = {
 	"-;",
 	"O78,Mode,N88V2,N88V1H,N88V1L,N;",
 	"O9,Speed,4MHz,8MHz;",
-	"R6,Reset;",
 	"-;",
 	"S0,D88,FDD0;",
 	"S1,D88,FDD1;",
@@ -217,6 +216,8 @@ parameter CONF_STR = {
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
 	"OD,Disk boot,Enable,Disable;",
+	"-;",
+	"R6,Reset;",
 	"J,Fire 1,Fire 2;",
 	"V,v",`BUILD_DATE
 };
