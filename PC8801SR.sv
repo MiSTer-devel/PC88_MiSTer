@@ -202,6 +202,8 @@ parameter CONF_STR = {
 	"-;",
 	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
+	"OHJ,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"-;",
 	"O78,Mode,N,N88V1L,N88V1H,N88V2;",
 	"O9,Speed,4MHz,8MHz;",
 	"R6,Reset;",
@@ -215,7 +217,6 @@ parameter CONF_STR = {
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
 	"OD,Disk boot,Enable,Disable;",
-	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"J,Fire 1,Fire 2;",
 	"V,v",`BUILD_DATE
 };
@@ -513,7 +514,7 @@ video_freak video_freak
 );
 
 
-wire [2:0] scale = status[17:15];
+wire [2:0] scale = status[19:17];
 wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
 
 // wire freeze = 0;
