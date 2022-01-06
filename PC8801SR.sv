@@ -18,7 +18,6 @@
 //  with this program; if not, write to the Free Software Foundation, Inc.,
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
-
 module emu
 (
 	//Master input clock
@@ -29,7 +28,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
+	inout  [47:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -172,7 +171,6 @@ module emu
 
 	input         OSD_STATUS
 );
-
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
@@ -200,7 +198,7 @@ wire [1:0] ar = status[2:1];
 
 `include "build_id.v" 
 parameter CONF_STR = {
-	"PC8801mk2SR;;",
+	"PC8801;;",
 	"-;",
 	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
