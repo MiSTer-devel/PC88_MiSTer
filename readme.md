@@ -13,7 +13,7 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 * Sound chip YM2603 by default and ADPCM (incomplete)
 
 ## Installation
-Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801mk2SR** folder on the root/games of the card, and place PC8801 floppies (\*.D88) inside this folder. 
+Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801** folder on the root/games of the card, and place PC8801 floppies (\*.D88) inside this folder. 
 - boot.rom = PC8801 MKII SR BIOS file.  Required to start the core.
 
 ## How to build the boot.rom
