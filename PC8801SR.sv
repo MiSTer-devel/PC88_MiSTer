@@ -204,7 +204,7 @@ parameter CONF_STR = {
 	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"OHJ,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"-;",
-	"O78,Mode,N,N88V1L,N88V1H,N88V2;",
+	"O78,Mode,N88V2,N88V1H,N88V1L,N;",
 	"O9,Speed,4MHz,8MHz;",
 	"R6,Reset;",
 	"-;",
@@ -213,7 +213,7 @@ parameter CONF_STR = {
 	"RF,SYNC FD0;",
 	"RG,SYNC FD1;",
 	"-;",
-	"OA,Basic mode,Terminal,Basic;",
+	"OA,Basic mode,Basic,Terminal;",
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
 	"OD,Disk boot,Enable,Disable;",
@@ -366,9 +366,9 @@ end
 wire reset = buttons[1] | status[6];
 ///////////////////////////////////////////////////
 
-wire [1:0] basicmode=status[8:7];
+wire [1:0] basicmode=~status[8:7];
 wire clkmode=status[9];
-wire cBT		=status[10];
+wire cBT		=~status[10];
 wire	c40C	=status[11];
 wire	c20L	=status[12];
 wire	cDisk	=status[13];
