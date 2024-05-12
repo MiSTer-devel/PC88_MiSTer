@@ -1080,7 +1080,7 @@ begin
 						RD_CMD<='1';
 						sDIOc<='1';
 						if(SISen='1')then
-							RDDAT_CMD<=ST0;
+							RDDAT_CMD<=(ST0 and x"FB");
 							SEclr<='1';
 							datnum<=datnum+1;
 						else
