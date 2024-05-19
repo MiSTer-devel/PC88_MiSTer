@@ -7,6 +7,7 @@ entity TRAMCONV is
 port(
 	TVRMODE		:in std_logic;
 	TMODE		:in std_logic;
+	SMODE		:in std_logic;
 	COLOR		:in std_logic;
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
@@ -53,7 +54,7 @@ signal	CURATR	:std_logic_vector(7 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to LINES;
-type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS);
+type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_SKIPATR);
 signal	STATE	:STATE_T;
 --signal	STATE	:integer range 0 to 12;
 --	constant ST_IDLE	:integer	:=0;
@@ -79,6 +80,7 @@ signal	RDADR		:std_logic_vector(15 downto 0);
 signal	waitcount	:integer range 0 to 5;
 signal	iATTRLEN	:integer range 0 to 31;
 signal	LINEADD		:std_logic_vector(15 downto 0);
+signal	LINESKIP	:std_logic;
 
 begin
 
@@ -116,6 +118,7 @@ begin
 			TVRAM_WR<='0';
 			DONE<='0';
 			waitcount<=0;
+			LINESKIP<='0';
 		elsif(clk' event and clk='1')then
 			TVRAM_WR<='0';
 			DONE<='0';
@@ -138,6 +141,7 @@ begin
 						TVRAM_ADR<=(others=>'0');
 						LINECNT<=0;
 						CURATR<="00000111";
+						LINESKIP<='0';
 					elsif(lHRET='1' and HRET='0' and (TEXTEN='1' or rTMODE='0'))then
 						CHARCNT<=0;
 						ATRCNT<=0;
@@ -172,7 +176,11 @@ begin
 					if(rTMODE='0' or MRAM_WAIT='0')then
 						MRAM_RDn<='1';
 						TVRAM_ADR<=CDSTADR;
-						TVRAM_WDAT<=RDDAT;
+						if (LINESKIP='1')then
+							TVRAM_WDAT<=x"00";
+						else
+							TVRAM_WDAT<=RDDAT;
+						end if;
 						STATE<=ST_WRTXT;
 					end if;
 				when ST_WRTXT =>
@@ -185,8 +193,16 @@ begin
 					else
 						CDSTADR<=SDSTADR+"001";
 						CHARCNT<=0;
-						STATE<=ST_RDATR;
+						if (LINESKIP='1')then
+							STATE<=ST_SKIPATR;
+						else
+							STATE<=ST_RDATR;
+						end if;
 					end if;
+				when ST_SKIPATR =>
+					CURATR<=x"83";
+					NXTATR<=x"50";
+					STATE<=ST_SETATR;
 				when ST_RDATR =>
 					MRAM_RDn<='0';
 					RDADR<=CATRADR;
@@ -254,10 +270,17 @@ begin
 						CHARCNT<=CHARCNT+1;
 						STATE<=ST_SETATR;
 					else
-						CTXTADR<=STXTADR+LINEADD;
-						STXTADR<=STXTADR+LINEADD;
-						CATRADR<=SATRADR+LINEADD;
-						SATRADR<=SATRADR+LINEADD;
+						if(SMODE='1' and LINESKIP='0')then
+							CTXTADR<=STXTADR;
+							CATRADR<=SATRADR;
+							LINESKIP<='1';
+						else
+							CTXTADR<=STXTADR+LINEADD;
+							STXTADR<=STXTADR+LINEADD;
+							CATRADR<=SATRADR+LINEADD;
+							SATRADR<=SATRADR+LINEADD;
+							LINESKIP<='0';
+						end if;
 						CDSTADR<=SDSTADR+x"0a0";
 						SDSTADR<=SDSTADR+x"0a0";
 						CHARCNT<=0;
