@@ -81,6 +81,7 @@ signal	waitcount	:integer range 0 to 5;
 signal	iATTRLEN	:integer range 0 to 31;
 signal	LINEADD		:std_logic_vector(15 downto 0);
 signal	LINESKIP	:std_logic;
+signal	fATTR		:std_logic_vector(79 downto 0);
 
 begin
 
@@ -92,6 +93,7 @@ begin
 	
 	process(clk,rstn)
 	variable iNXTATR	:integer range 0 to 255;
+	variable iCOUNTER	:integer;
 	begin
 		if(rstn='0')then
 			STATE<=ST_IDLE;
@@ -159,6 +161,9 @@ begin
 						elsif(LINECNT=LINES)then
 							DONE<='1';
 						end if;
+						for iCOUNTER in 0 to 79 loop
+							fATTR(iCOUNTER)<='0';
+						end loop;
 					end if;
 				when ST_GETBUS =>
 					if(BUSACKn='0')then
@@ -201,7 +206,6 @@ begin
 					end if;
 				when ST_SKIPATR =>
 					CURATR<=x"83";
-					NXTATR<=x"50";
 					STATE<=ST_SETATR;
 				when ST_RDATR =>
 					MRAM_RDn<='0';
@@ -212,10 +216,18 @@ begin
 					end if;
 				when ST_RDATR1 =>
 					if(rTMODE='0' or MRAM_WAIT='0')then
-						NXTATR<=RDDAT;
+						fATTR(conv_integer(RDDAT))<='1';
 						MRAM_RDn<='1';
-						STATE<=ST_RDATR2;
-						CATRADR<=CATRADR+1;
+						if (ATRCNT=iATTRLEN)then
+							CATRADR<=SATRADR+1;
+							ATRCNT<=0;
+							fATTR(0)<='0';
+							STATE<=ST_RDATR2;
+						else
+							CATRADR<=CATRADR+2;
+							ATRCNT<=ATRCNT+1;
+							STATE<=ST_RDATR;
+						end if;
 					end if;
 				when ST_RDATR2 =>
 					RDADR<=CATRADR;
@@ -247,28 +259,23 @@ begin
 						STATE<=ST_SETATR;
 					end if;
 				when ST_SETATR =>
-					iNXTATR:=conv_integer(NXTATR);
-					if(CHARCNT<iNXTATR)then
-						TVRAM_ADR<=CDSTADR;
-						TVRAM_WDAT<=CURATR;
-						STATE<=ST_SETATR1;
-					else
-						if(ATRCNT<iATTRLEN)then
-							ATRCNT<=ATRCNT+1;
-							CATRADR<=CATRADR+1;
-							STATE<=ST_RDATR;
-						else
-							NXTATR<=x"80";
-						end if;
-					end if;
+					TVRAM_ADR<=CDSTADR;
+					TVRAM_WDAT<=CURATR;
+					STATE<=ST_SETATR1;
 				when ST_SETATR1 =>
 					TVRAM_WR<='1';
+					CHARCNT<=CHARCNT+1;
 					STATE<=ST_SETATR2;
 				when ST_SETATR2 =>
-					if(CHARCNT<LINECHARS-1)then
+					if(CHARCNT<LINECHARS)then
 						CDSTADR<=CDSTADR+x"002";
-						CHARCNT<=CHARCNT+1;
-						STATE<=ST_SETATR;
+						if((fATTR(CHARCNT)='1') and (ATRCNT<iATTRLEN))then
+							CATRADR<=CATRADR+2;
+							ATRCNT<=ATRCNT+1;
+							STATE<=ST_RDATR2;
+						else
+							STATE<=ST_SETATR;
+						end if;
 					else
 						if(SMODE='1' and LINESKIP='0')then
 							CTXTADR<=STXTADR;
