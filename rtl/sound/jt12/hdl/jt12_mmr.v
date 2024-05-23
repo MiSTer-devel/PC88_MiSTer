@@ -124,10 +124,13 @@ module jt12_mmr(
     output  [3:0]   psg_addr,
     output  [7:0]   psg_data,
     output  reg     psg_wr_n,
-    input   [7:0]   debug_bus
+    input   [7:0]   debug_bus,
+
+    // Bus select
+    output          sel_chipid
 );
 
-parameter use_ssg=0, num_ch=6, use_pcm=1, use_adpcm=0, mask_div=1;
+parameter use_ssg=0, num_ch=6, use_pcm=1, use_adpcm=0, mask_div=1, use_chipid=0;
 
 jt12_div #(.use_ssg(use_ssg)) u_div (
     .rst            ( rst             ),
@@ -190,6 +193,11 @@ generate
     end else begin
         assign psg_addr = 4'd0;
         assign psg_data = 8'd0;
+    end
+    if( use_chipid ) begin
+        assign sel_chipid = (selected_register == 8'hff) ? 1'b1 : 1'b0;
+    end else begin
+        assign sel_chipid = 1'b0;
     end
 endgenerate
 

@@ -45,6 +45,8 @@ module jt12_top (
     output  [23:0]  adpcmb_addr,  // real hardware has 12 pins multiplexed through PMPX pin
     input   [ 7:0]  adpcmb_data,
     output          adpcmb_roe_n, // ADPCM-B ROM output enable
+    output          adpcmb_wr_n,  // ADPCM-B RAM write strobe
+    output  [ 7:0]  adpcmb_dout,
     // I/O pins used by YM2203 embedded YM2149 chip
     input      [7:0] IOA_in,
     input      [7:0] IOB_in,
@@ -79,6 +81,7 @@ parameter use_adpcm=0;
 parameter JT49_DIV=2,
           YM2203_LUMPED=0;
 parameter mask_div=1;
+parameter use_chipid=0;
 
 wire flag_A, flag_B, busy;
 
@@ -171,6 +174,8 @@ wire        adpcmb_flag;
 wire [ 6:0] flag_ctl;
 wire [ 6:0] flag_mask;
 wire [ 1:0] div_setting;
+// CONTROL
+wire        sel_chipid;
 
 wire clk_en_2, clk_en_666, clk_en_111, clk_en_55;
 
@@ -245,6 +250,8 @@ if( use_adpcm==1 ) begin: gen_adpcm
         .pcm55_l    ( adpcmB_l      ),
         .pcm55_r    ( adpcmB_r      )
     );
+    assign adpcmb_wr_n  = 1'b1;
+    assign adpcmb_dout  = 8'h0;
 
     assign snd_sample   = zero;
     jt10_acc u_acc(
@@ -278,17 +285,20 @@ end else begin : gen_adpcm_no
     assign adpcma_roe_n = 'b1;
     assign adpcmb_addr  = 'd0;
     assign adpcmb_roe_n = 'd1;
+    assign adpcmb_wr_n  = 'b1;
+    assign adpcmb_dout  = 8'd0;
     assign adpcma_flags = 0;
     assign adpcmb_flag  = 0;
 end
 endgenerate
 
-jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm)) u_dout(
+jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid)) u_dout(
 //    .rst_n          ( rst_n         ),
     .clk            ( clk           ),        // CPU clock
     .flag_A         ( flag_A        ),
     .flag_B         ( flag_B        ),
     .busy           ( busy          ),
+    .sel_chipid     ( sel_chipid    ),
     .adpcma_flags   ( adpcma_flags & flag_mask[5:0] ),
     .adpcmb_flag    ( adpcmb_flag & flag_mask[6]    ),
     .psg_dout       ( psg_dout      ),
@@ -296,7 +306,7 @@ jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm)) u_dout(
     .dout           ( dout          )
 );
 
-jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_adpcm), .mask_div(mask_div))
+jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_adpcm), .mask_div(mask_div), .use_chipid(use_chipid))
     u_mmr(
     .rst        ( rst       ),
     .clk        ( clk       ),
@@ -401,7 +411,9 @@ jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_a
     .psg_data   ( psg_data  ),
     .psg_wr_n   ( psg_wr_n  ),
     .debug_bus  ( debug_bus ),
-    .div_setting(div_setting)
+    .div_setting(div_setting),
+    // Chip ID
+    .sel_chipid ( sel_chipid)
 );
 
 // YM2203 seems to use a fixed cen/3 clock for the timers, regardless
