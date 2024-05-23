@@ -52,6 +52,9 @@ set_global_assignment -name VHDL_FILE rtl/sound/sinwrom.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/noisegen.vhd
 set_global_assignment -name QIP_FILE rtl/sound/jt03.qip
 set_global_assignment -name QIP_FILE rtl/sound/jt49.qip
+set_global_assignment -name QIP_FILE rtl/sound/jt08.qip
+set_global_assignment -name VERILOG_FILE rtl/sound/jtopna.v
+set_global_assignment -name QIP_FILE rtl/sound/OPN/RHYTHM/RHYTHM_ROM.qip
 set_global_assignment -name HEX_FILE rtl/diskemu_mister/sramdefault.hex
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/wrotecont.vhd
 set_global_assignment -name VHDL_FILE rtl/diskemu_mister/tracktable.vhd
