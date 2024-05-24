@@ -71,6 +71,13 @@ module jt12_mmr(
     output  reg         acmd_rep_b, // Control - Repeat
     output  reg         acmd_rst_b, // Control - Reset
     output  reg         acmd_up_b,  // Control - New cmd received
+    output  reg         acmd_rec_b, // Control - YM2608 Recording
+    output  reg         acmd_mem_b, // Control - YM2608 Select external RAM
+    output  reg         acmd_spk_b, // Control - YM2608 Speaker OFF
+    output  reg         acmd_smp_b, // Control - YM2608 Sampling start
+    output  reg         acmd_dac_b, // Control - YM2608 DAC DA/AD select
+    output  reg         acmd_x8_b,  // Control - YM2608 RAM 8bit granularity
+    output  reg         acmd_rom_b, // Control - YM2608 ROM select
     output  reg  [ 1:0] alr_b,      // Left / Right
     output  reg  [15:0] astart_b,   // Start address
     output  reg  [15:0] aend_b,     // End   address
@@ -78,6 +85,8 @@ module jt12_mmr(
     output  reg  [ 7:0] aeg_b,      // Envelope Generator Control
     output  reg  [ 6:0] flag_ctl,
     output  reg  [ 6:0] flag_mask,
+    output  reg  [10:0] pscale_b,   // YM2608 Prescaler
+    output  reg  [15:0] alimit_b,   // YM2608 Limit address
     // Operator
     output          xuse_prevprev1,
     output          xuse_internal,
@@ -255,6 +264,13 @@ always @(posedge clk) begin : memory_mapped_registers
         acmd_on_b   <= 0;
         acmd_rep_b  <= 0;
         acmd_rst_b  <= 0;
+        acmd_rec_b  <= 0;
+        acmd_mem_b  <= 0;
+        acmd_spk_b  <= 0;
+        acmd_smp_b  <= 0;
+        acmd_dac_b  <= 0;
+        acmd_x8_b   <= 0;
+        acmd_rom_b  <= 0;
         alr_b       <= 0;
         flag_ctl    <= 0;
         astart_b    <= 0;
@@ -262,6 +278,8 @@ always @(posedge clk) begin : memory_mapped_registers
         adeltan_b   <= 0;
         flag_mask   <= 0;
         aeg_b       <= 8'hff;
+        pscale_b    <= 0;
+        alimit_b    <= 0;
         // Original test features
         eg_stop     <= 0;
         pg_stop     <= 0;
@@ -395,6 +413,50 @@ always @(posedge clk) begin : memory_mapped_registers
                                flag_mask   <= ~{din[7],din[5:0]};
                                flag_ctl    <= {din[7],din[5:0]}; // this lasts a single clock cycle
                            end
+                            default:;
+                        endcase
+                    end
+                end
+                if( use_adpcm==2 ) begin
+                    // YM2608 ADPCM-A support, A1=0, regs 10-1F
+                    if( !part && selected_register[7:4]==4'h1 ) begin
+                        case( selected_register[3:0] )
+                            4'h0: begin
+                                aon_a  <= din;
+                                up_aon <= 1'b1;
+                            end
+                            4'h1: atl_a <= din[5:0];
+                            // LRACL
+                            4'h8, 4'h9, 4'hA, 4'hB, 4'hC, 4'hD: begin
+                                lracl <= din;
+                                up_lracl <= selected_register[2:0];
+                            end
+                            default:;
+                        endcase
+                    end
+                    if( part && selected_register[7:5]==3'b0 ) begin
+                        // YM2608 ADPCM-B support, A1=1, regs 00-10
+                        case(selected_register[4:0])
+                            5'h0: {acmd_up_b, acmd_on_b,acmd_rec_b,acmd_mem_b,acmd_rep_b,acmd_spk_b, acmd_rst_b} <= {1'd1, din[7:3], din[0]};
+                            5'h1: {acmd_up_b, alr_b, acmd_smp_b,acmd_dac_b,acmd_x8_b,acmd_rom_b}  <= {1'b1, din[7:6], din[3:0]};
+                            5'h2: astart_b [ 7:0] <= din;
+                            5'h3: astart_b [15:8] <= din;
+                            5'h4: aend_b   [ 7:0] <= din;
+                            5'h5: aend_b   [15:8] <= din;
+                            5'h6: pscale_b [ 7:0] <= din;
+                            5'h7: pscale_b [10:8] <= din[2:0];
+                        //  5'h8: ram_din_b[ 7:0] <= din;   // access through to ADPCM-B
+                            5'h9: adeltan_b[ 7:0] <= din;
+                            5'ha: adeltan_b[15:8] <= din;
+                            5'hb: aeg_b           <= din;
+                            5'hc: alimit_b [ 7:0] <= din;
+                            5'hd: alimit_b [15:8] <= din;
+                        //  5'he: dac_din_b[ 7:0] <= din;   // access through to ADPCM-B
+                        //  5'hf: (read only)
+                            5'h10: begin
+                                flag_mask   <= ~{din[7],1'b0,din[4:0]};
+                                flag_ctl    <= {din[7],1'b0,din[4:0]}; // this lasts a single clock cycle
+    					    end
                             default:;
                         endcase
                     end

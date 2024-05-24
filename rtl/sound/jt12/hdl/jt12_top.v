@@ -164,11 +164,17 @@ wire        acmd_on_b;     // Control - Process start, Key On
 wire        acmd_rep_b;    // Control - Repeat
 wire        acmd_rst_b;    // Control - Reset
 wire        acmd_up_b;     // Control - New cmd received
+wire        acmd_rec_b;    // Control - YM2608 Recording
+wire        acmd_mem_b;    // Control - YM2608 Select external memory
+wire        acmd_x8_b;     // Control - YM2608 RAM 8bit granularity
+wire        acmd_rom_b;    // Control - YM2608 ROM select
 wire [ 1:0] alr_b;         // Left / Right
 wire [15:0] astart_b;      // Start address
 wire [15:0] aend_b;        // End   address
+wire [10:0] prescaler_b;   // YM2608 Prescaler
 wire [15:0] adeltan_b;     // Delta-N
 wire [ 7:0] aeg_b;         // Envelope Generator Control
+wire [15:0] alimit_b;      // YM2608 Limit Address
 wire [ 5:0] adpcma_flags;  // ADPMC-A read over flags
 wire        adpcmb_flag;
 wire [ 6:0] flag_ctl;
@@ -275,7 +281,102 @@ if( use_adpcm==1 ) begin: gen_adpcm
         .left       ( fm_snd_left   ),
         .right      ( fm_snd_right  )
     );
-end else begin : gen_adpcm_no
+end
+if( use_adpcm==2 ) begin: gen_adpcm
+    wire rst_n;
+    wire sel_ram;
+
+    jt12_rst u_rst(
+        .rst    ( rst   ),
+        .clk    ( clk   ),
+        .rst_n  ( rst_n )
+    );
+
+    jt08_adpcm_drvA u_adpcm_a(
+        .rst_n      ( rst_n         ),
+        .clk        ( clk           ),
+        .cen        ( cen           ),
+        .cen6       ( clk_en_666    ),  // clk & cen must be 666  kHz
+        .cen1       ( clk_en_111    ),  // clk & cen must be 111 kHz
+
+        .addr       ( adpcma_addr   ),  // real hardware has 10 pins multiplexed through RMPX pin
+        .bank       ( adpcma_bank   ),
+        .roe_n      ( adpcma_roe_n  ),  // ADPCM-A ROM output enable
+        .datain     ( adpcma_data   ),
+
+        // Control Registers
+        .atl        ( atl_a         ),        // ADPCM Total Level
+        .addr_in    ( addr_a        ),
+        .lracl_in   ( lracl         ),
+        .up_start   ( up_start      ),
+        .up_end     ( up_end        ),
+        .up_addr    ( up_addr       ),
+        .up_lracl   ( up_lracl      ),
+
+        .aon_cmd    ( aon_a         ),    // ADPCM ON equivalent to key on for FM
+        .up_aon     ( up_aon        ),
+
+        .pcm55_l    ( adpcmA_l      ),
+        .pcm55_r    ( adpcmA_r      ),
+        .ch_enable  ( ch_enable     )
+    );
+    assign adpcma_flags = 6'b000000;
+    
+    jt10_adpcm_drvB u_adpcm_b(
+        .rst_n      ( rst_n         ),
+        .clk        ( clk           ),
+        .cen        ( cen           ),
+        .cen55      ( clk_en_55     ),
+
+        // Control
+        .acmd_on_b  ( acmd_on_b     ),  // Control - Process start, Key On
+        .acmd_rep_b ( acmd_rep_b    ),  // Control - Repeat
+        .acmd_rst_b ( acmd_rst_b    ),  // Control - Reset
+        .acmd_up_b  ( acmd_up_b     ),  // Control - New command received
+        .alr_b      ( alr_b         ),  // Left / Right
+        .astart_b   ( astart_b      ),  // Start address
+        .aend_b     ( aend_b        ),  // End   address
+        .adeltan_b  ( adeltan_b     ),  // Delta-N
+        .aeg_b      ( aeg_b         ),  // Envelope Generator Control
+        // Flag
+        .flag       ( adpcmb_flag   ),
+        .clr_flag   ( flag_ctl[6]   ),
+        // memory
+        .addr       ( adpcmb_addr   ),
+        .data       ( adpcmb_data   ),
+        .roe_n      ( adpcmb_roe_n  ),
+
+        .pcm55_l    ( adpcmB_l      ),
+        .pcm55_r    ( adpcmB_r      )
+    );
+    assign adpcmb_wr_n  = 1'b1;
+    assign adpcmb_dout  = 8'h0;
+    
+    assign snd_sample   = zero;
+    jt08_acc u_acc(
+        .clk        ( clk           ),
+        .clk_en     ( clk_en        ),
+        .cen        ( cen           ),
+        .op_result  ( op_result_hd  ),
+        .rl         ( rl            ),
+        .zero       ( zero          ),
+        .s1_enters  ( s2_enters     ),
+        .s2_enters  ( s1_enters     ),
+        .s3_enters  ( s4_enters     ),
+        .s4_enters  ( s3_enters     ),
+        .cur_ch     ( cur_ch        ),
+        .cur_op     ( cur_op        ),
+        .alg        ( alg_I         ),
+        .adpcmA_l   ( adpcmA_l      ),
+        .adpcmA_r   ( adpcmA_r      ),
+        .adpcmB_l   ( adpcmB_l      ),
+        .adpcmB_r   ( adpcmB_r      ),
+        // combined output
+        .left       ( fm_snd_left   ),
+        .right      ( fm_snd_right  )
+    );
+end
+if( use_adpcm==0 ) begin: gen_adpcm_no
     assign adpcmA_l     = 'd0;
     assign adpcmA_r     = 'd0;
     assign adpcmB_l     = 'd0;
@@ -358,6 +459,10 @@ jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_a
     .acmd_rep_b ( acmd_rep_b    ),  // Control - Repeat
     .acmd_rst_b ( acmd_rst_b    ),  // Control - Reset
     .acmd_up_b  ( acmd_up_b     ),  // Control - New command received
+    .acmd_rec_b ( acmd_rec_b    ),
+    .acmd_mem_b ( acmd_mem_b    ),
+    .acmd_x8_b  ( acmd_x8_b     ),
+    .acmd_rom_b ( acmd_rom_b    ),
     .alr_b      ( alr_b         ),  // Left / Right
     .astart_b   ( astart_b      ),  // Start address
     .aend_b     ( aend_b        ),  // End   address
@@ -365,6 +470,8 @@ jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_a
     .aeg_b      ( aeg_b         ),  // Envelope Generator Control
     .flag_ctl   ( flag_ctl      ),
     .flag_mask  ( flag_mask     ),
+    .alimit_b   ( alimit_b      ),
+    .pscale_b   ( prescaler_b   ),
     // Operator
     .xuse_prevprev1 ( xuse_prevprev1  ),
     .xuse_internal  ( xuse_internal   ),
