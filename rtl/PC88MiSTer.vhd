@@ -9,7 +9,7 @@ generic(
 	SYSCLK		:integer	:=20000;		--kHz
 	VIDCLK		:integer	:=75000;		--kHz
 	RAMCLK		:integer	:=75000;		--kHz
-	USE_OPNA		:integer	:=1;
+	USE_OPN		:integer	:=4;
 	RAMAWIDTH	:integer	:=24;
 	RAMCAWIDTH	:integer	:=9	
 );
@@ -947,6 +947,82 @@ port(
 );
 end component;
 
+component JT03 
+	port(
+		rst		:in std_logic;
+		clk		:in std_logic;
+		cen		:in std_logic;
+		din		:in std_logic_vector(7 downto 0);
+		addr	:in std_logic;
+		cs_n	:in std_logic;
+		wr_n	:in std_logic;
+		
+		dout	:out std_logic_vector(7 downto 0);
+		irq_n	:out std_logic;
+
+		IOA_in	:in std_logic_vector(7 downto 0);
+		IOB_in	:in std_logic_vector(7 downto 0);
+		IOA_out	:out std_logic_vector(7 downto 0);
+		IOB_out	:out std_logic_vector(7 downto 0);
+		IOA_oe	:out std_logic;
+		IOB_oe	:out std_logic;
+
+		psg_A	:out std_logic_vector(7 downto 0);
+		psg_B	:out std_logic_vector(7 downto 0);
+		psg_C	:out std_logic_vector(7 downto 0);
+		fm_snd	:out std_logic_vector(15 downto 0);
+
+		psg_snd	:out std_logic_vector(9 downto 0);
+		snd		:out std_logic_vector(15 downto 0);
+		snd_sample	:out std_logic;
+
+		debug_view	:out std_logic_vector(7 downto 0)
+	);
+end component;
+
+component JTOPNA
+	port(
+		rst		:in std_logic;
+		clk		:in std_logic;
+		cen		:in std_logic;
+		din		:in std_logic_vector(7 downto 0);
+		addr	:in std_logic_vector(1 downto 0);
+		cs_n	:in std_logic;
+		wr_n	:in std_logic;
+		
+		dout	:out std_logic_vector(7 downto 0);
+		irq_n	:out std_logic;
+
+		IOA_in	:in std_logic_vector(7 downto 0);
+		IOB_in	:in std_logic_vector(7 downto 0);
+		IOA_out	:out std_logic_vector(7 downto 0);
+		IOB_out	:out std_logic_vector(7 downto 0);
+		IOA_oe	:out std_logic;
+		IOB_oe	:out std_logic;
+
+		adpcm_addr	:out std_logic_vector(17 downto 0);
+		adpcm_roe	:out std_logic;
+		adpcm_din 	:in std_logic_vector(7 downto 0);
+		adpcm_wr	:out std_logic;
+		adpcm_dout	:out std_logic_vector(7 downto 0);
+
+		fm_snd_right	:out std_logic_vector(15 downto 0);
+		fm_snd_left		:out std_logic_vector(15 downto 0);
+		psg_snd	:out std_logic_vector(9 downto 0)
+	);
+end component;
+
+component DDS_OPN
+    generic(
+        add_val	:integer	:=624;
+        max_val :integer    :=3125
+    );
+	port(
+		rst, clk : in std_logic;
+		enable : out std_logic
+	);
+end component;
+
 component DIGIFILTER
 	generic(
 		TIME	:integer	:=2;
@@ -1280,12 +1356,15 @@ signal	beepen	:std_logic;
 signal	BEEPsnd	:std_logic_vector(15 downto 0);
 
 signal	OPNsft		:std_logic;
+signal	cen_opn		:std_logic;
 signal	INTn_OPN	:std_logic;
 signal	SINTM		:std_logic;
 
 signal	TXTen		:std_logic;
 signal	TenSw		:std_logic;
 signal	CPUMD		:std_logic;
+signal	sndFM	:std_logic_vector(15 downto 0);
+signal	sndFML,sndFMR	:std_logic_vector(15 downto 0);
 signal	sndPSG	:std_logic_vector(15 downto 0);
 signal	monosnd	:std_logic_vector(15 downto 0);
 signal	sndL,sndR	:std_logic_vector(15 downto 0);
@@ -2108,7 +2187,7 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 
 	pJoy<=pJoyA and pJoyB;
 
-	selopn	:if USE_OPNA=0 generate
+	selopn	:if USE_OPN=1 generate
 		
 		PSG_CEn<=IORQ_n when CPUADR(7 downto 1)="0100010" else '1';		--0x44,45
 
@@ -2145,7 +2224,7 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 		snddatR<=BEEPSND;
 		
 	end generate;
-	selopna	:if USE_OPNA/=0 generate
+	selopna	:if USE_OPN=2 generate
 
 		PSG_CEn<=IORQ_n when CPUADR(7 downto 2)="010001" else '1';		--0x44,45,46,47
 	
@@ -2190,7 +2269,114 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 		monos	:average generic map(16) port map(sndPSG,BEEPsnd,monosnd);
 		
 	end generate;
-	
+	seljt03	:if USE_OPN=3 generate
+
+		PSG_CEn<=IORQ_n when CPUADR(7 downto 1)="0100010" else '1';		--0x44,45
+		PSG_OE<='1' when CPUADR(7 downto 1)="0100010" and IORQ_n='0' and RD_n='0' else '0';
+		
+		FMDDS: DDS_OPN generic map(624,3125) port map (
+			rst		=>not srstn,
+			clk		=>clk21m,
+			enable	=>cen_opn
+		);
+
+		FMS: JT03 port map (
+			rst		=>not cpu_rstn,
+			clk		=>clk21m,
+			cen		=>cen_opn,
+			din		=>CPUDAT,
+			addr	=>CPUADR(0),
+			cs_n	=>PSG_CEn,
+			wr_n	=>WR_n,
+
+			dout	=>IDAT_PSG,
+			irq_n	=>INTn_OPN,
+
+			IOA_in	=>"1111" & pJoy(3 downto 0),
+			IOB_in	=>"111111" & pJoy(5 downto 4),
+			IOA_out	=>open,
+			IOB_out	=>open,
+			IOA_oe	=>open,
+			IOB_oe	=>open,
+
+			psg_A	=>open,
+			psg_B	=>open,
+			psg_C	=>open,
+			fm_snd	=>sndFM,
+			psg_snd	=>sndPSG(13 downto 4),
+			snd		=>open,
+
+			snd_sample =>open,
+			debug_view	=>open
+		);
+		
+		PCMADDR	<=(others=>'0');
+		PCMRD		<='0';
+		PCMWR		<='0';
+		PCMWDAT	<=(others=>'0');
+
+		sndPSG(15 downto 14)<="00";
+		sndPSG(3 downto 0)<="0000";
+
+		sndL <= sndFM + sndPSG;
+
+		sndmix	:average generic map(16) port map(sndL,BEEPsnd,snddatL);
+		
+		snddatR<=snddatL;
+	end generate;
+	seljtopna	:if USE_OPN=4 generate
+
+		PSG_CEn<=IORQ_n when CPUADR(7 downto 2)="010001" else '1';		--0x44,45,46,47
+		PSG_OE<='1' when CPUADR(7 downto 2)="010001" and IORQ_n='0' and RD_n='0' else '0';
+
+		FMDDS: DDS_OPN generic map(1248,3125) port map (
+			rst		=>not srstn,
+			clk		=>clk21m,
+			enable	=>cen_opn
+		);
+
+		FMS: JTOPNA port map (
+			rst		=>not cpu_rstn,
+			clk		=>clk21m, 
+			cen		=>cen_opn,
+			din		=>CPUDAT,
+			addr	=>CPUADR(1 downto 0),
+			cs_n	=>PSG_CEn,
+			wr_n	=>WR_n,
+
+			dout	=>IDAT_PSG,
+			irq_n	=>INTn_OPN,
+
+			IOA_in	=>"1111" & pJoy(3 downto 0),
+			IOB_in	=>"111111" & pJoy(5 downto 4),
+			IOA_out	=>open,
+			IOB_out	=>open,
+			IOA_oe	=>open,
+			IOB_oe	=>open,
+
+			adpcm_addr	=>PCMADDR,
+			adpcm_roe	=>PCMRD,
+			adpcm_wr	=>PCMWR,
+			adpcm_din	=>PCMRDAT,
+			adpcm_dout	=>PCMWDAT,
+
+			fm_snd_right	=>sndFMR,
+			fm_snd_left		=>sndFML,
+			psg_snd		=>sndPSG(12 downto 3)
+
+		);
+		
+		sndPSG(15 downto 13)<="000";
+		sndPSG(2 downto 0)<="000";
+
+		sndL <= sndFML + sndPSG;
+		sndR <= sndFMR + sndPSG;
+
+		sndmixL	:average generic map(16) port map(sndL,BEEPsnd,snddatL);
+		sndmixR	:average generic map(16) port map(sndR,BEEPsnd,snddatR);
+			
+	end generate;
+
 	pJoyA<=(others=>'Z');
 	pJoyB<=(others=>'Z');
 	
