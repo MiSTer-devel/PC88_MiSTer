@@ -3,6 +3,7 @@
 This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/21233167-1.html) core by Puu-san.
 
 - Thanks to Puu-san for the core
+- Thanks to Yosinda
 - Thanks for the help of Alanswx and Kitrinx
 - Thanks to Sorgelig
 
@@ -10,7 +11,7 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 * Modes N, N88V1L, N88V1H, N88V2
 * CPU Speeds (4MHz and 8MHz)
 * 2 Floppy Drives using D88 format
-* Sound chip YM2603 by default and ADPCM (incomplete)
+* Sound chip YM2603 by default and ADPCM
 
 ## Installation
 Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801** folder on the root/games of the card, and place PC8801 floppies (\*.D88) inside this folder. 
@@ -35,9 +36,8 @@ copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.ro
 ## Known Issues
 - Timing issues
 - Gamma correction doesn't seem to change anything (?)
-- Some floppy formats are not implemented (like for YS1, YS2, ...)
-- ADPCM (incomplete)
-- Some games have severe graphical issues
+- Some floppy formats are not implemented (like for Xak Series, ...)
+- Some games have severe graphical issues (Like Fangs, Snatcher during the intro, ...)
 
 ## TODO
 - Update T80 cpu
