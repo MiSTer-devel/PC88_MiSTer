@@ -28,6 +28,8 @@ module jt12_dout(
     input             sel_chipid,
     input      [5:0]  adpcma_flags,
     input             adpcmb_flag,
+    input      [3:0]  adpcmb_flag2,
+    input      [7:0]  dout_b,
     input      [7:0]  psg_dout,
     input      [1:0]  addr,
     output reg [7:0]  dout
@@ -41,9 +43,12 @@ always @(posedge clk) begin
         2'b01: dout <= (use_chipid==0) ? 
             {(use_ssg==1) ? psg_dout : {busy, 5'd0, flag_B, flag_A }} :
             {(sel_chipid==1'b1)? 8'h1 : psg_dout};
-        2'b1?: dout <= (use_adpcm==1) ?
+        2'b10: dout <= (use_adpcm==1) ?
             { adpcmb_flag, 1'b0, adpcma_flags } :
-            { busy, 5'd0, flag_B, flag_A };
+            { busy, 1'd0, adpcmb_flag2, flag_B, flag_A };
+        2'b11: dout <= (use_adpcm==1) ?
+            { adpcmb_flag, 1'b0, adpcma_flags } :
+            { dout_b };   // read from ADPCM-B
     endcase
 end
 

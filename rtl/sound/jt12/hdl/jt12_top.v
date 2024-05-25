@@ -96,6 +96,7 @@ wire            enable_irq_A, enable_irq_B;
 wire            clr_flag_A, clr_flag_B;
 wire            overflow_A;
 wire            fast_timers;
+wire    [4:0]   irq_mask;
 
 wire            zero; // Single-clock pulse at the begginig of s1_enters
 // LFO
@@ -175,8 +176,12 @@ wire [10:0] prescaler_b;   // YM2608 Prescaler
 wire [15:0] adeltan_b;     // Delta-N
 wire [ 7:0] aeg_b;         // Envelope Generator Control
 wire [15:0] alimit_b;      // YM2608 Limit Address
+wire        sel_ram_dat;   // YM2608 Select RAM buffer
+wire        sel_dac_dat;   // YM2608 Select DAC buffer
+wire [ 7:0] dout_b;        // YM2608 DOUT (RAM/DAC to BUS)
 wire [ 5:0] adpcma_flags;  // ADPMC-A read over flags
 wire        adpcmb_flag;
+wire [ 3:0] adpcmb_flag2;  // YM2608 ADPCM flags
 wire [ 6:0] flag_ctl;
 wire [ 6:0] flag_mask;
 wire [ 1:0] div_setting;
@@ -258,6 +263,8 @@ if( use_adpcm==1 ) begin: gen_adpcm
     );
     assign adpcmb_wr_n  = 1'b1;
     assign adpcmb_dout  = 8'h0;
+    assign adpcmb_flag2 = 4'h0;
+    assign dout_b       = 8'h0;
 
     assign snd_sample   = zero;
     jt10_acc u_acc(
@@ -322,7 +329,7 @@ if( use_adpcm==2 ) begin: gen_adpcm
     );
     assign adpcma_flags = 6'b000000;
     
-    jt10_adpcm_drvB u_adpcm_b(
+    jt08_adpcm_drvB u_adpcm_b(
         .rst_n      ( rst_n         ),
         .clk        ( clk           ),
         .cen        ( cen           ),
@@ -338,19 +345,28 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .aend_b     ( aend_b        ),  // End   address
         .adeltan_b  ( adeltan_b     ),  // Delta-N
         .aeg_b      ( aeg_b         ),  // Envelope Generator Control
+        .alimit_b   ( alimit_b      ),  // Limit address
         // Flag
-        .flag       ( adpcmb_flag   ),
-        .clr_flag   ( flag_ctl[6]   ),
+        .flag       ( adpcmb_flag2  ),
+        .clr_flag   ( flag_ctl[6:2] ),
         // memory
         .addr       ( adpcmb_addr   ),
-        .data       ( adpcmb_data   ),
+        .ram_din    ( adpcmb_data   ),
+        .ram_dout   ( adpcmb_dout   ),
         .roe_n      ( adpcmb_roe_n  ),
-
+        .wr_n       ( adpcmb_wr_n   ),
+        .bus_din    ( din           ),
+        .bus_dout   ( dout_b        ),
+        .sel_ram    ( sel_ram       ),
+        .acmd_mem_b ( acmd_mem_b    ),
+        .acmd_rec_b ( acmd_rec_b    ),
+        .acmd_x8_b  ( acmd_x8_b     ),
+        .acmd_rom_b ( acmd_rom_b    ),
         .pcm55_l    ( adpcmB_l      ),
         .pcm55_r    ( adpcmB_r      )
     );
-    assign adpcmb_wr_n  = 1'b1;
-    assign adpcmb_dout  = 8'h0;
+    assign sel_ram = (~cs_n & sel_ram_dat);
+    assign adpcmb_flag = 1'b0;
     
     assign snd_sample   = zero;
     jt08_acc u_acc(
@@ -388,8 +404,10 @@ if( use_adpcm==0 ) begin: gen_adpcm_no
     assign adpcmb_roe_n = 'd1;
     assign adpcmb_wr_n  = 'b1;
     assign adpcmb_dout  = 8'd0;
+    assign dout_b       = 8'h0;
     assign adpcma_flags = 0;
     assign adpcmb_flag  = 0;
+    assign adpcmb_flag2 = 0;
 end
 endgenerate
 
@@ -402,7 +420,9 @@ jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid)) u_d
     .sel_chipid     ( sel_chipid    ),
     .adpcma_flags   ( adpcma_flags & flag_mask[5:0] ),
     .adpcmb_flag    ( adpcmb_flag & flag_mask[6]    ),
+    .adpcmb_flag2   ( adpcmb_flag2 & { 2'b1, flag_mask[4:2] } ),
     .psg_dout       ( psg_dout      ),
+    .dout_b         ( dout_b        ),
     .addr           ( addr          ),
     .dout           ( dout          )
 );
@@ -440,6 +460,7 @@ jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_a
     .flag_A     ( flag_A        ),
     .overflow_A ( overflow_A    ),
     .fast_timers( fast_timers   ),
+    .irq_mask   ( irq_mask      ),
     // PCM
     .pcm        ( pcm           ),
     .pcm_en     ( pcm_en        ),
@@ -472,6 +493,8 @@ jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_a
     .flag_mask  ( flag_mask     ),
     .alimit_b   ( alimit_b      ),
     .pscale_b   ( prescaler_b   ),
+    .sel_ram_dat( sel_ram_dat   ),
+    .sel_dac_dat( sel_dac_dat   ),
     // Operator
     .xuse_prevprev1 ( xuse_prevprev1  ),
     .xuse_internal  ( xuse_internal   ),
@@ -526,24 +549,49 @@ jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_a
 // YM2203 seems to use a fixed cen/3 clock for the timers, regardless
 // of the prescaler setting
 wire timer_cen = fast_timers ? cen : clk_en;
-jt12_timers #(.num_ch(num_ch)) u_timers (
-    .clk        ( clk           ),
-    .clk_en     ( timer_cen     ),
-    .rst        ( rst           ),
-    .zero       ( zero          ),
-    .value_A    ( value_A       ),
-    .value_B    ( value_B       ),
-    .load_A     ( load_A        ),
-    .load_B     ( load_B        ),
-    .enable_irq_A( enable_irq_A ),
-    .enable_irq_B( enable_irq_B ),
-    .clr_flag_A ( clr_flag_A    ),
-    .clr_flag_B ( clr_flag_B    ),
-    .flag_A     ( flag_A        ),
-    .flag_B     ( flag_B        ),
-    .overflow_A ( overflow_A    ),
-    .irq_n      ( irq_n         )
-);
+generate 
+    if (use_adpcm==2) begin
+        jt12_timers #(.num_ch(num_ch)) u_timers (
+            .clk        ( clk           ),
+            .clk_en     ( timer_cen     ),
+            .rst        ( rst           ),
+            .zero       ( zero          ),
+            .value_A    ( value_A       ),
+            .value_B    ( value_B       ),
+            .load_A     ( load_A        ),
+            .load_B     ( load_B        ),
+            .enable_irq_A( enable_irq_A ),
+            .enable_irq_B( enable_irq_B ),
+            .clr_flag_A ( clr_flag_A    ),
+            .clr_flag_B ( clr_flag_B    ),
+            .flag_A     ( flag_A        ),
+            .flag_B     ( flag_B        ),
+            .overflow_A ( overflow_A    ),
+            .irq_n      (               )
+        );
+        assign irq_n = ~( (flag_A&enable_irq_A&flag_mask[0]&irq_mask[0]) | (flag_B&enable_irq_B&flag_mask[1]&irq_mask[1]) | (|(adpcmb_flag2[2:0]&flag_mask[4:2]&irq_mask[4:2])) );
+
+    end else begin
+        jt12_timers #(.num_ch(num_ch)) u_timers (
+            .clk        ( clk           ),
+            .clk_en     ( timer_cen     ),
+            .rst        ( rst           ),
+            .zero       ( zero          ),
+            .value_A    ( value_A       ),
+            .value_B    ( value_B       ),
+            .load_A     ( load_A        ),
+            .load_B     ( load_B        ),
+            .enable_irq_A( enable_irq_A ),
+            .enable_irq_B( enable_irq_B ),
+            .clr_flag_A ( clr_flag_A    ),
+            .clr_flag_B ( clr_flag_B    ),
+            .flag_A     ( flag_A        ),
+            .flag_B     ( flag_B        ),
+            .overflow_A ( overflow_A    ),
+            .irq_n      ( irq_n         )
+        );
+    end
+endgenerate
 
 // YM2203 does not have LFO
 generate
@@ -567,7 +615,7 @@ end else begin : gen_nolfo
 end
 endgenerate
 
-// YM2203/YM2610 have a PSG
+// YM2203/YM2608/YM2610 have a PSG
 
 `ifndef NOSSG
 generate

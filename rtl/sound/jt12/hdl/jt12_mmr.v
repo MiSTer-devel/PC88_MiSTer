@@ -52,6 +52,8 @@ module jt12_mmr(
     input               flag_A,
     input               overflow_A, 
     output  reg [1:0]   div_setting,
+    // IRQ
+    output  reg [4:0]   irq_mask,
     // PCM
     output  reg [8:0]   pcm,
     output  reg         pcm_en,
@@ -136,7 +138,9 @@ module jt12_mmr(
     input   [7:0]   debug_bus,
 
     // Bus select
-    output          sel_chipid
+    output          sel_chipid,
+    output          sel_ram_dat,
+    output          sel_dac_dat
 );
 
 parameter use_ssg=0, num_ch=6, use_pcm=1, use_adpcm=0, mask_div=1, use_chipid=0;
@@ -208,6 +212,13 @@ generate
     end else begin
         assign sel_chipid = 1'b0;
     end
+    if( use_adpcm==2 ) begin
+        assign sel_ram_dat = ((addr == 2'b11) && (selected_register == 8'h08)) ? 1'b1 : 1'b0 ;
+        assign sel_dac_dat = ((addr == 2'b11) && (selected_register == 8'h0f)) ? 1'b1 : 1'b0 ;
+    end else begin
+        assign sel_ram_dat = 1'b0 ;
+        assign sel_dac_dat = 1'b0 ;
+    end
 endgenerate
 
 reg part;
@@ -241,6 +252,8 @@ always @(posedge clk) begin : memory_mapped_registers
         { clr_flag_B, clr_flag_A,
         enable_irq_B, enable_irq_A, load_B, load_A } <= 0;
         fast_timers <= 0;
+        // irqmask
+        irq_mask    <= 5'b11111;
         // LFO
         lfo_freq    <= 0;
         lfo_en      <= 0;
@@ -276,7 +289,13 @@ always @(posedge clk) begin : memory_mapped_registers
         astart_b    <= 0;
         aend_b      <= 0;
         adeltan_b   <= 0;
-        flag_mask   <= 0;
+        if( use_adpcm==2 ) begin
+            flag_mask   <= 6'h03;    // mask ZERO,BRDY,EOS when reset
+            flag_ctl    <= 6'h1C;
+        end else begin
+        	flag_mask   <= 0;
+            flag_ctl    <= 0;
+        end
         aeg_b       <= 8'hff;
         pscale_b    <= 0;
         alimit_b    <= 0;
@@ -337,6 +356,8 @@ always @(posedge clk) begin : memory_mapped_registers
                               enable_irq_B, enable_irq_A,
                               load_B, load_A } <= din[5:0];
                             end
+                        // IRQMASK[7] SCH is ignored
+                        REG_IRQMASK: {irq_mask} <= {din[4:0]};
                         `ifndef NOLFO                   
                         REG_LFO:    { lfo_en, lfo_freq } <= din[3:0];
                         `endif
