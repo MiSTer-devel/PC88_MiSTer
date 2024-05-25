@@ -2362,12 +2362,12 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 
 			fm_snd_right	=>sndFMR,
 			fm_snd_left		=>sndFML,
-			psg_snd	=>sndPSG(13 downto 4)
+			psg_snd		=>sndPSG(12 downto 3)
 
 		);
 		
-		sndPSG(15 downto 14)<="00";
-		sndPSG(3 downto 0)<="0000";
+		sndPSG(15 downto 13)<="000";
+		sndPSG(2 downto 0)<="000";
 
 		sndL <= sndFML + sndPSG;
 		sndR <= sndFMR + sndPSG;

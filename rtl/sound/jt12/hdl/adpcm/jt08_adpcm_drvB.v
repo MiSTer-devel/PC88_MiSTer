@@ -88,7 +88,8 @@ localparam  F_EOS   = 0,
             F_RESET = 4;
 
 // wait
-localparam  RDWAIT  = 3;
+//localparam  RDWAIT  = 3;
+localparam  RDWAIT  = 4;    // for PC88_MiSTer (add 1 wait due to memory access conflict with FDD)
 
 reg   [2:0] state;
 reg [RDWAIT:0] waits;       // indicate wait cycle for RAM read
@@ -290,7 +291,7 @@ jt10_adpcmb u_decoder(
     .pcm    ( pcmdec         )
 );
 
-`ifndef NOBINTERPOL
+`ifdef NOBINTERPOL
 jt10_adpcmb_interpol u_interpol(
     .rst_n  ( rst_n          ),
     .clk    ( clk            ),
