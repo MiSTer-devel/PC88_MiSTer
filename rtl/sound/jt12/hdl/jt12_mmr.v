@@ -361,15 +361,22 @@ always @(posedge clk) begin : memory_mapped_registers
                         `ifndef NOLFO                   
                         REG_LFO:    { lfo_en, lfo_freq } <= din[3:0];
                         `endif
+                        `ifndef ALWAYS_3CH_FNUMS
+                        8'hA9: { block_ch3op1, fnum_ch3op1 } <= { latch_fnum, din };
+                        8'hA8: { block_ch3op3, fnum_ch3op3 } <= { latch_fnum, din };
+                        8'hAA: { block_ch3op2, fnum_ch3op2 } <= { latch_fnum, din };
+                        `endif
                         default:;
                     endcase
                 end
 
                 // CH3 special registers
                 casez( selected_register)
+                    `ifdef ALWAYS_3CH_FNUMS
                     8'hA9: { block_ch3op1, fnum_ch3op1 } <= { latch_fnum, din };
                     8'hA8: { block_ch3op3, fnum_ch3op3 } <= { latch_fnum, din };
                     8'hAA: { block_ch3op2, fnum_ch3op2 } <= { latch_fnum, din };
+                    `endif
                     // According to http://www.mjsstuf.x10host.com/pages/vgmPlay/vgmPlay.htm
                     // There is a single fnum latch for all channels
                     8'hA4, 8'hA5, 8'hA6, 8'hAD, 8'hAC, 8'hAE: latch_fnum <= din[5:0];

@@ -32,15 +32,15 @@ module jt10_adpcmb(
     output signed [15:0] pcm
 );
 
-localparam stepw = 15, xw=16;
+localparam stepw = 15, xw=17;
 
 reg signed [xw-1:0] x1, next_x5;
 reg [stepw-1:0] step1;
 reg [stepw+1:0] next_step3;
-assign pcm = x1[xw-1:xw-16];
+assign pcm = x1[15:0];
 
-wire [xw-1:0] limpos = {1'b0, {xw-1{1'b1}}};
-wire [xw-1:0] limneg = {1'b1, {xw-1{1'b0}}};
+wire [xw-1:0] limpos = { {xw-15{1'b0}}, {15{1'b1}} };
+wire [xw-1:0] limneg = { {xw-15{1'b1}}, {15{1'b0}} };
 
 reg  [18:0] d2l;
 reg  [xw-1:0] d3,d4;
@@ -101,8 +101,8 @@ always @( posedge clk or negedge rst_n )
         // V: limit or reset outputs
         if( chon ) begin // update values if needed
             if( adv2[0] ) begin
-                    if( sign_data5 == x1[xw-1] && (x1[xw-1]!=next_x5[xw-1]) )
-                        x1 <= x1[xw-1] ? limneg : limpos;
+                    if( next_x5[xw-1] ^ next_x5[xw-2] )
+                        x1 <= sign_data5 ? limneg : limpos;
                     else
                         x1 <= next_x5;
 

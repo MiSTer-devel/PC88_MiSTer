@@ -48,21 +48,23 @@ module jt12_reg_ch(
 
 parameter NUM_CH=6;
 localparam M=NUM_CH==3?2:3;
+// Quickhack! [3] is not use in 6CH settings, but is required for CH6.
+localparam NUM_AR=NUM_CH==3?2:6;
 
-reg [ 2:0] reg_block[0:NUM_CH-1];
-reg [10:0] reg_fnum [0:NUM_CH-1];
-reg [ 2:0] reg_fb   [0:NUM_CH-1];
-reg [ 2:0] reg_alg  [0:NUM_CH-1];
-reg [ 1:0] reg_rl   [0:NUM_CH-1];
-reg [ 1:0] reg_ams  [0:NUM_CH-1];
-reg [ 2:0] reg_pms  [0:NUM_CH-1];
+reg [ 2:0] reg_block[0:NUM_AR];
+reg [10:0] reg_fnum [0:NUM_AR];
+reg [ 2:0] reg_fb   [0:NUM_AR];
+reg [ 2:0] reg_alg  [0:NUM_AR];
+reg [ 1:0] reg_rl   [0:NUM_AR];
+reg [ 1:0] reg_ams  [0:NUM_AR];
+reg [ 2:0] reg_pms  [0:NUM_AR];
 reg [ 2:0] ch_IV;
 
 integer i;
 
 always @* begin
     ch_IV = ch;
-    if( NUM_CH==6 ) ch_IV = ch-3'd3;
+    if( NUM_CH==6 ) ch_IV = ch-3'd4;
 end
 
 always @(posedge clk) if(cen) begin
@@ -77,7 +79,7 @@ always @(posedge clk) if(cen) begin
 end
 
 always @(posedge clk, posedge rst) begin
-    if( rst ) for(i=0;i<NUM_CH;i=i+1) begin
+    if( rst ) for(i=0;i<=NUM_AR;i=i+1) begin
         reg_block[i] <= 0;
         reg_fnum [i] <= 0;
         reg_fb   [i] <= 0;
