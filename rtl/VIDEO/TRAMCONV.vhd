@@ -9,6 +9,7 @@ port(
 	TMODE		:in std_logic;
 	SMODE		:in std_logic;
 	COLOR		:in std_logic;
+	ATTRCOLOR	:in std_logic;
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
 	
@@ -238,21 +239,27 @@ begin
 					end if;
 				when ST_RDATR3 =>
 					if(rTMODE='0' or MRAM_WAIT='0')then
-						if(COLOR='0')then
+						if(COLOR='0' or ATTRCOLOR='0')then
 							CURATR(0)<='1';
 							CURATR(1)<='1';
 							CURATR(2)<='1';
+						elsif(RDDAT(3)='1')then
+							CURATR(0)<=RDDAT(5);
+							CURATR(1)<=RDDAT(6);
+							CURATR(2)<=RDDAT(7);
 						end if;
-						if(RDDAT(3)='0')then
+						if(ATTRCOLOR='0')then
 							CURATR(3)<=RDDAT(1);
 							CURATR(4)<=RDDAT(2);
 							CURATR(5)<=RDDAT(4);
 							CURATR(6)<=RDDAT(5);
 							CURATR(7)<=RDDAT(7);
-						elsif(COLOR='1')then
-							CURATR(0)<=RDDAT(5);
-							CURATR(1)<=RDDAT(6);
-							CURATR(2)<=RDDAT(7);
+						elsif(RDDAT(3)='0')then
+							CURATR(3)<=RDDAT(1);
+							CURATR(4)<=RDDAT(2);
+							CURATR(5)<=RDDAT(4);
+							CURATR(6)<=RDDAT(5);
+						else
 							CURATR(7)<=RDDAT(4);
 						end if;
 						MRAM_RDn<='1';
