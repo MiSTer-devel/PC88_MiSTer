@@ -357,6 +357,7 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .wr_n       ( adpcmb_wr_n   ),
         .bus_din    ( din           ),
         .bus_dout   ( dout_b        ),
+        .bus_write  ( write         ),
         .sel_ram    ( sel_ram       ),
         .acmd_mem_b ( acmd_mem_b    ),
         .acmd_rec_b ( acmd_rec_b    ),
