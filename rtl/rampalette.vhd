@@ -16,7 +16,10 @@ port(
 	ROUT	:out std_logic_vector(2 downto 0);
 	GOUT	:out std_logic_vector(2 downto 0);
 	BOUT	:out std_logic_vector(2 downto 0);
-	
+
+	GCOLOR	:in std_logic;
+	X_BIT	:in std_logic;
+
 	sclk		:in std_logic;
 	gclk		:in std_logic;
 	rstn	:in std_logic
@@ -63,9 +66,15 @@ begin
 	ipalno<=conv_integer(DOTIN);
 	process(gclk)begin
 		if(gclk' event and gclk='1')then
-			ROUT<=PAL_R(ipalno);
-			GOUT<=PAL_G(ipalno);
-			BOUT<=PAL_B(ipalno);
+			if(GCOLOR='1' and X_BIT='1')then
+				ROUT<=(others=>DOTIN(1));
+				GOUT<=(others=>DOTIN(2));
+				BOUT<=(others=>DOTIN(0));
+			else
+				ROUT<=PAL_R(ipalno);
+				GOUT<=PAL_G(ipalno);
+				BOUT<=PAL_B(ipalno);
+			end if;
 		end if;
 	end process;
 	

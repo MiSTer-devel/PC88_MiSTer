@@ -233,6 +233,9 @@ port(
 	GOUT	:out std_logic_vector(2 downto 0);
 	BOUT	:out std_logic_vector(2 downto 0);
 	
+	GCOLOR	:in std_logic;
+	X_BIT	:in std_logic;
+
 	sclk		:in std_logic;
 	gclk		:in std_logic;
 	rstn	:in std_logic
@@ -350,6 +353,9 @@ begin
 		GOUT	=>PAL_GRN,
 		BOUT	=>PAL_BLE,
 		
+		GCOLOR	=>GCOLOR,
+		X_BIT	=>X_BIT,
+
 		sclk		=>cpuclk,
 		gclk		=>clk3,
 		rstn	=>rstn
@@ -365,6 +371,9 @@ begin
 		end if;
 	end process;
 		
+--	RED<=	(others=>COLNUMd(1)) when (GCOLOR='1' and X_BITd='1') else PAL_RED;
+--	GRN<=	(others=>COLNUMd(2)) when (GCOLOR='1' and X_BITd='1') else PAL_GRN;
+--	BLE<=	(others=>COLNUMd(0)) when (GCOLOR='1' and X_BITd='1') else PAL_BLE;
 	RED<=	PAL_RED when PALEN='1' else (others=>COLNUMd(2));
 	GRN<=	PAL_GRN when PALEN='1' else (others=>COLNUMd(1));
 	BLE<=	PAL_BLE when PALEN='1' else (others=>COLNUMd(0));
