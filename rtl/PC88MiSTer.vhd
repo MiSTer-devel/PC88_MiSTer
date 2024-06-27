@@ -1750,7 +1750,18 @@ port map(
 	
 	LOADER_ACK<=not RAM_WAIT;
 	
-	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
+--	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
+	process(clk21m,rstn,srstna)begin
+		if(rstn='0' or srstna='0')then
+			CPU_rstn<='0';
+		elsif(clk21m' event and clk21m='1')then
+			if(LOADER_DONE='1' and EMUINITDONE='1')then
+				CPU_rstn<='1';
+			else
+				CPU_rstn<='0';
+			end if;
+		end if;
+	end process;
 
 	TRAM	:TEXTRAM port map(
 		address_a		=>TRAM_ADR,
@@ -2283,13 +2294,13 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 		PSG_OE<='1' when CPUADR(7 downto 1)="0100010" and IORQ_n='0' and RD_n='0' else '0';
 		
 		FMDDS: DDS_OPN generic map(624,3125) port map (
-			rst		=>not srstn,
+			rst		=>not srstna,
 			clk		=>clk21m,
 			enable	=>cen_opn
 		);
 
 		FMS: JT03 port map (
-			rst		=>not cpu_rstn,
+			rst		=>not CPU_rstn,
 			clk		=>clk21m,
 			cen		=>cen_opn,
 			din		=>CPUDAT,
@@ -2338,13 +2349,13 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 		PSG_OE<='1' when CPUADR(7 downto 2)="010001" and IORQ_n='0' and RD_n='0' else '0';
 
 		FMDDS: DDS_OPN generic map(1248,3125) port map (
-			rst		=>not srstn,
+			rst		=>not srstna,
 			clk		=>clk21m,
 			enable	=>cen_opn
 		);
 
 		FMS: JTOPNA port map (
-			rst		=>not cpu_rstn,
+			rst		=>not CPU_rstn,
 			clk		=>clk21m, 
 			cen		=>cen_opn,
 			din		=>CPUDAT,
