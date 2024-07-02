@@ -331,6 +331,7 @@ port(
 
 	MONOEN		:in std_logic_vector(2 downto 0);
 	TXTEN		:in std_logic;
+	CRTCEN		:in std_logic;
 
 	CURL		:in std_logic_vector(4 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
@@ -2066,6 +2067,7 @@ port map(
 	GCOLOR		=>GCOLOR,
 	MONOEN		=>not GxDS,
 	TXTEN		=>((not TEXTDS) and TXTen and CRTCen and TDMAEN),
+	CRTCEN		=>CRTCen,
 	
 	CURL		=>CRTC_CURL,
 	CURC		=>CRTC_CURC,
