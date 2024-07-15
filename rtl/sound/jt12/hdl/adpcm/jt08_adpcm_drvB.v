@@ -51,6 +51,7 @@ module jt08_adpcm_drvB(
     // cpu bus
     input      [ 7:0] bus_din,
     output reg  [7:0] bus_dout,
+    input             bus_write,
 
     output reg signed [15:0]  pcm55_l,
     output reg signed [15:0]  pcm55_r
@@ -78,6 +79,7 @@ localparam  STATE_IDLE  = 'd0,
             STATE_POST  = 'd3,
             STATE_WAIT2 = 'd4,
             STATE_WRITE = 'd5,
+            STATE_WRITE2= 'd6,
             STATE_END   = 'd8;
 
 // bit assign for flag
@@ -90,6 +92,7 @@ localparam  F_EOS   = 0,
 // wait
 //localparam  RDWAIT  = 3;
 localparam  RDWAIT  = 4;    // for PC88_MiSTer (add 1 wait due to memory access conflict with FDD)
+localparam  WRWAIT  = 2;
 
 reg   [2:0] state;
 reg [RDWAIT:0] waits;       // indicate wait cycle for RAM read
@@ -112,7 +115,7 @@ wire [20:0] alimit  = (gran_8b) ? {alimit_b, 5'h1F} : {3'h0, alimit_b, 2'h3} ;
 always @(posedge clk) begin
     if ((rst_n == 1'b0) || (acmd_rst_b)) begin
         state       <= STATE_IDLE;
-        pre_start_b <= 21'd0;
+        pre_start_b <= 16'd0;
         ram_addr    <= 21'd0;
         ram_busy    <= 1'b0;
         ram_eos     <= 1'b0;
@@ -138,50 +141,63 @@ always @(posedge clk) begin
                         // Access external memory
                         if (acmd_rec_b) begin
                             state   <= STATE_WRITE;
+                            roe_n   <= 1'b1;
                         end else begin
-                            state   <= STATE_READ;
+                            // (start READ sequence here)
+                            state   <= STATE_WAIT1;
+                            roe_n   <= 1'b0;
+                            waits   <= {1'b1, {RDWAIT{1'b0}}};
                         end
                         addr    <= { 3'b000, ram_addr};
                         ram_busy<= 1'b1;
                     end else if (acmd_on_b & adv & cen55) begin
                         // Playing ADPCM
-                        state   <= STATE_READ;
+                        // (start READ sequence here)
+                        state   <= STATE_WAIT1;
                         addr    <= { 3'b000, pcm_addr};
                         dsel    <= nibble_sel;
                         ram_busy<= 1'b1;
+                        roe_n       <= 1'b0;
+                        waits       <= {1'b1, {RDWAIT{1'b0}}};
                     end else begin
                         state   <= STATE_IDLE;
                         addr    <= addr;
                         ram_busy<= 1'b0;
+                        roe_n   <= 1'b1;
                     end
                     // save previous one
                     pre_start_b <= astart_b;
                     // strobe control
-                    roe_n       <= 1'b1;
                     wr_n        <= 1'b1;
                 end
                 STATE_WRITE: begin
                     roe_n       <= 1'b1;
                     ram_busy    <= 1'b1;
-                    if (sel_ram) begin
-                        // Latch CPU data, before the end of CPU write strobe
-                        state   <= STATE_WRITE;
+                    if (bus_write) begin
+                        // Latch CPU data
                         ram_dout<= bus_din;
-                        wr_n    <= 1'b1;
-                    end else begin
-                        // start write for external
-                        state   <= STATE_POST;
+                        // State switch to External write cycle:
+                        //
+                        // There are several clocks between latching the data
+                        // and outputting it to the external RAM,
+                        // but these will be omitted.
+                        waits   <= {{RDWAIT+1{1'b1}}, {WRWAIT{1'b0}}};
+                        state   <= STATE_WRITE2;
                         wr_n    <= 1'b0;
+                    end else begin
+                        state   <= STATE_WRITE;
+                        wr_n    <= 1'b1;
                     end
                 end
-                STATE_READ: begin
-                    // start read strobe
-                    roe_n       <= 1'b0;
-                    wr_n        <= 1'b1;
-                    // state
-                    waits       <= {1'b1, {RDWAIT{1'b0}}};
+                STATE_WRITE2: begin
+                    // write cycle for external memory with wait
                     ram_busy    <= 1'b1;
-                    state       <= STATE_WAIT1;
+                    waits       <= {1'b1, waits[RDWAIT:1]};
+                    if (waits[0]) begin
+                        state   <= STATE_POST;
+                    end else begin
+                        state   <= STATE_WRITE2;
+                    end
                 end
                 STATE_WAIT1: begin
                     // wait state for external memory READ

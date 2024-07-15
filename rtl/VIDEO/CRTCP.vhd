@@ -39,6 +39,7 @@ port(
 	GCOLOR		:in std_logic;
 	MONOEN		:in std_logic_vector(2 downto 0);
 	TXTEN		:in std_logic;
+	CRTCEN		:in std_logic;
 
 	CURL		:in std_logic_vector(4 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
@@ -233,6 +234,10 @@ port(
 	GOUT	:out std_logic_vector(2 downto 0);
 	BOUT	:out std_logic_vector(2 downto 0);
 	
+	CRTCEN	:in std_logic;
+	GCOLOR	:in std_logic;
+	X_BIT	:in std_logic;
+
 	sclk		:in std_logic;
 	gclk		:in std_logic;
 	rstn	:in std_logic
@@ -350,6 +355,10 @@ begin
 		GOUT	=>PAL_GRN,
 		BOUT	=>PAL_BLE,
 		
+		CRTCEN	=>CRTCEN,
+		GCOLOR	=>GCOLOR,
+		X_BIT	=>X_BIT,
+
 		sclk		=>cpuclk,
 		gclk		=>clk3,
 		rstn	=>rstn

@@ -331,6 +331,7 @@ port(
 
 	MONOEN		:in std_logic_vector(2 downto 0);
 	TXTEN		:in std_logic;
+	CRTCEN		:in std_logic;
 
 	CURL		:in std_logic_vector(4 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
@@ -553,7 +554,9 @@ component TRAMCONV
 port(
 	TVRMODE		:in std_logic;
 	TMODE		:in std_logic;
+	SMODE		:in std_logic;
 	COLOR		:in std_logic;
+	ATTRCOLOR	:in std_logic;
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
 	
@@ -1206,6 +1209,8 @@ signal	TRAMLEN		:std_logic_vector(15 downto 0);
 signal	TDMAEN		:std_logic;
 signal	PMODE		:std_logic;
 signal	TMODE		:std_logic;
+signal  SMODE		:std_logic;
+signal	ATTRCOLOR	:std_logic;
 signal	TVRMODE		:std_logic;
 signal	TVRAM_WDAT	:std_logic_vector(7 downto 0);
 signal	TVRAM_MADR	:std_logic_vector(11 downto 0);
@@ -1746,7 +1751,18 @@ port map(
 	
 	LOADER_ACK<=not RAM_WAIT;
 	
-	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
+--	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
+	process(clk21m,rstn,srstna)begin
+		if(rstn='0' or srstna='0')then
+			CPU_rstn<='0';
+		elsif(clk21m' event and clk21m='1')then
+			if(LOADER_DONE='1' and EMUINITDONE='1')then
+				CPU_rstn<='1';
+			else
+				CPU_rstn<='0';
+			end if;
+		end if;
+	end process;
 
 	TRAM	:TEXTRAM port map(
 		address_a		=>TRAM_ADR,
@@ -1765,7 +1781,9 @@ port map(
 	port map(
 	TVRMODE		=>TVRMODE,
 	TMODE		=>not cHS,
+	SMODE		=>SMODE,
 	COLOR		=>not COLORn,
+	ATTRCOLOR	=>ATTRCOLOR,
 	TEXTEN		=>(not TEXTDS) and CRTCen and TDMAEN,
 	ATTRLEN		=>ATTRLEN,
 	
@@ -1839,6 +1857,8 @@ port map(
 	CBLINK	=>CBLINK,
 	VMODE	=>VMODE,
 	CRTCen	=>CRTCen,
+	S		=>SMODE,
+	AT0		=>ATTRCOLOR,
 	
 	ATTR	=>ATTRLEN,
 
@@ -2047,6 +2067,7 @@ port map(
 	GCOLOR		=>GCOLOR,
 	MONOEN		=>not GxDS,
 	TXTEN		=>((not TEXTDS) and TXTen and CRTCen and TDMAEN),
+	CRTCEN		=>CRTCen,
 	
 	CURL		=>CRTC_CURL,
 	CURC		=>CRTC_CURC,
@@ -2275,13 +2296,13 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 		PSG_OE<='1' when CPUADR(7 downto 1)="0100010" and IORQ_n='0' and RD_n='0' else '0';
 		
 		FMDDS: DDS_OPN generic map(624,3125) port map (
-			rst		=>not srstn,
+			rst		=>not srstna,
 			clk		=>clk21m,
 			enable	=>cen_opn
 		);
 
 		FMS: JT03 port map (
-			rst		=>not cpu_rstn,
+			rst		=>not CPU_rstn,
 			clk		=>clk21m,
 			cen		=>cen_opn,
 			din		=>CPUDAT,
@@ -2330,13 +2351,13 @@ OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MH
 		PSG_OE<='1' when CPUADR(7 downto 2)="010001" and IORQ_n='0' and RD_n='0' else '0';
 
 		FMDDS: DDS_OPN generic map(1248,3125) port map (
-			rst		=>not srstn,
+			rst		=>not srstna,
 			clk		=>clk21m,
 			enable	=>cen_opn
 		);
 
 		FMS: JTOPNA port map (
-			rst		=>not cpu_rstn,
+			rst		=>not CPU_rstn,
 			clk		=>clk21m, 
 			cen		=>cen_opn,
 			din		=>CPUDAT,
