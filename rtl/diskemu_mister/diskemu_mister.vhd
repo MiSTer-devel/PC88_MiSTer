@@ -809,12 +809,12 @@ begin
 					end if;
 				end if;
 			when ss_rwrite =>
-				if(mist_ack(bit_fd0)='1')then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
 					mist_wr(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_rwrite2;
 				end if;
 			when ss_rwrite2 =>
-				if(mist_ack(bit_fd0)='0')then
+				if(mist_ack(bit_fd1 downto bit_fd0)="00")then
 					wrote:='0';
 					cur_lba<="000000000" & img_addr(31 downto 9);
 					cur_unit<=img_unit;
@@ -827,21 +827,21 @@ begin
 					sbufstate<=ss_read;
 				end if;
 			when ss_read =>
-				if(mist_ack(bit_fd0)='1')then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
 					mist_rd(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_read2;
 				end if;
 			when ss_read2 =>
-				if(mist_ack(bit_fd0)='0')then
+				if(mist_ack(bit_fd1 downto bit_fd0)="00")then
 					sbufstate<=ss_idle;
 				end if;
 			when ss_write =>
-				if(mist_ack(bit_fd0)='1')then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
 					mist_wr(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_write2;
 				end if;
 			when ss_write2 =>
-				if(mist_ack(bit_fd0)='0')then
+				if(mist_ack(bit_fd1 downto bit_fd0)="00")then
 					lba_fdd<="000000000" & img_addr(31 downto 9);
 					cur_lba<="000000000" & img_addr(31 downto 9);
 					cur_unit<=img_unit;
@@ -854,23 +854,23 @@ begin
 					sbufstate<=ss_wread;
 				end if;
 			when ss_wread =>
-				if(mist_ack(bit_fd0)='1')then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
 					mist_rd(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_wread2;
 				end if;
 			when ss_wread2 =>
-				if(mist_ack(bit_fd0)='0')then
+				if(mist_ack(bit_fd1 downto bit_fd0)="00")then
 					sbufwr<='1';
 					wrote:='1';
 					sbufstate<=ss_idle;
 				end if;
 			when ss_sync =>
-				if(mist_ack(bit_fd0)='1')then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
 					mist_wr(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_sync2;
 				end if;
 			when ss_sync2 =>
-				if(mist_ack(bit_fd0)='0')then
+				if(mist_ack(bit_fd1 downto bit_fd0)="00")then
 					wrote:='0';
 					sbufstate<=ss_idle;
 				end if;
@@ -1006,7 +1006,7 @@ begin
 						img_unit<='1';
 					when others=>
 					end case;
-					img_addr<=haddr+x"08";
+					img_addr<=haddr+x"06";
 					img_rd<='1';
 					fdstate<=fs_loadsheadw;
 				when fs_loadsheadw =>
