@@ -121,6 +121,13 @@ signal	GSDAT	:std_logic_vector(7 downto 0);
 signal	GSwrite	:std_logic;
 constant extcount	:integer	:=(sysclk*WR_WIDTH)/1000000;
 
+type wrstate_t is(
+	ws_idle,
+	ws_ramwait,
+	ws_write
+);
+signal	wrstate	:wrstate_t;
+
 component fmmod
 port(
 	txdat	:in std_logic_vector(7 downto 0);
@@ -541,29 +548,43 @@ begin
 	
 	
 	process(clk,rstn)
-	variable wrbusy	:std_logic;
 	variable mwait		:integer range 0 to 3;
 	begin
 		if(rstn='0')then
 			ramwr<='0';
 			rxed<='0';
-			wrbusy:='0';
 			mwait:=0;
+			wrstate<=ws_idle;
 		elsif(clk' event and clk='1')then
 			rxed<='0';
+			case wrstate is
+			when ws_idle =>
 			if(rxwr='1')then
-				wrbusy:='1';
+					if(ramwait='0')then
 				ramwr<='1';
 				mwait:=3;
-			elsif(mwait>0)then
-				mwait:=mwait-1;
-			elsif(wrbusy='1')then
+						wrstate<=ws_write;
+					else
+						wrstate<=ws_ramwait;
+					end if;
+				end if;
+			when ws_ramwait =>
 				if(ramwait='0')then
+					ramwr<='1';
+					mwait:=3;
+					wrstate<=ws_write;
+				end if;
+			when ws_write =>
+				if(mwait>0)then
+					mwait:=mwait-1;
+				elsif(ramwait='0')then
 					ramwr<='0';
 					rxed<='1';
-					wrbusy:='0';
-				end if;
+					wrstate<=ws_idle;
 			end if;
+			when others =>
+				wrstate<=ws_idle;
+			end case;
 		end if;
 	end process;
 			

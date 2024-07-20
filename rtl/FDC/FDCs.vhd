@@ -85,6 +85,10 @@ signal	PCN0	:std_logic_vector(7 downto 0);
 signal	PCN1	:std_logic_vector(7 downto 0);
 signal	PCN2	:std_logic_vector(7 downto 0);
 signal	PCN3	:std_logic_vector(7 downto 0);
+signal	mPCN0	:std_logic_vector(7 downto 0);
+signal	mPCN1	:std_logic_vector(7 downto 0);
+signal	mPCN2	:std_logic_vector(7 downto 0);
+signal	mPCN3	:std_logic_vector(7 downto 0);
 signal	cPCN	:std_logic_vector(7 downto 0);
 signal	PCN		:std_logic_vector(7 downto 0);
 signal	R		:std_logic_vector(7 downto 0);
@@ -100,6 +104,7 @@ signal	ST2		:std_logic_vector(7 downto 0);
 signal	ST3		:std_logic_vector(7 downto 0);
 -- signal	STP		:std_logic_vector(1 downto 0);
 signal	US		:std_logic_vector(1 downto 0);
+signal	iUS	:integer range 0 to 3;
 
 --status bit
 signal	sIC		:std_logic_vector(1 downto 0);	--Interrupt Code
@@ -175,11 +180,13 @@ signal	RDDAT_CMD	:std_logic_vector(7 downto 0);
 signal	DETSECT		:std_logic;
 signal	COMPDAT		:std_logic_vector(7 downto 0);
 signal	scancomp	:std_logic;
+signal	sREADY		:std_logic;
 
 type execstate_t is (
 		es_idle,
-
+		es_readychk,
 		es_seek,
+		es_wseek,
 		es_windex,
 		es_GAP0,
 		es_Syncp,
@@ -228,55 +235,47 @@ signal	rxN			:std_logic_vector(7 downto 0);
 signal	bytecount	:integer range 0 to 16384;
 
 signal	seek_bgn	:std_logic;
-signal	seek_end	:std_logic;
+signal	seek_end	:std_logic_vector(3 downto 0);
 signal	seek_busy	:std_logic;
 signal	seek_init	:std_logic;
-signal	seek_err	:std_logic;
+signal	seek_err	:std_logic_vector(3 downto 0);
 signal	seek_sft	:std_logic;
 
-signal	seek_bgn0	:std_logic;
-signal	seek_end0	:std_logic;
-signal	seek_busy0	:std_logic;
-signal	seek_init0	:std_logic;
-signal	seek_err0	:std_logic;
+signal	seek_initv	:std_logic_vector(3 downto 0);
+signal	seek_bgnv	:std_logic_vector(3 downto 0);
+signal	seek_endv	:std_logic_vector(3 downto 0);
+signal	seek_busyv	:std_logic_vector(3 downto 0);
+signal	seek_errv	:std_logic_vector(3 downto 0);
+signal	seekbusy	:std_logic;
+signal	seekusel	:std_logic_vector(1 downto 0);
+signal	seekpend		:std_logic_vector(3 downto 0);
+
 signal	seek_sft0	:std_logic;
 signal	STEP0		:std_logic;
 signal	SDIR0		:std_logic;
 signal	seek_cyl0	:integer range 0 to maxtrack;
 signal	seek_cur0	:integer range 0 to maxtrack;
 
-signal	seek_bgn1	:std_logic;
-signal	seek_end1	:std_logic;
-signal	seek_busy1	:std_logic;
-signal	seek_init1	:std_logic;
-signal	seek_err1	:std_logic;
 signal	seek_sft1	:std_logic;
 signal	STEP1		:std_logic;
 signal	SDIR1		:std_logic;
 signal	seek_cyl1	:integer range 0 to maxtrack;
 signal	seek_cur1	:integer range 0 to maxtrack;
 
-signal	seek_bgn2	:std_logic;
-signal	seek_end2	:std_logic;
-signal	seek_busy2	:std_logic;
-signal	seek_init2	:std_logic;
-signal	seek_err2	:std_logic;
 signal	seek_sft2	:std_logic;
 signal	STEP2		:std_logic;
 signal	SDIR2		:std_logic;
 signal	seek_cyl2	:integer range 0 to maxtrack;
 signal	seek_cur2	:integer range 0 to maxtrack;
 
-signal	seek_bgn3	:std_logic;
-signal	seek_end3	:std_logic;
-signal	seek_busy3	:std_logic;
-signal	seek_init3	:std_logic;
-signal	seek_err3	:std_logic;
 signal	seek_sft3	:std_logic;
 signal	STEP3		:std_logic;
 signal	SDIR3		:std_logic;
 signal	seek_cyl3	:integer range 0 to maxtrack;
 signal	seek_cur3	:integer range 0 to maxtrack;
+signal	iC0,iC1,iC2,iC3	:integer range 0 to maxtrack;
+signal	tdi		:std_logic_vector(3 downto 0);
+signal	tdo		:std_logic_vector(3 downto 0);
 
 signal	crcin		:std_logic_vector(7 downto 0);
 signal	crcwr		:std_logic;
@@ -479,6 +478,44 @@ port(
 );
 end component;
 
+component seekcont
+generic(
+	maxtrack	:integer	:=80
+);
+port(
+	uselin	:in std_logic_vector(1 downto 0);
+	inireq	:in std_logic;
+	seekreq	:in std_logic;
+	destin	:in integer range 0 to maxtrack;
+	tdi		:in std_logic_vector(3 downto 0);
+	
+	iniout	:out std_logic_vector(3 downto 0);
+	seekout	:out std_logic_vector(3 downto 0);
+	dest0	:out integer range 0 to maxtrack;
+	dest1	:out integer range 0 to maxtrack;
+	dest2	:out integer range 0 to maxtrack;
+	dest3	:out integer range 0 to maxtrack;
+	tdo	:out std_logic_vector(3 downto 0);
+	readyin	:in std_logic;
+	
+	sendin	:in std_logic_vector(3 downto 0);
+	serrin	:in std_logic_vector(3 downto 0);
+	sbusyin	:in std_logic_vector(3 downto 0);
+	
+	
+	seek_end	:out std_logic_vector(3 downto 0);
+	seek_err	:out std_logic_vector(3 downto 0);
+	readyout	:out std_logic;
+	
+	seek_pend	:out std_logic_vector(3 downto 0);
+	busy	:out std_logic;
+	uselout	:out std_logic_vector(1 downto 0);
+	
+	clk		:in std_logic;
+	rstn	:in	std_logic
+);
+end component;
+
 component headseek
 generic(
 	maxtrack	:integer	:=79;
@@ -616,8 +653,6 @@ port(
 );
 end component;
 begin
-	
-	usel<=US;
 	
 	IOWR_DAT<='1' when CSn='0' and A0='1' and WRn='0' else '0';
 	IORD_DAT<='1' when CSn='0' and A0='1' and RDn='0' else '0';
@@ -1195,8 +1230,9 @@ begin
 		end if;
 	end process;
 	
-	sCB<=	'0'	when command=cmd_RECALIBRATE and datnum=2 else
-			'0'	when command=cmd_SEEK and datnum=3 else
+	sCB<=	
+--			'0'	when command=cmd_RECALIBRATE and datnum=2 else
+--			'0'	when command=cmd_SEEK and datnum=3 else
 			'0'	when datnum=0 else
 			'1';
 
@@ -1204,6 +1240,8 @@ begin
 --			'0' when command="01111" else
 --			'0' when execstate=es_idle else
 --			'1';
+	
+	iUS<=conv_integer(US);
 	
 	process(fclk,rstn)begin
 		if(rstn='0')then
@@ -1273,6 +1311,7 @@ begin
 			setHD<='0';
 			resHD<='0';
 			sIC<="00";
+			sNR<='0';
 			sOR<='0';
 			sND<='0';
 			sDE<='0';
@@ -1336,8 +1375,60 @@ begin
 			NRDSTART<='0';
 			if(execstate=es_idle)then
 				sRQM<='1';
+				if(seek_end/="0000")then
+					sHD<=HD;
+					case seek_end is
+					when "0001" =>
+						sUS<="00";
+						PCN<=mPCN0;
+					when "0010" =>
+						sUS<="01";
+						PCN<=mPCN1;
+					when "0100" =>
+						sUS<="10";
+						PCN<=mPCN2;
+					when "1000" =>
+						sUS<="11";
+						PCN<=mPCN3;
+					when others =>
+					end case;
+					sIC<="00";
+					sHD<=HD;
+					sEC<='0';
+					sSE<='1';
+					sNR<=sREADY;
+					INTs<='1';
+					-- iSE<='1';
+				elsif(seek_err/="0000")then
+					sIC<="01";
+					sHD<=HD;
+					case seek_err is
+					when "0001" =>
+						sUS<="00";
+						PCN<=mPCN0;
+					when "0010" =>
+						sUS<="01";
+						PCN<=mPCN1;
+					when "0100" =>
+						sUS<="10";
+						PCN<=mPCN2;
+					when "1000" =>
+						sUS<="11";
+						PCN<=mPCN3;
+					when others =>
+					end case;
+					sNR<=sREADY;
+					sHD<=HD;
+					sEC<='1';
+					sSE<='0';
+					INTs<='1';
+					-- iSE<='1';
+				end if;
 				if(EXEC='1')then
 					sIC<="00";
+					sNR<=READY;
+					sHD<=HD;
+					sUS<=US;
 					sOR<='0';
 					sND<='0';
 					sDE<='0';
@@ -1363,7 +1454,7 @@ begin
 						else
 							crcclr<='1';
 							deminit<='1';
-							execstate<=es_IAM0;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_READDELETEDDATA =>
@@ -1373,7 +1464,7 @@ begin
 						else
 							crcclr<='1';
 							deminit<='1';
-							execstate<=es_IAM0;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_WRITEDATA =>
@@ -1383,7 +1474,7 @@ begin
 						else
 							crcclr<='1';
 							deminit<='1';
-							execstate<=es_IAM0;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_WRITEDELETEDDATA =>
@@ -1393,7 +1484,7 @@ begin
 						else
 							crcclr<='1';
 							deminit<='1';
-							execstate<=es_IAM0;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_READATRACK =>
@@ -1403,16 +1494,16 @@ begin
 						else
 							crcclr<='1';
 							deminit<='1';
-							execstate<=es_windex;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_READID =>
 						crcclr<='1';
 						deminit<='1';
-						execstate<=es_IAM0;
+						execstate<=es_wseek;
 						nturns<=0;
 					when cmd_FORMATATRACK =>
-						execstate<=es_windex;
+						execstate<=es_wseek;
 						nturns<=0;
 						cntR<=x"01";
 					when cmd_SCANEQUAL =>
@@ -1420,7 +1511,7 @@ begin
 							seek_bgn<='1';
 							execstate<=es_seek;
 						else
-							execstate<=es_IAM0;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_SCANLOWEQUAL =>
@@ -1428,7 +1519,7 @@ begin
 							seek_bgn<='1';
 							execstate<=es_seek;
 						else
-							execstate<=es_IAM0;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_SCANHIGHEQUAL	=>
@@ -1436,15 +1527,17 @@ begin
 							seek_bgn<='1';
 							execstate<=es_seek;
 						else
-							execstate<=es_IAM0;
+							execstate<=es_wseek;
 						end if;
 						nturns<=0;
 					when cmd_RECALIBRATE =>
 						seek_init<='1';
 						execstate<=es_seek;
+--						execstate<=es_readychk;
 					when cmd_SEEK =>
-						seek_bgn<='1';
-						execstate<=es_seek;
+--						seek_bgn<='1';
+--						execstate<=es_seek;
+						execstate<=es_readychk;
 					when others=>
 						execstate<=es_idle;
 						sRQM<='1';
@@ -1466,8 +1559,11 @@ begin
 --								sEN<='1';
 --								sHD<=HD;
 --								sUS<=US;
+--								sNR<=READY;
 --								PCN<=cPCN;
 --								sIC<="01";
+--								sEC<='0';
+--								sSE<='0';
 --								INT<='1';
 --								end_EXEC<='1';
 --								execstate<=es_IDLE;
@@ -1483,6 +1579,9 @@ begin
 							sHD<=HD;
 							sUS<=US;
 							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							sND<='1';
 							if(DETSECT='0')then
 								sMA<='1';
@@ -1499,6 +1598,9 @@ begin
 						sHD<=HD;
 						sUS<=US;
 						sIC<="11";
+						sNR<=READY;
+						sEC<='0';
+						sSE<='0';
 						sND<='0';
 						sMA<='0';
 						PCN<=cPCN;
@@ -1509,18 +1611,29 @@ begin
 					end if;
 					case execstate is
 					when es_seek =>
-						if(seek_end='1')then
-							execstate<=es_IAM0;
+						if(seek_end(iUS)='1')then
+							execstate<=es_wseek;
 							crcclr<='1';
 							deminit<='1';
-						elsif(seek_err='1')then
+						elsif(seek_err(iUS)='1')then
 							sIC<="01";
+							sNR<=READY;
+							sEC<='1';
+							sSE<='0';
 							sHD<=HD;
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
 							-- iSE<='1';
 							execstate<=es_idle;
+						end if;
+					when es_wseek =>
+						if(seekbusy='0')then
+							if(ecommand=cmd_READATRACK)then
+								execstate<=es_windex;
+							else
+								execstate<=es_IAM0;
+							end if;
 						end if;
 					when es_windex =>
 						if(lindex='1' and indexb='0')then
@@ -1728,6 +1841,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="01";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									sWC<='1';
 									INT<='1';
 									-- iSE<='0';
@@ -1769,7 +1885,8 @@ begin
 								execstate<=es_IAM0;
 							end if;
 						end if;
-						if(N=x"00" and (rxN/=x"00" or DTL<x"80"))then
+--						if(N=x"00" and (rxN/=x"00" or DTL<x"80"))then
+						if(N=x"00" and DTL<x"80")then
 							bytecount<=conv_integer(DTL);
 						elsif(rxN=x"00")then
 							bytecount<=128;
@@ -1836,6 +1953,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									INT<='1';
 									-- iSE<='0';
 								end if;
@@ -1855,6 +1975,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									INT<='1';
 									-- iSE<='0';
 								end if;
@@ -1876,6 +1999,9 @@ begin
 						elsif((MF='0' and fmrxed='1') or (MF='1' and mfmrxed='1'))then
 							sOR<='1';
 							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							sHD<=HD;
 							sUS<=US;
 							PCN<=cPCN;
@@ -1936,16 +2062,22 @@ begin
 								if(TCen='1')then
 									execstate<=es_IDLE;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									sHD<=HD;
 									sUS<=US;
 									PCN<=cPCN;
 									INT<='1';
 									-- iSE<='1';
 									end_EXEC<='1';
-								elsif(R>=EOT)then
+								elsif(R>=EOT and (MT='0' or HD='1'))then
 									sEN<='1';
 									execstate<=es_IDLE;
 									sIC<="01";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									sHD<=HD;
 									sUS<=US;
 									PCN<=cPCN;
@@ -1962,6 +2094,9 @@ begin
 							else
 								sDE<='1';
 								sIC<="01";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								sHD<=HD;
 								sUS<=US;
 								sDD<='1';
@@ -1978,6 +2113,9 @@ begin
 				when cmd_WRITEDATA | cmd_WRITEDELETEDDATA =>
 					if(WPRT='0')then
 						sIC<="01";
+						sNR<=READY;
+						sEC<='0';
+						sSE<='0';
 						sNW<='1';
 						sHD<=HD;
 						sUS<=US;
@@ -2000,6 +2138,9 @@ begin
 --								sUS<=US;
 --								PCN<=cPCN;
 --								sIC<="00";
+--								sNR<=READY;
+--								sEC<='0';
+--								sSE<='0';
 --								INT<='1';
 --								end_EXEC<='1';
 --								execstate<=es_IDLE;
@@ -2018,6 +2159,9 @@ begin
 							INT<='1';
 							-- iSE<='0';
 							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							sND<='1';
 							sMA<='1';
 							end_EXEC<='1';
@@ -2027,6 +2171,9 @@ begin
 						sHD<=HD;
 						sUS<=US;
 						sIC<="11";
+						sNR<=READY;
+						sEC<='0';
+						sSE<='0';
 						sND<='0';
 						sMA<='0';
 						PCN<=cPCN;
@@ -2037,18 +2184,25 @@ begin
 					end if;
 					case execstate is
 					when es_seek =>
-						if(seek_end='1')then
-							execstate<=es_IAM0;
+						if(seek_end(iUS)='1')then
+							execstate<=es_wseek;
 							crcclr<='1';
 							deminit<='1';
-						elsif(seek_err='1')then
+						elsif(seek_err(iUS)='1')then
 							sIC<="01";
+							sNR<=READY;
+							sEC<='1';
+							sSE<='0';
 							sHD<=HD;
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
 							-- iSE<='1';
 							execstate<=es_idle;
+						end if;
+					when es_wseek =>
+						if(seekbusy='0')then
+							execstate<=es_IAM0;
 						end if;
 					when es_windex =>
 						if(lindex='1' and indexb='0')then
@@ -2265,6 +2419,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="01";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									sWC<='1';
 									INT<='1';
 									-- iSE<='0';
@@ -2338,6 +2495,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									INT<='1';
 									-- iSE<='0';
 								end if;
@@ -2351,7 +2511,8 @@ begin
 								crcwr<='1';
 								execstate<=es_DAM1;
 							end if;
-							if(N=x"00" and (rxN/=x"00" or DTL<x"80"))then
+--						if(N=x"00" and (rxN/=x"00" or DTL<x"80"))then
+						if(N=x"00" and DTL<x"80")then
 								bytecount<=conv_integer(DTL);
 							elsif(rxN=x"00")then
 								bytecount<=128;
@@ -2400,6 +2561,9 @@ begin
 								sUS<=US;
 								PCN<=cPCN;
 								sIC<="00";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								INT<='1';
 								-- iSE<='0';
 							end if;
@@ -2431,6 +2595,9 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							INT<='1';
 							-- iSE<='0';
 							execstate<=es_IDLE;
@@ -2445,6 +2612,9 @@ begin
 								sUS<=US;
 								PCN<=cPCN;
 								sIC<="00";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								INT<='1';
 								-- iSE<='0';
 							end if;
@@ -2504,6 +2674,9 @@ begin
 							elsif(TCen='1')then
 								execstate<=es_IDLE;
 								sIC<="00";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								sHD<=HD;
 								sUS<=US;
 								PCN<=cPCN;
@@ -2536,6 +2709,9 @@ begin
 --								sUS<=US;
 --								PCN<=cPCN;
 --								sIC<="00";
+--								sNR<=READY;
+--								sEC<='0';
+--								sSE<='0';
 --								INT<='1';
 --								end_EXEC<='1';
 --								execstate<=es_IDLE;
@@ -2552,6 +2728,9 @@ begin
 --							sUS<=US;
 --							PCN<=cPCN;
 --							sIC<="01";
+--							sNR<=READY;
+--							sEC<='0';
+--							sSE<='0';
 --							INT<='1';
 --							sND<='1';
 --							end_EXEC<='1';
@@ -2560,12 +2739,15 @@ begin
 --					end if;
 --					case execstate is
 --					when es_seek =>
---						if(seek_end='1')then
+--						if(seek_end(iUS)='1')then
 --							execstate<=es_windex;
 --							crcclr<='1';
 --							deminit<='1';
---						elsif(seek_err='1')then
+--						elsif(seek_err(iUS)='1')then
 --							sIC<="01";
+--							sNR<=READY;
+--							sEC<='1';
+--							sSE<='0';
 --							sHD<=HD;
 --							sUS<=US;
 --							PCN<=cPCN;
@@ -2667,6 +2849,9 @@ begin
 --									sUS<=US;
 --									PCN<=cPCN;
 --									sIC<="00";
+--									sNR<=READY;
+--									sEC<='0';
+--									sSE<='0';
 --									INT<='1';
 --								end if;
 --								RDDAT_DAT<=fmrxdat;
@@ -2685,6 +2870,9 @@ begin
 --									sUS<=US;
 --									PCN<=cPCN;
 --									sIC<="00";
+--									sNR<=READY;
+--									sEC<='0';
+--									sSE<='0';
 --									INT<='1';
 --								end if;
 --								RDDAT_DAT<=mfmrxdat;
@@ -2705,6 +2893,9 @@ begin
 --						elsif((MF='0' and fmrxed='1') or (MF='1' and mfmrxed='1'))then
 --							sOR<='1';
 --							sIC<="01";
+--							sNR<=READY;
+--							sEC<='0';
+--							sSE<='0';
 --							sHD<=HD;
 --							sUS<=US;
 --							PCN<=cPCN;
@@ -2747,6 +2938,9 @@ begin
 --								if(TCen='1')then
 --									execstate<=es_IDLE;
 --									sIC<="00";
+--									sNR<=READY;
+--									sEC<='0';
+--									sSE<='0';
 --									sHD<=HD;
 --									sUS<=US;
 --									PCN<=cPCN;
@@ -2758,6 +2952,9 @@ begin
 --							else
 --								sDE<='1';
 --								sIC<="01";
+--								sNR<=READY;
+--								sEC<='0';
+--								sSE<='0';
 --								sHD<=HD;
 --								sUS<=US;
 --								PCN<=cPCN;
@@ -2784,6 +2981,9 @@ begin
 								sHD<=HD;
 								sUS<=US;
 								sIC<="01";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								sND<='1';
 								sMA<='1';
 								PCN<=cPCN;
@@ -2797,6 +2997,9 @@ begin
 						sHD<=HD;
 						sUS<=US;
 						sIC<="11";
+						sNR<=READY;
+						sEC<='0';
+						sSE<='0';
 						sND<='0';
 						sMA<='0';
 						PCN<=cPCN;
@@ -2806,6 +3009,10 @@ begin
 						execstate<=es_IDLE;
 					end if;
 					case execstate is
+					when es_wseek =>
+						if(seekbusy='0')then
+							execstate<=es_IAM0;
+						end if;
 					when es_IAM0 =>
 						if(MF='0')then
 							if(fmmfedet='1')then
@@ -3000,6 +3207,9 @@ begin
 							if(crczero='1')then
 								execstate<=es_IDLE;
 								sIC<="00";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								sHD<=HD;
 								sUS<=US;
 								PCN<=cPCN;
@@ -3019,6 +3229,9 @@ begin
 								sHD<=HD;
 								sUS<=US;
 								sIC<="01";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								sND<='1';
 								sMA<='0';
 								PCN<=cPCN;
@@ -3042,6 +3255,9 @@ begin
 							sHD<=HD;
 							sUS<=US;
 							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							sND<='1';
 							if(DETSECT='0')then
 								sMA<='1';
@@ -3058,6 +3274,9 @@ begin
 						sHD<=HD;
 						sUS<=US;
 						sIC<="11";
+						sNR<=READY;
+						sEC<='0';
+						sSE<='0';
 						sND<='0';
 						sMA<='0';
 						PCN<=cPCN;
@@ -3068,18 +3287,25 @@ begin
 					end if;
 					case execstate is
 					when es_seek =>
-						if(seek_end='1')then
-							execstate<=es_IAM0;
+						if(seek_end(iUS)='1')then
+							execstate<=es_wseek;
 							crcclr<='1';
 							deminit<='1';
-						elsif(seek_err='1')then
+						elsif(seek_err(iUS)='1')then
 							sIC<="01";
+							sNR<=READY;
+							sEC<='1';
+							sSE<='0';
 							sHD<=HD;
 							sUS<=US;
 							PCN<=cPCN;
 							INT<='1';
 							-- iSE<='1';
 							execstate<=es_idle;
+						end if;
+					when es_wseek =>
+						if(seekbusy='0')then
+							execstate<=es_IAM0;
 						end if;
 					when es_windex =>
 						if(lindex='1' and indexb='0')then
@@ -3287,6 +3513,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="01";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									sWC<='1';
 									INT<='1';
 									-- iSE<='0';
@@ -3329,7 +3558,8 @@ begin
 								execstate<=es_IAM0;
 							end if;
 						end if;
-						if(N=x"00" and (rxN/=x"00" or DTL<x"80"))then
+--						if(N=x"00" and (rxN/=x"00" or DTL<x"80"))then
+						if(N=x"00" and DTL<x"80")then
 							bytecount<=conv_integer(DTL);
 						elsif(rxN=x"00")then
 							bytecount<=128;
@@ -3397,6 +3627,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									INT<='1';
 									-- iSE<='0';
 								end if;
@@ -3416,6 +3649,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									INT<='1';
 									-- iSE<='0';
 								end if;
@@ -3454,6 +3690,9 @@ begin
 							else
 								sOR<='0';
 								sIC<="01";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								sHD<=HD;
 								sUS<=US;
 								PCN<=cPCN;
@@ -3465,6 +3704,9 @@ begin
 						elsif((MF='0' and fmrxed='1') or (MF='1' and mfmrxed='1'))then
 							sOR<='1';
 							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							sHD<=HD;
 							sUS<=US;
 							PCN<=cPCN;
@@ -3530,6 +3772,9 @@ begin
 								if(TCen='1')then
 									execstate<=es_IDLE;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									sHD<=HD;
 									sUS<=US;
 									PCN<=cPCN;
@@ -3540,6 +3785,9 @@ begin
 									sEN<='1';
 									execstate<=es_IDLE;
 									sIC<="01";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									sHD<=HD;
 									sUS<=US;
 									PCN<=cPCN;
@@ -3556,6 +3804,9 @@ begin
 							else
 								sDE<='1';
 								sIC<="01";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								sHD<=HD;
 								sUS<=US;
 								sDD<='1';
@@ -3573,6 +3824,9 @@ begin
 				when cmd_FORMATATRACK =>		--Format a Track
 					if(WPRT='0')then
 						sIC<="01";
+						sNR<=READY;
+						sEC<='0';
+						sSE<='0';
 						sNW<='1';
 						sHD<=HD;
 						sUS<=US;
@@ -3587,6 +3841,9 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							sIC<="00";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							INT<='1';
 							-- iSE<='0';
 							end_EXEC<='1';
@@ -3596,6 +3853,9 @@ begin
 						sHD<=HD;
 						sUS<=US;
 						sIC<="11";
+						sNR<=READY;
+						sEC<='0';
+						sSE<='0';
 						sND<='0';
 						sMA<='0';
 						PCN<=cPCN;
@@ -3605,6 +3865,10 @@ begin
 						execstate<=es_IDLE;
 					end if;
 					case execstate is
+					when es_wseek =>
+						if(seekbusy='0')then
+							execstate<=es_windex;
+						end if;
 					when es_windex =>
 						if(lindex='1' and indexb='0')then
 							if(MF='0')then
@@ -3746,6 +4010,9 @@ begin
 									sUS<=US;
 									PCN<=cPCN;
 									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
 									INT<='1';
 									-- iSE<='0';
 								end if;
@@ -3783,6 +4050,9 @@ begin
 								sUS<=US;
 								PCN<=cPCN;
 								sIC<="00";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								INT<='1';
 								-- iSE<='0';
 							end if;
@@ -3820,6 +4090,9 @@ begin
 							sUS<=US;
 							PCN<=cPCN;
 							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
 							INT<='1';
 							-- iSE<='0';
 							execstate<=es_IDLE;
@@ -3834,6 +4107,9 @@ begin
 								sUS<=US;
 								PCN<=cPCN;
 								sIC<="00";
+								sNR<=READY;
+								sEC<='0';
+								sSE<='0';
 								INT<='1';
 								-- iSE<='0';
 							end if;
@@ -3943,8 +4219,8 @@ begin
 							end if;
 							crcwr<='1';
 							if(Nf=x"00")then
-								bytecount<=conv_integer(DTL);
-							elsif(Nf=x"00")then
+--								bytecount<=conv_integer(DTL);
+--							elsif(Nf=x"00")then
 								bytecount<=128;
 							elsif(Nf=x"01")then
 								bytecount<=256;
@@ -4027,7 +4303,7 @@ begin
 								txdat<=x"4e";
 								mfmtxwr<='1';
 							end if;
-							bytecount<=conv_integer(GPL);
+							bytecount<=conv_integer(GPL)-1;
 							execstate<=es_GAP3;
 						end if;
 					when es_GAP3 =>
@@ -4081,30 +4357,62 @@ begin
 					end case;
 				when cmd_RECALIBRATE | cmd_SEEK =>		--re-calibrate  / seek
 					case execstate is
-					when es_seek =>
---						end_EXEC<='1';
---						sRQM<='1';
-						if(seek_end='1')then
+					when es_readychk =>
+						if(READY='0')then
+							case command is
+							when cmd_RECALIBRATE =>
+								seek_init<='1';
+							when cmd_SEEK =>
+								seek_bgn<='1';
+							when others =>
+							end case;
+							execstate<=es_seek;
+						elsif(NOTRDY='1')then
+							sHD<=HD;
+							sUS<=US;
+							sIC<="11";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
+							sND<='0';
+							sMA<='0';
+							PCN<=cPCN;
+							INT<='1';
+							-- iSE<='0';
+							end_EXEC<='1';
 							execstate<=es_IDLE;
-							sHD<=HD;
-							sUS<=US;
-							PCN<=cPCN;
-							sIC<="00";
-							INTs<='1';
-							-- iSE<='1';
-							sRQM<='1';
-							end_EXEC<='1';
-						elsif(seek_err='1')then
-							sIC<="01";
-							sHD<=HD;
-							sUS<=US;
-							PCN<=cPCN;
-							INTs<='1';
-							-- iSE<='1';
-							sRQM<='1';
-							end_EXEC<='1';
-							execstate<=es_idle;
 						end if;
+					when es_seek =>
+						end_EXEC<='1';
+						sRQM<='1';
+						execstate<=es_IDLE;
+--						if(seek_end(iUS)='1')then
+--							execstate<=es_IDLE;
+--							sHD<=HD;
+--							sUS<=US;
+--							PCN<=cPCN;
+--							sIC<="00";
+--							sNR<=READY;
+--							sEC<='0';
+--							sSE<='1';
+--							INTs<='1';
+--							-- iSE<='1';
+--							sRQM<='1';
+--							end_EXEC<='1';
+--						elsif(seek_err(iUS)='1')then
+--							sIC<="01";
+--							sNR<=READY;
+--							sEC<='1';
+--							sSE<='0';
+--							sHD<=HD;
+--							sUS<=US;
+--							PCN<=cPCN;
+--							INTs<='1';
+--							-- iSE<='1';
+--							sRQM<='1';
+--							end_EXEC<='1';
+--							execstate<=es_idle;
+--						end if;
 					when others=>
 						execstate<=es_IDLE;
 					end case;
@@ -4143,7 +4451,6 @@ begin
 	end process;
 	
 	sEXM<='1' when (execstate/=es_IDLE and ND='1') else '0';
-	sNR<=READY;
 	ST0<=sIC &sSE & sEC & sNR & sHD & sUS;
 	ST1<=sEN & '0' & sDE & sOR & '0' & sND & sNW & sMA;
 	ST2<='0' & sCM & sDD & sWC & sSH & sSN & sBC & sMD;
@@ -4160,7 +4467,8 @@ begin
 	sideb<=HD;
 	side<=not sideb;
 	uselb<=US;
-	usel<=uselb;
+	usel<=uselb when seekbusy='0' else seekusel;
+	
 	
 	process(sclk,rstn)
 	variable	ext	:std_logic_vector(3 downto 0);
@@ -4199,18 +4507,14 @@ begin
 		if(rstn='0')then
 			sDxB<=(others=>'0');
 		elsif(fclk' event and fclk='1')then
-			if(seek_busy0='1')then
-				sDxB(0)<='1';
+			for i in 0 to 3 loop
+				if(seek_busyv(i)='1')then
+					sDxB(i)<='1';
 			end if;
-			if(seek_busy1='1')then
-				sDxB(1)<='1';
+				if(seekpend(i)='1')then
+					sDxB(i)<='1';
 			end if;
-			if(seek_busy2='1')then
-				sDxB(2)<='1';
-			end if;
-			if(seek_busy3='1')then
-				sDxB(3)<='1';
-			end if;
+			end loop;
 			if(DxBclr='1')then
 				sDxB<=(others=>'0');
 			end if;
@@ -4232,43 +4536,69 @@ begin
 		rstn	=>rstn
 	);
 
-	seek_bgn0<=seek_bgn when US="00" else '0';
-	seek_bgn1<=seek_bgn when US="01" else '0';
-	seek_bgn2<=seek_bgn when US="10" else '0';
-	seek_bgn3<=seek_bgn when US="11" else '0';
-
-	seek_init0<=seek_init when US="00" else '0';
-	seek_init1<=seek_init when US="01" else '0';
-	seek_init2<=seek_init when US="10" else '0';
-	seek_init3<=seek_init when US="11" else '0';
-	
 	iC<=conv_integer(C);
-	seek_cyl0<=iC when td0='1' else iC*2 when (iC*2)<maxtrack else maxtrack;
-	seek_cyl1<=iC when td1='1' else iC*2 when (iC*2)<maxtrack else maxtrack;
-	seek_cyl2<=iC when td2='1' else iC*2 when (iC*2)<maxtrack else maxtrack;
-	seek_cyl3<=iC when td3='1' else iC*2 when (iC*2)<maxtrack else maxtrack;
+
+	tdi<=td3 & td2 & td1 & td0;
 	
-	seek_sft0	<=seek_sft when US="00" else '0';
-	seek_sft1	<=seek_sft when US="01" else '0';
-	seek_sft2	<=seek_sft when US="10" else '0';
-	seek_sft3	<=seek_sft when US="11" else '0';
+	seekcnt	:seekcont generic map(maxtrack) port map(
+		uselin	=>US,
+		inireq	=>seek_init,
+		seekreq	=>seek_bgn,
+		destin	=>iC,
+		tdi		=>tdi,
+		
+		iniout	=>seek_initv,
+		seekout	=>seek_bgnv,
+		dest0	=>iC0,
+		dest1	=>iC1,
+		dest2	=>iC2,
+		dest3	=>iC3,
+		tdo	=>tdo,
+		readyin	=>READY,
+		
+		sendin	=>seek_endv,
+		serrin	=>seek_errv,
+		sbusyin	=>seek_busyv,
+		
+		
+		seek_end	=>seek_end,
+		seek_err	=>seek_err,
+		readyout	=>sREADY,
+
+		seek_pend	=>seekpend,
+		busy	=>seekbusy,
+		uselout	=>seekusel,
+		
+		clk		=>fclk,
+		rstn	=>rstn
+	);
+
+	seek_cyl0<=iC0 when tdo(0)='1' else iC0*2 when (iC0*2)<maxtrack else maxtrack;
+	seek_cyl1<=iC1 when tdo(1)='1' else iC1*2 when (iC1*2)<maxtrack else maxtrack;
+	seek_cyl2<=iC2 when tdo(2)='1' else iC2*2 when (iC2*2)<maxtrack else maxtrack;
+	seek_cyl3<=iC3 when tdo(3)='1' else iC3*2 when (iC3*2)<maxtrack else maxtrack;
+	
+	seek_sft0	<=seek_sft when seekusel="00" else '0';
+	seek_sft1	<=seek_sft when seekusel="01" else '0';
+	seek_sft2	<=seek_sft when seekusel="10" else '0';
+	seek_sft3	<=seek_sft when seekusel="11" else '0';
 	
 	hds0	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl0,
-		destset		=>seek_bgn0,
+		destset		=>seek_bgnv(0),
 		setwait		=>30,
 
 		curtrack	=>seek_cur0,
 	
-		reachtrack	=>seek_end0,
-		busy		=>seek_busy0,
+		reachtrack	=>seek_endv(0),
+		busy		=>seek_busyv(0),
 	
 		track0		=>track0b,
 		seek		=>STEP0,
 		sdir		=>SDIR0,
 	
-		init		=>seek_init0,
-		seekerr		=>seek_err0,
+		init		=>seek_initv(0),
+		seekerr		=>seek_errv(0),
 		sft			=>seek_sft0,
 		clk			=>fclk,
 		rstn		=>rstn
@@ -4276,20 +4606,20 @@ begin
 	
 	hds1	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl1,
-		destset		=>seek_bgn1,
+		destset		=>seek_bgnv(1),
 		setwait		=>30,
 	
 		curtrack	=>seek_cur1,
 	
-		reachtrack	=>seek_end1,
-		busy		=>seek_busy1,
+		reachtrack	=>seek_endv(1),
+		busy		=>seek_busyv(1),
 	
 		track0		=>track0b,
 		seek		=>STEP1,
 		sdir		=>SDIR1,
 	
-		init		=>seek_init1,
-		seekerr		=>seek_err1,
+		init		=>seek_initv(1),
+		seekerr		=>seek_errv(1),
 		sft			=>seek_sft1,
 		clk			=>fclk,
 		rstn		=>rstn
@@ -4297,20 +4627,20 @@ begin
 	
 	hds2	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl2,
-		destset		=>seek_bgn2,
+		destset		=>seek_bgnv(2),
 		setwait		=>30,
 	
 		curtrack	=>seek_cur2,
 	
-		reachtrack	=>seek_end2,
-		busy		=>seek_busy2,
+		reachtrack	=>seek_endv(2),
+		busy		=>seek_busyv(2),
 	
 		track0		=>track0b,
 		seek		=>STEP2,
 		sdir		=>SDIR2,
 	
-		init		=>seek_init2,
-		seekerr		=>seek_err2,
+		init		=>seek_initv(2),
+		seekerr		=>seek_errv(2),
 		sft			=>seek_sft2,
 		clk			=>fclk,
 		rstn		=>rstn
@@ -4318,75 +4648,71 @@ begin
 	
 	hds3	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl3,
-		destset		=>seek_bgn3,
+		destset		=>seek_bgnv(3),
 		setwait		=>30,
 	
 		curtrack	=>seek_cur3,
 	
-		reachtrack	=>seek_end3,
-		busy		=>seek_busy3,
+		reachtrack	=>seek_endv(3),
+		busy		=>seek_busyv(3),
 	
 		track0		=>track0b,
 		seek		=>STEP3,
 		sdir		=>SDIR3,
 	
-		init		=>seek_init3,
-		seekerr		=>seek_err3,
+		init		=>seek_initv(3),
+		seekerr		=>seek_errv(3),
 		sft			=>seek_sft3,
 		clk			=>fclk,
 		rstn		=>rstn
 	);
 	
-	seek_end<=	seek_end0 when US="00" else
-				seek_end1 when US="01" else
-				seek_end2 when US="10" else
-				seek_end3 when US="11" else
+	seek_busy<=	seek_busyv(0) when seekusel="00" else
+					seek_busyv(1) when seekusel="01" else
+					seek_busyv(2) when seekusel="10" else
+					seek_busyv(3) when seekusel="11" else
 				'0';
-	seek_busy<=	seek_busy0 when US="00" else
-				seek_busy1 when US="01" else
-				seek_busy2 when US="10" else
-				seek_busy3 when US="11" else
-				'0';
-	STEP<=		STEP0 when US="00" else
-				STEP1 when US="01" else
-				STEP2 when US="10" else
-				STEP3 when US="11" else
+	STEP<=		STEP0 when seekusel="00" else
+					STEP1 when seekusel="01" else
+					STEP2 when seekusel="10" else
+					STEP3 when seekusel="11" else
 				'1';
-	SDIR<=		SDIR0 when US="00" else
-				SDIR1 when US="01" else
-				SDIR2 when US="10" else
-				SDIR3 when US="11" else
+	SDIR<=		SDIR0 when seekusel="00" else
+					SDIR1 when seekusel="01" else
+					SDIR2 when seekusel="10" else
+					SDIR3 when seekusel="11" else
 				'1';
-	seek_err<=	seek_err0  when US="00" else
-				seek_err1  when US="01" else
-				seek_err2  when US="10" else
-				seek_err3  when US="11" else
-				'0';
 	PCN0<=conv_std_logic_vector(seek_cur0,8);
 	PCN1<=conv_std_logic_vector(seek_cur1,8);
 	PCN2<=conv_std_logic_vector(seek_cur2,8);
 	PCN3<=conv_std_logic_vector(seek_cur3,8);
-	cPCN<=		PCN0 when US="00" and td0='1' else '0' & PCN0(7 downto 1) when US="00" else
-				PCN1 when US="01" and td1='1' else '0' & PCN1(7 downto 1) when US="01" else
-				PCN2 when US="10" and td2='1' else '0' & PCN2(7 downto 1) when US="10" else
-				PCN3 when US="11" and td3='1' else '0' & PCN3(7 downto 1) when US="11" else
+	
+	mPCN0<=PCN0 when tdo(0)='1' else '0' & PCN0(7 downto 1);
+	mPCN1<=PCN1 when tdo(1)='1' else '0' & PCN1(7 downto 1);
+	mPCN2<=PCN2 when tdo(2)='1' else '0' & PCN2(7 downto 1);
+	mPCN3<=PCN3 when tdo(3)='1' else '0' & PCN3(7 downto 1);
+	
+	cPCN<=	mPCN0 when US="00" else
+				mPCN1 when US="01" else
+				mPCN2 when US="10" else
+				mPCN3 when US="11" else
 				(others=>'0');
 
-	sEC<=seek_err;
+--	sEC<=seek_err;
 --	sSE<=not seek_busy;
 --	sSE<=iSE;
-
-		process(fclk,rstn)begin
-		if(rstn='0')then
-			sSE<='0';
-		elsif(fclk' event and fclk='1')then
-			if(seek_end='1')then
-				sSE<='1';
-			elsif(SEclr='1')then
-				sSE<='0';
-			end if;
-		end if;
-	end process;
+--
+--		process(fclk,rstn)begin
+--		if(rstn='0')then
+--			sSE<='0';
+--		elsif(fclk' event and fclk='1')then
+--			if(seek_end='1')then
+--				sSE<='1';
+--			elsif(SEclr='1')then
+--				sSE<='0';
+--			end if;
+--		end if;
+--	end process;
 
 	CRCG	:CRCGENN generic map(8,16) port map(
 		POLY	=>"10000100000010001",
@@ -4504,7 +4830,7 @@ port map(
 
 	RDET	:NRDET generic map(rdytout*2) port map(
 		start	=>NRDSTART,
-		RDY		=>READY,
+		RDY		=>not READY,
 		
 		NOTRDY	=>NOTRDY,
 		

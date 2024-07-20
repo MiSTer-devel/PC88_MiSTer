@@ -104,6 +104,7 @@ set_global_assignment -name VECTOR_WAVEFORM_FILE rtl/FDC/crctest.vwf
 set_global_assignment -name VHDL_FILE rtl/FDC/dc2ry.vhd
 set_global_assignment -name VHDL_FILE rtl/FDC/nrdet.vhd
 set_global_assignment -name VHDL_FILE rtl/FDC/MTsave.vhd
+set_global_assignment -name VHDL_FILE rtl/FDC/seekcont.vhd
 set_global_assignment -name HEX_FILE rtl/PS2KB/kbtbln.hex
 set_global_assignment -name HEX_FILE rtl/PS2KB/kbtble0.hex
 set_global_assignment -name VHDL_FILE rtl/PS2KB/KBIF.vhd

@@ -170,11 +170,11 @@ begin
 					fmsync<='1';
 					charcount<=0;
 					DetMFE<='1';
-				elsif(datsft(2 downto 0)="100")then
+				elsif(fmsync='1' and datsft(2 downto 0)="100")then
 					fmsync<='0';	--
 					charcount<=0;	--
 					daterr<='1';
-				elsif((charcount mod 2)=0 and datsft(0)='0')then
+				elsif(fmsync='1' and (charcount mod 2)=0 and datsft(0)='0')then
 					fmsync<='0';
 					charcount<=0;
 					daterr<='1';
