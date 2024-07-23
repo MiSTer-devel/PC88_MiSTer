@@ -46,10 +46,9 @@ port(
 	pPs2Clkout	: out std_logic;
 	pPs2Datin 	: in std_logic;
 	pPs2Datout	: out std_logic;
-	pPmsClkin	: in std_logic;
-	pPmsClkout	: out std_logic;
-	pPmsDatin	: in std_logic;
-	pPmsDatout	: out std_logic;
+
+	-- PS/2 mouse
+	ps2_mouse	: in std_logic_vector(24 downto 0);
 
 	-- Joystick ports (Port_A, Port_B)
 	pJoyA		: inout std_logic_vector( 5 downto 0);
@@ -77,7 +76,7 @@ port(
 	pFd_sync		:in std_logic_vector(1 downto 0);
 
     -- DIP switch, Lamp ports
-	pDip        : in std_logic_vector( 9 downto 0);
+	pDip        : in std_logic_vector(10 downto 0);
 	pLed        : out std_logic;
 	pPsw		: in std_logic_vector(1 downto 0);
 	pMonDbus	:out std_logic_vector(7 downto 0);
@@ -616,6 +615,18 @@ port(
 );
 end component;
 
+component ps2mouse
+port(
+	clk		:in std_logic;
+	reset	:in std_logic;
+
+	strobe	:in std_logic;
+	data	:out std_logic_vector(5 downto 0);
+
+	ps2_mouse	:in std_logic_vector(24 downto 0)
+);
+end component;
+
 component INTCONTS
 generic(
 	CNTADR	:std_logic_vector(7 downto 0)	:=x"e4";
@@ -1120,6 +1131,7 @@ signal	cBT			:std_logic;
 signal	c20L		:std_logic;
 signal	c40C		:std_logic;
 signal	cDisk		:std_logic;
+signal	cInDev		:std_logic;
 
 signal	SDI			:std_logic;
 signal	CPUADR		:std_logic_vector(15 downto 0);
@@ -1341,6 +1353,7 @@ signal	VRAMWE		:std_logic_vector(3 downto 0);
 
 signal	pStr	:std_logic;
 signal	pJoy	:std_logic_vector(5 downto 0);
+signal	mdata	:std_logic_vector(5 downto 0);
 
 signal	SEG0	:std_logic_vector(3 downto 0);
 signal	SEG1	:std_logic_vector(3 downto 0);
@@ -1470,6 +1483,12 @@ begin
 	MTSAVE	<=pDip(3);
 
 	CPUMD<=pDip(9);
+
+	process(clk21m) begin
+		if (clk21m' event and clk21m='1') then
+			cInDev	<=pDip(10);
+		end if;
+	end process;
 
 	srstna<=plllocked;	--LOADER_DONE and 
 	
@@ -2203,10 +2222,25 @@ port map(
 		end if;
 	end process;
 	
-	
+busmouse	:ps2mouse port map(
+	clk		=> clk21m,
+	reset	=> not CPU_rstn,
+	strobe	=> pStr,
+	data	=> mdata,
+	ps2_mouse	=> ps2_mouse
+);
+
 OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MHz
 
-	pJoy<=pJoyA and pJoyB;
+process(clk21m) begin
+	if (clk21m' event and clk21m='1') then
+		if (cInDev='0') then
+			pJoy <= pJoyA and pJoyB;
+		else
+			pJoy <= mdata;
+		end if;
+	end if;
+end process;
 
 	selopn	:if USE_OPN=1 generate
 		

@@ -218,6 +218,7 @@ parameter CONF_STR = {
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
 	"OD,Disk boot,Enable,Disable;",
+	"OK,Input,Joypad,Mouse;",
 	"-;",
 	"R6,Reset;",
 	"J,Fire 1,Fire 2;",
@@ -303,6 +304,7 @@ wire  [3:0] img_readonly;
 wire [63:0] img_size;
 
 wire [65:0] ps2_key;
+wire [24:0] ps2_mouse;
 wire [64:0] sysrtc;
 wire [21:0] gamma_bus;
 wire  [7:0] uart1_mode;
@@ -343,12 +345,9 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 	.ps2_kbd_data_out(ps2_kbd_data_out),
 	.ps2_kbd_clk_in(ps2_kbd_clk_in),
 	.ps2_kbd_data_in(ps2_kbd_data_in),
-	.ps2_mouse_clk_out(ps2_mouse_clk_out),
-	.ps2_mouse_data_out(ps2_mouse_data_out),
-	.ps2_mouse_clk_in(ps2_mouse_clk_in),
-	.ps2_mouse_data_in(ps2_mouse_data_in),
 
 	.ps2_key(ps2_key),
+	.ps2_mouse(ps2_mouse),
 	
 	.RTC(sysrtc),
 
@@ -377,6 +376,7 @@ wire	c20L	=status[12];
 wire	cDisk	=status[13];
 wire	MTSAVE	=1;
 wire [1:0]FDsync=status[16:15];
+wire	cInDev	=status[20];
 
 assign CLK_VIDEO = clk_ram;
 assign AUDIO_S = 1;
@@ -419,10 +419,7 @@ PC88MiSTer PC88_top
 	.pPs2Datin(ps2_kbd_data_out),
 	.pPs2Datout(ps2_kbd_data_in),
 
-	.pPmsClkin(ps2_mouse_clk_out),
-	.pPmsClkout(ps2_mouse_clk_in),
-	.pPmsDatin(ps2_mouse_data_out),
-	.pPmsDatout(ps2_mouse_data_in),
+	.ps2_mouse(ps2_mouse),
 
 	.pJoyA(joyA),
 	.pJoyB(joyB),
@@ -444,7 +441,7 @@ PC88MiSTer PC88_top
 	.pFd_sync(FDsync),
 
 	.pLed(disk_led),
-	.pDip({clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
+	.pDip({cInDev,clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
 	.pPsw(2'b11),
 
 	.pVideoR(red),
