@@ -36,13 +36,13 @@ copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.ro
 
 ## Special key assignments are as follows:
 
-(PC88->PS/2)
-STOP -> End
-CLR -> Home
-HELP -> F11
-GRPH -> Alt
-COPY -> Print Screen
-PC -> Scroll Lock
+### (PC88->PS/2)
+- STOP -> End
+- CLR -> Home
+- HELP -> F11
+- GRPH -> Alt
+- COPY -> Print Screen
+- PC -> Scroll Lock
 
 ## Known Issues
 - Timing issues
