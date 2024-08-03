@@ -41,17 +41,18 @@ module jt08_adpcm_drvB(
     input    [15:0] alimit_b,   // Limit address
     output reg  [ 3:0] flag,
     input    [ 4:0] clr_flag,
-    input           sel_ram,
     // memory
     output reg [23:0] addr,
     input      [ 7:0] ram_din,
     output reg [ 7:0] ram_dout,
-    output reg        roe_n,
-    output reg        wr_n,
+    output reg        ram_oe_n,
+    output reg        ram_wr_n,
     // cpu bus
     input      [ 7:0] bus_din,
     output reg  [7:0] bus_dout,
-    input             bus_write,
+    input             sel_ram,
+    input             wr_n,
+    input             rd_n,
 
     output reg signed [15:0]  pcm55_l,
     output reg signed [15:0]  pcm55_r
@@ -119,8 +120,8 @@ always @(posedge clk) begin
         ram_addr    <= 21'd0;
         ram_busy    <= 1'b0;
         ram_eos     <= 1'b0;
-        wr_n        <= 1'b1;
-        roe_n       <= 1'b1;
+        ram_wr_n    <= 1'b1;
+        ram_oe_n    <= 1'b1;
         bus_dout    <= 8'd0;
         ram_dout    <= 8'd0;
         waits       <= {RDWAIT+1{1'b0}};
@@ -139,17 +140,18 @@ always @(posedge clk) begin
                     end
                     if ((sel_ram) && (!acmd_on_b)) begin
                         // Access external memory
-                        if (acmd_rec_b) begin
+                        if (acmd_rec_b & !wr_n) begin
                             state   <= STATE_WRITE;
-                            roe_n   <= 1'b1;
-                        end else begin
+                            ram_oe_n<= 1'b1;
+                            ram_busy<= 1'b0;
+                        end else if (!rd_n) begin
                             // (start READ sequence here)
                             state   <= STATE_WAIT1;
-                            roe_n   <= 1'b0;
+                            ram_oe_n<= 1'b0;
+                            ram_busy<= 1'b1;
                             waits   <= {1'b1, {RDWAIT{1'b0}}};
                         end
                         addr    <= { 3'b000, ram_addr};
-                        ram_busy<= 1'b1;
                     end else if (acmd_on_b & adv & cen55) begin
                         // Playing ADPCM
                         // (start READ sequence here)
@@ -157,37 +159,32 @@ always @(posedge clk) begin
                         addr    <= { 3'b000, pcm_addr};
                         dsel    <= nibble_sel;
                         ram_busy<= 1'b1;
-                        roe_n       <= 1'b0;
+                        ram_oe_n<= 1'b0;
                         waits       <= {1'b1, {RDWAIT{1'b0}}};
                     end else begin
                         state   <= STATE_IDLE;
                         addr    <= addr;
                         ram_busy<= 1'b0;
-                        roe_n   <= 1'b1;
+                        ram_oe_n<= 1'b1;
                     end
                     // save previous one
                     pre_start_b <= astart_b;
                     // strobe control
-                    wr_n        <= 1'b1;
+                    ram_wr_n    <= 1'b1;
                 end
                 STATE_WRITE: begin
-                    roe_n       <= 1'b1;
+                    ram_oe_n    <= 1'b1;
                     ram_busy    <= 1'b1;
-                    if (bus_write) begin
-                        // Latch CPU data
-                        ram_dout<= bus_din;
-                        // State switch to External write cycle:
-                        //
-                        // There are several clocks between latching the data
-                        // and outputting it to the external RAM,
-                        // but these will be omitted.
-                        waits   <= {{RDWAIT+1{1'b1}}, {WRWAIT{1'b0}}};
-                        state   <= STATE_WRITE2;
-                        wr_n    <= 1'b0;
-                    end else begin
-                        state   <= STATE_WRITE;
-                        wr_n    <= 1'b1;
-                    end
+                    ram_wr_n    <= 1'b0;
+                    // Latch CPU data
+                    ram_dout    <= bus_din;
+                    // State switch to External write cycle:
+                    //
+                    // There are several clocks between latching the data
+                    // and outputting it to the external RAM,
+                    // but these will be omitted.
+                    waits       <= {{RDWAIT+1{1'b1}}, {WRWAIT{1'b0}}};
+                    state       <= STATE_WRITE2;
                 end
                 STATE_WRITE2: begin
                     // write cycle for external memory with wait
@@ -211,8 +208,8 @@ always @(posedge clk) begin
                 end
                 STATE_POST: begin
                     // end strobe
-                    roe_n       <= 1'b1;
-                    wr_n        <= 1'b1;
+                    ram_oe_n    <= 1'b1;
+                    ram_wr_n    <= 1'b1;
                     // data
                     bus_dout    <= ram_din;
                     din         <= !dsel ? ram_din[7:4] : ram_din[3:0];
@@ -257,8 +254,8 @@ always @(posedge clk) begin
             pre_start_b <= astart_b;
             ram_busy    <= 1'b0;
             ram_eos     <= 1'b0;
-            wr_n        <= 1'b1;
-            roe_n       <= 1'b1;
+            ram_wr_n    <= 1'b1;
+            ram_oe_n    <= 1'b1;
             bus_dout    <= 8'd0;
             ram_dout    <= 8'd0;
         end

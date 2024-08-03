@@ -1003,6 +1003,7 @@ component JTOPNA
 		addr	:in std_logic_vector(1 downto 0);
 		cs_n	:in std_logic;
 		wr_n	:in std_logic;
+		rd_n	:in std_logic;
 		
 		dout	:out std_logic_vector(7 downto 0);
 		irq_n	:out std_logic;
@@ -2398,6 +2399,7 @@ end process;
 			addr	=>CPUADR(1 downto 0),
 			cs_n	=>PSG_CEn,
 			wr_n	=>WR_n,
+			rd_n	=>RD_n,
 
 			dout	=>IDAT_PSG,
 			irq_n	=>INTn_OPN,

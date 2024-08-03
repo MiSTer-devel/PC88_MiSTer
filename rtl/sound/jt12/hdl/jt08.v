@@ -30,6 +30,7 @@ module jt08(
     input   [1:0]   addr,
     input           cs_n,
     input           wr_n,
+    input           rd_n,
 
     output  [7:0]   dout,
     output          irq_n,
@@ -74,6 +75,7 @@ u_jt12(
     .addr           ( addr         ),
     .cs_n           ( cs_n         ),
     .wr_n           ( wr_n         ),
+    .rd_n           ( rd_n         ),
 
     .dout           ( dout         ),
     .irq_n          ( irq_n        ),
