@@ -291,7 +291,7 @@ always @(posedge clk) begin : memory_mapped_registers
         adeltan_b   <= 0;
         if( use_adpcm==2 ) begin
             flag_mask   <= 6'h03;    // mask ZERO,BRDY,EOS when reset
-            flag_ctl    <= 6'h1C;
+            flag_ctl    <= 7'h7F;
         end else begin
         	flag_mask   <= 0;
             flag_ctl    <= 0;
@@ -482,8 +482,21 @@ always @(posedge clk) begin : memory_mapped_registers
                         //  5'he: dac_din_b[ 7:0] <= din;   // access through to ADPCM-B
                         //  5'hf: (read only)
                             5'h10: begin
-                                flag_mask   <= ~{din[7],1'b0,din[4:0]};
-                                flag_ctl    <= {din[7],1'b0,din[4:0]}; // this lasts a single clock cycle
+                                if (din[7]==0) begin
+                                    // Set flag masks
+                                    flag_mask   <= ~{2'b00,din[4:0]};
+                                    // Reset masked flags
+                                    // this lasts a single clock cycle
+                                    flag_ctl    <= {2'b00,din[4:0]};
+                                    clr_flag_A  <= din[0];
+                                    clr_flag_B  <= din[1];
+                                end else begin
+                                    // Reset all flags
+                                    // this lasts a single clock cycle
+                                    flag_ctl    <= 7'h7F;
+                                    clr_flag_A  <= 1'b1;
+                                    clr_flag_B  <= 1'b1;
+                                end
     					    end
                             default:;
                         endcase

@@ -349,7 +349,7 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .alimit_b   ( alimit_b      ),  // Limit address
         // Flag
         .flag       ( adpcmb_flag2  ),
-        .clr_flag   ( flag_ctl[6:2] ),
+        .clr_flag   ( flag_ctl[5:2] ),
         // memory
         .addr       ( adpcmb_addr   ),
         .ram_din    ( adpcmb_data   ),

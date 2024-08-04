@@ -39,8 +39,8 @@ module jt08_adpcm_drvB(
     input    [15:0] adeltan_b,  // Delta-N
     input    [ 7:0] aeg_b,      // Envelope Generator Control
     input    [15:0] alimit_b,   // Limit address
-    output reg  [ 3:0] flag,
-    input    [ 4:0] clr_flag,
+    output reg [ 3:0] flag,
+    input      [ 3:0] clr_flag,
     // memory
     output reg [23:0] addr,
     input      [ 7:0] ram_din,
@@ -87,8 +87,7 @@ localparam  STATE_IDLE  = 'd0,
 localparam  F_EOS   = 0,
             F_BRDY  = 1,
             F_ZERO  = 2,
-            F_BUSY  = 3,
-            F_RESET = 4;
+            F_BUSY  = 3;
 
 // wait
 //localparam  RDWAIT  = 3;
@@ -261,10 +260,14 @@ always @(posedge clk) begin
         end
     end
     // flags
-    flag[F_BRDY] <= (clr_flag[F_BRDY] || clr_flag[F_RESET]) ? 1'b0 : ( (~acmd_on_b & ~ram_busy) | (acmd_on_b & nibble_sel) );
-    flag[F_EOS]  <= (clr_flag[F_EOS]  || clr_flag[F_RESET]) ? 1'b0 : ( (~acmd_on_b & ram_eos)   | (acmd_on_b & pcm_eos) );
-    flag[F_ZERO] <= 1'b0;
-    flag[F_BUSY] <= chon;
+    flag[F_BRDY] <= clr_flag[F_BRDY] ? 1'b0 : (flag[F_BRDY] | ( ~ram_busy ));
+    flag[F_EOS]  <= clr_flag[F_EOS]  ? 1'b0 : ((~acmd_on_b & ram_eos) | (acmd_on_b & pcm_eos));
+    flag[F_ZERO] <= 1'b0; //clr_flag[F_ZERO] ? 1'b0 : adc_zero;
+    flag[F_BUSY] <= clr_flag[F_BUSY] ? 1'b0 : chon;
+    // clear internal flag
+    if (clr_flag[F_EOS]) begin
+        ram_eos <= 1'b0;
+    end 
 end
 
 jt08_adpcmb_cnt u_cnt(
