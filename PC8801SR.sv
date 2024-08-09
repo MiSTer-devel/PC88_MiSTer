@@ -218,7 +218,9 @@ parameter CONF_STR = {
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
 	"OD,Disk boot,Enable,Disable;",
+	"-;",
 	"OK,Input,Joypad,Mouse;",
+	"OL,Sound Board 2,Expansion,Onboard;",
 	"-;",
 	"R6,Reset;",
 	"J,Fire 1,Fire 2;",
@@ -377,6 +379,7 @@ wire	cDisk	=status[13];
 wire	MTSAVE	=1;
 wire [1:0]FDsync=status[16:15];
 wire	cInDev	=status[20];
+wire	cSB2	=status[21];
 
 assign CLK_VIDEO = clk_ram;
 assign AUDIO_S = 1;
@@ -441,7 +444,8 @@ PC88MiSTer PC88_top
 	.pFd_sync(FDsync),
 
 	.pLed(disk_led),
-	.pDip({cInDev,clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
+	.pDip({clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
+	.pCoreConfig({cSB2,cInDev}),
 	.pPsw(2'b11),
 
 	.pVideoR(red),
