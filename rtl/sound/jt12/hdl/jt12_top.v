@@ -32,6 +32,7 @@ module jt12_top (
     input   [1:0]   addr,
     input           cs_n,
     input           wr_n,
+    input           rd_n,
 
     output  [7:0]   dout,
     output          irq_n,
@@ -348,17 +349,18 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .alimit_b   ( alimit_b      ),  // Limit address
         // Flag
         .flag       ( adpcmb_flag2  ),
-        .clr_flag   ( flag_ctl[6:2] ),
+        .clr_flag   ( flag_ctl[5:2] ),
         // memory
         .addr       ( adpcmb_addr   ),
         .ram_din    ( adpcmb_data   ),
         .ram_dout   ( adpcmb_dout   ),
-        .roe_n      ( adpcmb_roe_n  ),
-        .wr_n       ( adpcmb_wr_n   ),
+        .ram_oe_n   ( adpcmb_roe_n  ),
+        .ram_wr_n   ( adpcmb_wr_n   ),
         .bus_din    ( din           ),
         .bus_dout   ( dout_b        ),
-        .bus_write  ( write         ),
         .sel_ram    ( sel_ram       ),
+        .wr_n       ( wr_n          ),
+        .rd_n       ( rd_n          ),
         .acmd_mem_b ( acmd_mem_b    ),
         .acmd_rec_b ( acmd_rec_b    ),
         .acmd_x8_b  ( acmd_x8_b     ),
