@@ -44,6 +44,10 @@ copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.ro
 - COPY -> Print Screen
 - PC -> Scroll Lock
 
+## Sound Board II
+
+On the OSD, there is an option to choose between Expansion (Default) or Onboard because some software only supports Onboard or Expansion board. You could find more informations on this issue ticket https://github.com/MiSTer-devel/PC88_MiSTer/issues/11.
+
 ## Known Issues
 - Timing issues
 - Gamma correction doesn't seem to change anything (?)
