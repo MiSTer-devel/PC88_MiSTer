@@ -120,6 +120,10 @@ type fdstate_t is (
 	fs_loadsectorsl,
 	fs_loadsectorsh,
 	fs_gap0,
+	fs_syncp,
+	fs_am0,
+	fs_am1,
+	fs_gap1,
 	fs_synci,
 	fs_iam0,
 	fs_iam1,
@@ -132,7 +136,7 @@ type fdstate_t is (
 	fs_crci1,
 	fs_ssizel,
 	fs_ssizeh,
-	fs_gap1,
+	fs_gap2,
 	fs_syncd,
 	fs_dam0,
 	fs_dam1,
@@ -140,8 +144,8 @@ type fdstate_t is (
 	fs_dat,
 	fs_crcd0,
 	fs_crcd1,
-	fs_gap2,
 	fs_gap3,
+	fs_gap4,
 	fs_nxttrack,
 	fs_scantrack,
 	fs_scaniam,
@@ -1020,7 +1024,7 @@ begin
 						when others =>
 						end case;
 						track_curaddr<=(others=>'0');
-						if(img_rddat(6)='1')then
+						if(img_rddat(6)='0')then
 							bytecount<=80;
 							trackwrdat<=x"024e";
 						else
@@ -1048,7 +1052,75 @@ begin
 					end if;
 				when fs_gap0 =>
 					if(trackbusy='0')then
-						if(bytecount>0)then
+						if(bytecount>1)then
+							bytecount<=bytecount-1;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+						else
+							if(mfm='1')then
+								trackwrdat<=x"0200";
+								bytecount<=12;
+							else
+								trackwrdat<=x"0000";
+								bytecount<=6;
+							end if;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+							fdstate<=fs_syncp;
+						end if;
+					end if;
+				when fs_syncp =>
+					if(trackbusy='0')then
+						if(bytecount>1)then
+							bytecount<=bytecount-1;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+						else
+							if(mfm='1')then
+								trackwrdat<=x"03c2";
+								bytecount<=3;
+								fdstate<=fs_am0;
+							else
+								trackwrdat<=x"01fc";
+								fdstate<=fs_am1;
+							end if;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+						end if;
+					end if;
+				when fs_am0 =>
+					if(trackbusy='0')then
+						if(bytecount>1)then
+							bytecount<=bytecount-1;
+						else
+							trackwrdat<=x"02fc";
+							fdstate<=fs_am1;
+						end if;
+						track_curaddr<=track_curaddr+1;
+						trackwr<='1';
+						swait:=1;
+					end if;
+				when fs_am1 =>
+					if(trackbusy='0')then
+						if(mfm='1')then
+							trackwrdat<=x"024e";
+							bytecount<=50;
+						else
+							trackwrdat<=x"00ff";
+							bytecount<=26;
+						end if;
+						track_curaddr<=track_curaddr+1;
+						trackwr<='1';
+						swait:=1;
+						fdstate<=fs_gap1;
+					end if;
+				when fs_gap1 =>
+					if(trackbusy='0')then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
@@ -1069,7 +1141,7 @@ begin
 					end if;
 				when fs_synci =>
 					if(trackbusy='0')then
-						if(bytecount>0)then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
@@ -1232,12 +1304,12 @@ begin
 						end if;
 						trackwr<='1';
 						swait:=1;
-						fdstate<=fs_gap1;
+						fdstate<=fs_gap2;
 					end if;
-				when fs_gap1 =>
+				when fs_gap2 =>
 					if(trackbusy='0')then
 						track_curaddr<=track_curaddr+1;
-						if(bytecount>0)then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 						else
 							if(mfm='1')then
@@ -1255,7 +1327,7 @@ begin
 				when fs_syncd =>
 					if(trackbusy='0')then
 						track_curaddr<=track_curaddr+1;
-						if(bytecount>0)then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 						else
 							crcclr<='1';
@@ -1356,15 +1428,15 @@ begin
 							trackwrdat(7 downto 0)<=crcdat(7 downto 0);
 						end if;
 						trackwr<='1';
-						fdstate<=fs_gap2;
+						fdstate<=fs_gap3;
 						if(mfm='1')then
-							bytecount<=10;
+							bytecount<=26;
 						else
-							bytecount<=5;
+							bytecount<=13;
 						end if;
 						swait:=1;
 					end if;
-				when fs_gap2 =>
+				when fs_gap3 =>
 					if(trackbusy='0')then
 						track_curaddr<=track_curaddr+1;
 						if(bytecount>0)then
@@ -1383,7 +1455,7 @@ begin
 									trackwrdat<=x"00ff";
 								end if;
 								trackwr<='1';
-								fdstate<=fs_gap3;
+								fdstate<=fs_gap4;
 							else
 								sectcount<=sectcount+1;
 								cursecthead<=nxtsecthead;
@@ -1400,7 +1472,7 @@ begin
 							end if;
 						end if;
 					end if;
-				when fs_gap3 =>
+				when fs_gap4 =>
 					if(trackbusy='0')then
 						if(track_curaddr<tracklen)then
 							track_curaddr<=track_curaddr+1;
