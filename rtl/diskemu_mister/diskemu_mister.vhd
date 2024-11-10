@@ -195,6 +195,7 @@ signal	wrprot	:std_logic_vector(1 downto 0);
 signal	diskmode0	:std_logic_vector(1 downto 0);
 signal	diskmode1	:std_logic_vector(1 downto 0);
 signal	diskmode		:std_logic_vector(1 downto 0);
+signal	ddmode			:std_logic;
 -- signal	fde_wrmode	:std_logic_vector(7 downto 0);
 signal	fde_modeset	:std_logic_vector(1 downto 0);
 
@@ -918,6 +919,7 @@ begin
 			diskmode0<="00";
 			diskmode1<="00";
 			diskmode<="00";
+			ddmode<='0';
 			ambuf0:=(others=>'0');
 			ambuf1:=(others=>'0');
 			ambuf2:=(others=>'0');
@@ -986,15 +988,16 @@ begin
 						sectcount<=(others=>'0');
 					end if;
 				when fs_loadmode =>
-					diskmode<=haddr(29 downto 28);
+					diskmode<=haddr(29) & '0';
+					ddmode<=haddr(28);
 					case emustate is
 					when es_fload0 | es_fsave0 =>
 						wrprot(0)<=haddr(20);
-						diskmode0<=haddr(29 downto 28);
+						diskmode0<=haddr(29) & '0';
 						fde_modeset(0)<='1';
 					when es_fload1 | es_fsave1 =>
 						wrprot(1)<=haddr(20);
-						diskmode1<=haddr(29 downto 28);
+						diskmode1<=haddr(29) & '0';
 						fde_modeset(1)<='1';
 					when others =>
 					end case;
@@ -1456,6 +1459,16 @@ begin
 								end if;
 								trackwr<='1';
 								fdstate<=fs_gap4;
+								if(track_curaddr>tracklen)then
+									diskmode(0)<='1';
+									if(img_unit='0')then
+										diskmode0(0)<='1';
+										fde_modeset(0)<='1';
+									else
+										diskmode1(0)<='1';
+										fde_modeset(1)<='1';
+									end if;
+								end if;
 							else
 								sectcount<=sectcount+1;
 								cursecthead<=nxtsecthead;
@@ -1474,7 +1487,7 @@ begin
 					end if;
 				when fs_gap4 =>
 					if(trackbusy='0')then
-						if(track_curaddr<tracklen)then
+						if(track_curaddr<(diskmode(1) & "1101111110000"))then	-- '0'/'1' & x"1BF0"
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
 						else
@@ -1848,18 +1861,16 @@ begin
 	end process;
 	
 	tracklen<=	x"00000c35"	when diskmode="00" and mfm='0' else
-					x"00000c35" when diskmode="01" and mfm='0' else
+					x"00000dac" when diskmode="01" and mfm='0' else
 					x"0000186a" when diskmode="10" and mfm='0' else
 					x"00001d4c" when diskmode="11" and mfm='0' else
 					x"0000186a" when diskmode="00" and mfm='1' else
-					x"0000186a" when diskmode="01" and mfm='1' else
+					x"00001b58" when diskmode="01" and mfm='1' else
 					x"000030d4" when diskmode="10" and mfm='1' else
 					x"00003a98" when diskmode="11" and mfm='1' else
 					x"00000000";
-	tracks<=	x"52" when diskmode="00" else
-				x"a4" when diskmode="01" else
-				x"a4" when diskmode="10" else
-				x"a4" when diskmode="11" else
+	tracks<=	x"52" when ddmode='0' else
+				x"a4" when ddmode='1' else
 				x"00";
 	
 		CRCG	:CRCGENN generic map(8,16) port map(
@@ -1894,7 +1905,7 @@ begin
 		q_b				=>fec_ramrdat
 	);
 	
-	trackaddr<=	cur_unit & trackno(6 downto 1) & '0' & trackno(0) & track_curaddr when diskmode="00" else
+	trackaddr<=	cur_unit & trackno(6 downto 1) & '0' & trackno(0) & track_curaddr when ddmode='0' else
 					cur_unit & trackno & track_curaddr;
 
 	fbaddr<=trackaddr(7 downto 0);
