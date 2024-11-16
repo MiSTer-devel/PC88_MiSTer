@@ -601,19 +601,9 @@ begin
 			if(wprot(conv_integer(USEL))='0')then
 				if(WRMFM='0')then
 					if(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmmfedet='1' or fmrxed='1' or GSwrite='1')then
-						if(fmmf8det='1')then
-							ramwdat<=x"05f8";
-						end if;
-						if(fmmfbdet='1')then
-							ramwdat<=x"05fb";
-						end if;
-						if(fmmfcdet='1')then
-							ramwdat<=x"05fc";
-						end if;
-						if(fmmfedet='1')then
-							ramwdat<=x"05fe";
-						end if;
-						if(fmrxed='1')then
+						if(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmmfedet='1')then
+							ramwdat<=x"05" & fmrxdat;
+						elsif(fmrxed='1')then
 							ramwdat<=x"04" & fmrxdat;
 						end if;
 						if(GSwrite='1')then
@@ -624,13 +614,9 @@ begin
 					end if;
 				else
 					if(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1' or GSwrite='1')then
-						if(mfmma1det='1')then
-							ramwdat<=x"07a1";
-						end if;
-						if(mfmmc2det='1')then
-							ramwdat<=x"07c2";
-						end if;
-						if(mfmrxed='1')then
+						if(mfmma1det='1' or mfmmc2det='1')then
+							ramwdat<=x"07" & mfmrxdat;
+						elsif(mfmrxed='1')then
 							ramwdat<=x"06" & mfmrxdat;
 						end if;
 						if(GSwrite='1')then
