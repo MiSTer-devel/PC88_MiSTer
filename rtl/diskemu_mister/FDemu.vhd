@@ -290,13 +290,13 @@ begin
 			if(rxed='1')then
 				case USEL is
 				when "00" =>
-					fdmode0<=WRFDMODE;
+					fdmode0(1)<=WRFDMODE(1);
 				when "01" =>
-					fdmode1<=WRFDMODE;
+					fdmode1(1)<=WRFDMODE(1);
 				when "10" =>
-					fdmode2<=WRFDMODE;
+					fdmode2(1)<=WRFDMODE(1);
 				when "11" =>
-					fdmode3<=WRFDMODE;
+					fdmode3(1)<=WRFDMODE(1);
 				when others =>
 				end case;
 			end if;
@@ -316,22 +316,22 @@ begin
 	bitlenw<=	4000*sysclk/1000000	when WRFDMODE(1)='0' else 2000*sysclk/1000000;
 				
 	tracklen0<=	conv_std_logic_vector( 6250,14) when fdmode0="00" else
-				conv_std_logic_vector( 6250,14) when fdmode0="01" else
+				conv_std_logic_vector( 7000,14) when fdmode0="01" else
 				conv_std_logic_vector(10416,14) when fdmode0="10" else
 				conv_std_logic_vector(12500,14) when fdmode0="11" else
 				(others=>'0');
 	tracklen1<=	conv_std_logic_vector( 6250,14) when fdmode1="00" else
-				conv_std_logic_vector( 6250,14) when fdmode1="01" else
+				conv_std_logic_vector( 7000,14) when fdmode1="01" else
 				conv_std_logic_vector(10416,14) when fdmode1="10" else
 				conv_std_logic_vector(12500,14) when fdmode1="11" else
 				(others=>'0');
 	tracklen2<=	conv_std_logic_vector( 6250,14) when fdmode2="00" else
-				conv_std_logic_vector( 6250,14) when fdmode2="01" else
+				conv_std_logic_vector( 7000,14) when fdmode2="01" else
 				conv_std_logic_vector(10416,14) when fdmode2="10" else
 				conv_std_logic_vector(12500,14) when fdmode2="11" else
 				(others=>'0');
 	tracklen3<=	conv_std_logic_vector( 6250,14) when fdmode3="00" else
-				conv_std_logic_vector( 6250,14) when fdmode3="01" else
+				conv_std_logic_vector( 7000,14) when fdmode3="01" else
 				conv_std_logic_vector(10416,14) when fdmode3="10" else
 				conv_std_logic_vector(12500,14) when fdmode3="11" else
 				(others=>'0');
@@ -601,19 +601,9 @@ begin
 			if(wprot(conv_integer(USEL))='0')then
 				if(WRMFM='0')then
 					if(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmmfedet='1' or fmrxed='1' or GSwrite='1')then
-						if(fmmf8det='1')then
-							ramwdat<=x"05f8";
-						end if;
-						if(fmmfbdet='1')then
-							ramwdat<=x"05fb";
-						end if;
-						if(fmmfcdet='1')then
-							ramwdat<=x"05fc";
-						end if;
-						if(fmmfedet='1')then
-							ramwdat<=x"05fe";
-						end if;
-						if(fmrxed='1')then
+						if(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmmfedet='1')then
+							ramwdat<=x"05" & fmrxdat;
+						elsif(fmrxed='1')then
 							ramwdat<=x"04" & fmrxdat;
 						end if;
 						if(GSwrite='1')then
@@ -624,13 +614,9 @@ begin
 					end if;
 				else
 					if(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1' or GSwrite='1')then
-						if(mfmma1det='1')then
-							ramwdat<=x"07a1";
-						end if;
-						if(mfmmc2det='1')then
-							ramwdat<=x"07c2";
-						end if;
-						if(mfmrxed='1')then
+						if(mfmma1det='1' or mfmmc2det='1')then
+							ramwdat<=x"07" & mfmrxdat;
+						elsif(mfmrxed='1')then
 							ramwdat<=x"06" & mfmrxdat;
 						end if;
 						if(GSwrite='1')then

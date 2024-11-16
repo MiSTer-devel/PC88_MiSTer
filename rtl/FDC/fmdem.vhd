@@ -156,18 +156,22 @@ begin
 			elsif(lsft='1')then
 				if(datsft="1111010101101010")then
 					fmsync<='1';
+					RXED<='1';
 					charcount<=0;
 					DetMF8<='1';
 				elsif(datsft="1111010101101111")then
 					fmsync<='1';
+					RXED<='1';
 					charcount<=0;
 					DetMFB<='1';
 				elsif(datsft="1111011101111010")then
 					fmsync<='1';
+					RXED<='1';
 					charcount<=0;
 					DetMFC<='1';
 				elsif(datsft="1111010101111110")then
 					fmsync<='1';
+					RXED<='1';
 					charcount<=0;
 					DetMFE<='1';
 				elsif(fmsync='1' and datsft(2 downto 0)="100")then
@@ -180,13 +184,13 @@ begin
 					daterr<='1';
 				elsif(fmsync='1')then
 					if(charcount=15)then
-						RXDAT<=datsft(14) & datsft(12) & datsft(10) & datsft(8) & datsft(6) & datsft(4) & datsft(2) & datsft(0);
 						RXED<='1';
 						charcount<=0;
 					else
 						charcount<=charcount+1;
 					end if;
 				end if;
+				RXDAT<=datsft(14) & datsft(12) & datsft(10) & datsft(8) & datsft(6) & datsft(4) & datsft(2) & datsft(0);
 			end if;
 		end if;
 	end process;

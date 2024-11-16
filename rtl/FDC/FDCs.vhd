@@ -822,8 +822,9 @@ begin
 						MT<=CPUWRDAT(7);
 						MF<=CPUWRDAT(6);
 					when cmd_READATRACK =>
+						MT<='0';
 						MF<=CPUWRDAT(6);
-						SK<=CPUWRDAT(5);
+						SK<='0';
 					when cmd_READID =>
 						MF<=CPUWRDAT(6);
 					when cmd_FORMATATRACK =>
@@ -1830,7 +1831,7 @@ begin
 						end if;
 					when es_CRCic =>
 						if(crcdone='1')then
-							if(crczero='1' and rxC=C and rxH=H and (rxR=R or ecommand=cmd_READATRACK) and rxN=N)then
+							if(crczero='1' and rxC=C and rxH=H and rxR=R and rxN=N)then
 								if(rxC=C)then
 									sWC<='0';
 									execstate<=es_DAM0;
@@ -1850,6 +1851,12 @@ begin
 									end_EXEC<='1';
 									execstate<=es_IDLE;
 								end if;
+							elsif (ecommand=cmd_READATRACK) then
+								sND<='1';	-- Set the "nodata" and continue reading as if the sector was found...
+								rxN<=N;		-- Change the sector length as the specified
+								execstate<=es_DAM0;
+								crcclr<='1';
+								DETSECT<='1';
 							else
 								crcclr<='1';
 								execstate<=es_IAM0;
@@ -2040,7 +2047,7 @@ begin
 						end if;
 					when es_CRCdc =>
 						if(crcdone='1')then
-							if(crczero='1')then
+							if((crczero='1') or (ecommand=cmd_READATRACK))then
 								if(R<EOT)then
 									incR<='1';
 								elsif(MT='1')then

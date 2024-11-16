@@ -120,6 +120,10 @@ type fdstate_t is (
 	fs_loadsectorsl,
 	fs_loadsectorsh,
 	fs_gap0,
+	fs_syncp,
+	fs_am0,
+	fs_am1,
+	fs_gap1,
 	fs_synci,
 	fs_iam0,
 	fs_iam1,
@@ -132,7 +136,7 @@ type fdstate_t is (
 	fs_crci1,
 	fs_ssizel,
 	fs_ssizeh,
-	fs_gap1,
+	fs_gap2,
 	fs_syncd,
 	fs_dam0,
 	fs_dam1,
@@ -140,8 +144,8 @@ type fdstate_t is (
 	fs_dat,
 	fs_crcd0,
 	fs_crcd1,
-	fs_gap2,
 	fs_gap3,
+	fs_gap4,
 	fs_nxttrack,
 	fs_scantrack,
 	fs_scaniam,
@@ -191,6 +195,7 @@ signal	wrprot	:std_logic_vector(1 downto 0);
 signal	diskmode0	:std_logic_vector(1 downto 0);
 signal	diskmode1	:std_logic_vector(1 downto 0);
 signal	diskmode		:std_logic_vector(1 downto 0);
+signal	ddmode			:std_logic;
 -- signal	fde_wrmode	:std_logic_vector(7 downto 0);
 signal	fde_modeset	:std_logic_vector(1 downto 0);
 
@@ -914,6 +919,7 @@ begin
 			diskmode0<="00";
 			diskmode1<="00";
 			diskmode<="00";
+			ddmode<='0';
 			ambuf0:=(others=>'0');
 			ambuf1:=(others=>'0');
 			ambuf2:=(others=>'0');
@@ -982,15 +988,16 @@ begin
 						sectcount<=(others=>'0');
 					end if;
 				when fs_loadmode =>
-					diskmode<=haddr(29 downto 28);
+					diskmode<=haddr(29) & '0';
+					ddmode<=haddr(28);
 					case emustate is
 					when es_fload0 | es_fsave0 =>
 						wrprot(0)<=haddr(20);
-						diskmode0<=haddr(29 downto 28);
+						diskmode0<=haddr(29) & '0';
 						fde_modeset(0)<='1';
 					when es_fload1 | es_fsave1 =>
 						wrprot(1)<=haddr(20);
-						diskmode1<=haddr(29 downto 28);
+						diskmode1<=haddr(29) & '0';
 						fde_modeset(1)<='1';
 					when others =>
 					end case;
@@ -1020,7 +1027,7 @@ begin
 						when others =>
 						end case;
 						track_curaddr<=(others=>'0');
-						if(img_rddat(6)='1')then
+						if(img_rddat(6)='0')then
 							bytecount<=80;
 							trackwrdat<=x"024e";
 						else
@@ -1048,7 +1055,75 @@ begin
 					end if;
 				when fs_gap0 =>
 					if(trackbusy='0')then
-						if(bytecount>0)then
+						if(bytecount>1)then
+							bytecount<=bytecount-1;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+						else
+							if(mfm='1')then
+								trackwrdat<=x"0200";
+								bytecount<=12;
+							else
+								trackwrdat<=x"0000";
+								bytecount<=6;
+							end if;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+							fdstate<=fs_syncp;
+						end if;
+					end if;
+				when fs_syncp =>
+					if(trackbusy='0')then
+						if(bytecount>1)then
+							bytecount<=bytecount-1;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+						else
+							if(mfm='1')then
+								trackwrdat<=x"03c2";
+								bytecount<=3;
+								fdstate<=fs_am0;
+							else
+								trackwrdat<=x"01fc";
+								fdstate<=fs_am1;
+							end if;
+							track_curaddr<=track_curaddr+1;
+							trackwr<='1';
+							swait:=1;
+						end if;
+					end if;
+				when fs_am0 =>
+					if(trackbusy='0')then
+						if(bytecount>1)then
+							bytecount<=bytecount-1;
+						else
+							trackwrdat<=x"02fc";
+							fdstate<=fs_am1;
+						end if;
+						track_curaddr<=track_curaddr+1;
+						trackwr<='1';
+						swait:=1;
+					end if;
+				when fs_am1 =>
+					if(trackbusy='0')then
+						if(mfm='1')then
+							trackwrdat<=x"024e";
+							bytecount<=50;
+						else
+							trackwrdat<=x"00ff";
+							bytecount<=26;
+						end if;
+						track_curaddr<=track_curaddr+1;
+						trackwr<='1';
+						swait:=1;
+						fdstate<=fs_gap1;
+					end if;
+				when fs_gap1 =>
+					if(trackbusy='0')then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
@@ -1069,7 +1144,7 @@ begin
 					end if;
 				when fs_synci =>
 					if(trackbusy='0')then
-						if(bytecount>0)then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
@@ -1232,12 +1307,12 @@ begin
 						end if;
 						trackwr<='1';
 						swait:=1;
-						fdstate<=fs_gap1;
+						fdstate<=fs_gap2;
 					end if;
-				when fs_gap1 =>
+				when fs_gap2 =>
 					if(trackbusy='0')then
 						track_curaddr<=track_curaddr+1;
-						if(bytecount>0)then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 						else
 							if(mfm='1')then
@@ -1255,7 +1330,7 @@ begin
 				when fs_syncd =>
 					if(trackbusy='0')then
 						track_curaddr<=track_curaddr+1;
-						if(bytecount>0)then
+						if(bytecount>1)then
 							bytecount<=bytecount-1;
 						else
 							crcclr<='1';
@@ -1356,15 +1431,15 @@ begin
 							trackwrdat(7 downto 0)<=crcdat(7 downto 0);
 						end if;
 						trackwr<='1';
-						fdstate<=fs_gap2;
+						fdstate<=fs_gap3;
 						if(mfm='1')then
-							bytecount<=10;
+							bytecount<=26;
 						else
-							bytecount<=5;
+							bytecount<=13;
 						end if;
 						swait:=1;
 					end if;
-				when fs_gap2 =>
+				when fs_gap3 =>
 					if(trackbusy='0')then
 						track_curaddr<=track_curaddr+1;
 						if(bytecount>0)then
@@ -1383,7 +1458,17 @@ begin
 									trackwrdat<=x"00ff";
 								end if;
 								trackwr<='1';
-								fdstate<=fs_gap3;
+								fdstate<=fs_gap4;
+								if(track_curaddr>tracklen)then
+									diskmode(0)<='1';
+									if(img_unit='0')then
+										diskmode0(0)<='1';
+										fde_modeset(0)<='1';
+									else
+										diskmode1(0)<='1';
+										fde_modeset(1)<='1';
+									end if;
+								end if;
 							else
 								sectcount<=sectcount+1;
 								cursecthead<=nxtsecthead;
@@ -1400,9 +1485,9 @@ begin
 							end if;
 						end if;
 					end if;
-				when fs_gap3 =>
+				when fs_gap4 =>
 					if(trackbusy='0')then
-						if(track_curaddr<tracklen)then
+						if(track_curaddr<(diskmode(1) & "1101111110000"))then	-- '0'/'1' & x"1BF0"
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
 						else
@@ -1776,18 +1861,16 @@ begin
 	end process;
 	
 	tracklen<=	x"00000c35"	when diskmode="00" and mfm='0' else
-					x"00000c35" when diskmode="01" and mfm='0' else
+					x"00000dac" when diskmode="01" and mfm='0' else
 					x"0000186a" when diskmode="10" and mfm='0' else
 					x"00001d4c" when diskmode="11" and mfm='0' else
 					x"0000186a" when diskmode="00" and mfm='1' else
-					x"0000186a" when diskmode="01" and mfm='1' else
+					x"00001b58" when diskmode="01" and mfm='1' else
 					x"000030d4" when diskmode="10" and mfm='1' else
 					x"00003a98" when diskmode="11" and mfm='1' else
 					x"00000000";
-	tracks<=	x"52" when diskmode="00" else
-				x"a4" when diskmode="01" else
-				x"a4" when diskmode="10" else
-				x"a4" when diskmode="11" else
+	tracks<=	x"52" when ddmode='0' else
+				x"a4" when ddmode='1' else
 				x"00";
 	
 		CRCG	:CRCGENN generic map(8,16) port map(
@@ -1822,7 +1905,7 @@ begin
 		q_b				=>fec_ramrdat
 	);
 	
-	trackaddr<=	cur_unit & trackno(6 downto 1) & '0' & trackno(0) & track_curaddr when diskmode="00" else
+	trackaddr<=	cur_unit & trackno(6 downto 1) & '0' & trackno(0) & track_curaddr when ddmode='0' else
 					cur_unit & trackno & track_curaddr;
 
 	fbaddr<=trackaddr(7 downto 0);

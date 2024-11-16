@@ -182,19 +182,21 @@ begin
 					mfmsync<='1';
 					charcount<=0;
 					DetMA1<='1';
+					RXED<='1';
 				elsif(datsft="01010010001001000101001000100100")then
 					mfmsync<='1';
 					charcount<=0;
 					DetMC2<='1';
+					RXED<='1';
 				elsif(mfmsync='1')then
 					if(charcount=15)then
-						RXDAT<=datsft(14) & datsft(12) & datsft(10) & datsft(8) & datsft(6) & datsft(4) & datsft(2) & datsft(0);
 						RXED<='1';
 						charcount<=0;
 					else
 						charcount<=charcount+1;
 					end if;
 				end if;
+				RXDAT<=datsft(14) & datsft(12) & datsft(10) & datsft(8) & datsft(6) & datsft(4) & datsft(2) & datsft(0);
 			end if;
 		end if;
 	end process;
