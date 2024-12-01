@@ -881,6 +881,7 @@ port(
 	
 	EMUINITDONE		:out std_logic;
 	EMUBUSY			:out std_logic;
+	FDCBUSY			:out std_logic;
 	CPUCLK			:in std_logic;
 	clk21m			:in std_logic;
 	ramclk			:in std_logic;
@@ -2229,7 +2230,8 @@ port map(
 		mondat	=>subdat,
 
 		EMUINITDONE		=>EMUINITDONE,
-		EMUBUSY			=>pLed,
+		EMUBUSY			=>open,
+		FDCBUSY			=>pLed,
 		CPUCLK			=>SUBCLK,
 		clk21m			=>clk21m,
 		ramclk			=>rclk,

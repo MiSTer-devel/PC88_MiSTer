@@ -72,6 +72,7 @@ port(
 	
 	EMUINITDONE		:out std_logic;
 	EMUBUSY			:out std_logic;
+	FDCBUSY			:out std_logic;
 	CPUCLK			:in std_logic;
 	clk21m			:in std_logic;
 	ramclk			:in std_logic;
@@ -926,5 +927,10 @@ port map(
 	MTS0 :MTsave generic map(sysclk,4000) port map(MON0S,EN0,'1',MON0,MTSAVEON,clk21m,rstn);
 	MTS1 :MTsave generic map(sysclk,4000) port map(MON1S,EN1,'1',MON1,MTSAVEON,clk21m,rstn);
 
+	process(clk21m)begin
+		if(clk21m' event and clk21m='1')then
+			FDCBUSY<=FDC_BUSY;
+		end if;
+	end process;
 
 end MAIN;
