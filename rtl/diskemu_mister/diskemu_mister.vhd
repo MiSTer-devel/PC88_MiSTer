@@ -989,7 +989,7 @@ begin
 					end if;
 				when fs_loadmode =>
 					diskmode<=haddr(29) & '0';
-					ddmode<=haddr(28);
+					ddmode<=haddr(28) or haddr(29);
 					case emustate is
 					when es_fload0 | es_fsave0 =>
 						wrprot(0)<=haddr(20);

@@ -141,8 +141,9 @@ begin
 			INTCLR<='0';
 			SEND<='0';
 		elsif(clk' event and clk='1')then
-			INTCLR<='0';
+			-- INTCLR<='0';
 			if(INTing/=3)then
+				INTCLR<='0';
 				INTen:='0';
 				for i in 7 downto 0 loop
 					if(INTRQm(i)='1')then
@@ -169,21 +170,22 @@ begin
 					DATOUT(7 downto 4)<=x"0";
 					DATOUT(3 downto 1)<=conv_std_logic_vector(INTx,3);
 					DATOUT(0)<='0';
+					INTCLRN<=INTx;
 					-- VECOE<='1';
 					if(M1nb='0')then
 						INTing<=3;
 					end if;
 				when 3 =>
 					if(M1nb='1' and M1nc='1')then
-						if(SEND='1')then
+						if(SEND='0')then
+							INTing<=1;
+						elsif(IORQn='1')then -- Holds DATOUT until sampled by CPU
 							INTn<='1';
 							INTing<=0;
 							-- VECOE<='0';
-							INTCLRN<=INTx;
+							-- INTCLRN<=INTx;
 							INTCLR<='1';
 							SEND<='0';
-						else
-							INTing<=1;
 						end if;
 					elsif(IORQn='0')then
 						SEND<='1';
