@@ -191,10 +191,9 @@ assign VGA_DISABLE = 0;
 assign UART_TXD = 0;
 
 //////////////////////////////////////////////////////////////////
-wire hdd_active = sd_rd[2] || sd_wr[2];
-wire fdd_active = |sd_rd[1:0] || |sd_wr[1:0];
-assign LED_USER  = fdd_active;
-assign LED_DISK  = {1'b1, hdd_active};
+wire mist_active = |sd_rd[2:0] || |sd_wr[2:0];
+assign LED_USER  = disk_led;
+assign LED_DISK  = {1'b0, mist_active};
 
 wire [1:0] ar = status[2:1];
 
