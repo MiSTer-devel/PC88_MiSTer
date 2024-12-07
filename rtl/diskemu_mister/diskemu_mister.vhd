@@ -1869,7 +1869,7 @@ begin
 					x"000030d4" when diskmode="10" and mfm='1' else
 					x"00003a98" when diskmode="11" and mfm='1' else
 					x"00000000";
-	tracks<=	x"52" when ddmode='0' else
+	tracks<=	x"54" when ddmode='0' else
 				x"a4" when ddmode='1' else
 				x"00";
 	
