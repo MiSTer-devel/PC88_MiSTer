@@ -143,7 +143,7 @@ begin
 						-- rCOLOR<=COLOR;
 						TVRAM_ADR<=(others=>'0');
 						LINECNT<=0;
-						CURATR<="00000111";
+						-- CURATR<="00000111";
 						LINESKIP<='0';
 					elsif(lHRET='1' and HRET='0' and (TEXTEN='1' or rTMODE='0'))then
 						CHARCNT<=0;
@@ -217,13 +217,20 @@ begin
 					end if;
 				when ST_RDATR1 =>
 					if(rTMODE='0' or MRAM_WAIT='0')then
-						fATTR(conv_integer(RDDAT))<='1';
+						if(RDDAT<x"50")then
+							fATTR(conv_integer(RDDAT))<='1';
+						else
+							fATTR(0)<='1';
+						end if;
 						MRAM_RDn<='1';
 						if (ATRCNT=iATTRLEN)then
 							CATRADR<=SATRADR+1;
 							ATRCNT<=0;
-							fATTR(0)<='0';
-							STATE<=ST_RDATR2;
+							if (fATTR(0)='1')then
+								STATE<=ST_RDATR2;
+							else
+								STATE<=ST_SETATR;
+							end if;
 						else
 							CATRADR<=CATRADR+2;
 							ATRCNT<=ATRCNT+1;
@@ -262,6 +269,8 @@ begin
 						else
 							CURATR(7)<=RDDAT(4);
 						end if;
+						CATRADR<=CATRADR+2;
+						ATRCNT<=ATRCNT+1;
 						MRAM_RDn<='1';
 						STATE<=ST_SETATR;
 					end if;
@@ -277,8 +286,6 @@ begin
 					if(CHARCNT<LINECHARS)then
 						CDSTADR<=CDSTADR+x"002";
 						if((fATTR(CHARCNT)='1') and (ATRCNT<iATTRLEN))then
-							CATRADR<=CATRADR+2;
-							ATRCNT<=ATRCNT+1;
 							STATE<=ST_RDATR2;
 						else
 							STATE<=ST_SETATR;
