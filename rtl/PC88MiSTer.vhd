@@ -557,6 +557,7 @@ port(
 	SMODE		:in std_logic;
 	COLOR		:in std_logic;
 	ATTRCOLOR	:in std_logic;
+	SPCHR		:in std_logic;
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
 	
@@ -1233,6 +1234,7 @@ signal	PMODE		:std_logic;
 signal	TMODE		:std_logic;
 signal  SMODE		:std_logic;
 signal	ATTRCOLOR	:std_logic;
+signal	SPCHR		:std_logic;
 signal	TVRMODE		:std_logic;
 signal	TVRAM_WDAT	:std_logic_vector(7 downto 0);
 signal	TVRAM_MADR	:std_logic_vector(11 downto 0);
@@ -1826,6 +1828,7 @@ port map(
 	SMODE		=>SMODE,
 	COLOR		=>not COLORn,
 	ATTRCOLOR	=>ATTRCOLOR,
+	SPCHR		=>SPCHR,
 	TEXTEN		=>(not TEXTDS) and CRTCen and TDMAEN,
 	ATTRLEN		=>ATTRLEN,
 	
@@ -1901,6 +1904,7 @@ port map(
 	CRTCen	=>CRTCen,
 	S		=>SMODE,
 	AT0		=>ATTRCOLOR,
+	SC		=>SPCHR,
 	
 	ATTR	=>ATTRLEN,
 

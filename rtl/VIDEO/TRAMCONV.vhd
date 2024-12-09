@@ -10,6 +10,7 @@ port(
 	SMODE		:in std_logic;
 	COLOR		:in std_logic;
 	ATTRCOLOR	:in std_logic;
+	SPCHR		:in std_logic;
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
 	
@@ -55,7 +56,7 @@ signal	CURATR	:std_logic_vector(7 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to LINES;
-type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_SKIPATR);
+type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_SKIPATR,ST_NOATTR);
 signal	STATE	:STATE_T;
 --signal	STATE	:integer range 0 to 12;
 --	constant ST_IDLE	:integer	:=0;
@@ -90,7 +91,7 @@ begin
 	TRAM_ADR<=RDADR(11 downto 0);
 	MRAM_ADR<=RDADR;
 	iATTRLEN<=conv_integer(ATTRLEN);
-	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0");
+	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
 	
 	process(clk,rstn)
 	variable iNXTATR	:integer range 0 to 255;
@@ -201,10 +202,15 @@ begin
 						CHARCNT<=0;
 						if (LINESKIP='1')then
 							STATE<=ST_SKIPATR;
+						elsif (SPCHR='1')then
+							STATE<=ST_NOATTR;
 						else
 							STATE<=ST_RDATR;
 						end if;
 					end if;
+				when ST_NOATTR =>
+					CURATR<=x"07";
+					STATE<=ST_SETATR;
 				when ST_SKIPATR =>
 					CURATR<=x"83";
 					STATE<=ST_SETATR;
