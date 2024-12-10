@@ -95,7 +95,8 @@ begin
 	
 	process(clk,rstn)
 	variable iNXTATR	:integer range 0 to 255;
-	variable iCOUNTER	:integer;
+	variable iCOUNTER	:integer range 0 to 80;
+	variable iATTRCUL	:integer range 0 to 80;
 	begin
 		if(rstn='0')then
 			STATE<=ST_IDLE;
@@ -144,7 +145,7 @@ begin
 						-- rCOLOR<=COLOR;
 						TVRAM_ADR<=(others=>'0');
 						LINECNT<=0;
-						-- CURATR<="00000111";
+						CURATR<="00000111";
 						LINESKIP<='0';
 					elsif(lHRET='1' and HRET='0' and (TEXTEN='1' or rTMODE='0'))then
 						CHARCNT<=0;
@@ -223,16 +224,18 @@ begin
 					end if;
 				when ST_RDATR1 =>
 					if(rTMODE='0' or MRAM_WAIT='0')then
-						if(RDDAT<x"50")then
-							fATTR(conv_integer(RDDAT))<='1';
-						else
-							fATTR(0)<='1';
-						end if;
+						case(RDDAT(7 downto 4))is
+							when x"0"|x"1"|x"2"|x"3"|x"4" =>
+								iATTRCUL:=conv_integer(RDDAT);
+							when others =>
+								iATTRCUL:=0;
+						end case;
+						fATTR(iATTRCUL)<='1';
 						MRAM_RDn<='1';
 						if (ATRCNT=iATTRLEN)then
 							CATRADR<=SATRADR+1;
 							ATRCNT<=0;
-							if (fATTR(0)='1')then
+							if (fATTR(0)='1' or iATTRCUL=0)then
 								STATE<=ST_RDATR2;
 							else
 								STATE<=ST_SETATR;
