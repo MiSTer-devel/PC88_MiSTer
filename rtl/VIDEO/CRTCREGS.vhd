@@ -108,7 +108,8 @@ begin
 							L<=DATIN(5 downto 0);
 							if(DATIN(5 downto 0)="010011")then	--x"93":20 Lines
 								VMODE<='0';
-							elsif(DATIN(5 downto 0)="011000")then	--x"98":25 Lines
+							--elsif(DATIN(5 downto 0)="011000")then	--x"98":25 Lines
+							else
 								VMODE<='1';
 							end if;
 							mon1<=DATIN;
