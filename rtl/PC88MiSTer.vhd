@@ -332,6 +332,7 @@ port(
 	MONOEN		:in std_logic_vector(2 downto 0);
 	TXTEN		:in std_logic;
 	CRTCEN		:in std_logic;
+	REVERSE		:in std_logic;
 
 	CURL		:in std_logic_vector(4 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
@@ -374,6 +375,7 @@ port(
 	CBLINK	:out std_logic;
 	VMODE	:out std_logic;
 	CRTCen	:out std_logic;
+	REVERSE	:out std_logic;
 	DMAMODE	:out std_logic;
 	H		:out std_logic_vector(6 downto 0);	--Horizontal characters
 	B		:out std_logic_vector(1 downto 0);	--Cursor blink
@@ -1235,6 +1237,7 @@ signal	TMODE		:std_logic;
 signal  SMODE		:std_logic;
 signal	ATTRCOLOR	:std_logic;
 signal	SPCHR		:std_logic;
+signal	REVERSE		:std_logic;
 signal	TVRMODE		:std_logic;
 signal	TVRAM_WDAT	:std_logic_vector(7 downto 0);
 signal	TVRAM_MADR	:std_logic_vector(11 downto 0);
@@ -1902,6 +1905,7 @@ port map(
 	CBLINK	=>CBLINK,
 	VMODE	=>VMODE,
 	CRTCen	=>CRTCen,
+	REVERSE	=>REVERSE,
 	S		=>SMODE,
 	AT0		=>ATTRCOLOR,
 	SC		=>SPCHR,
@@ -2115,6 +2119,7 @@ port map(
 	MONOEN		=>not GxDS,
 	TXTEN		=>((not TEXTDS) and TXTen and CRTCen and TDMAEN),
 	CRTCEN		=>CRTCen,
+	REVERSE		=>REVERSE,
 	
 	CURL		=>CRTC_CURL,
 	CURC		=>CRTC_CURC,

@@ -40,6 +40,7 @@ port(
 	MONOEN		:in std_logic_vector(2 downto 0);
 	TXTEN		:in std_logic;
 	CRTCEN		:in std_logic;
+	REVERSE		:in std_logic;
 
 	CURL		:in std_logic_vector(4 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
@@ -326,7 +327,7 @@ begin
 		VSY		=>VSY
 	) port map(UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk3,rstn);
 	
-	X_BIT<='0' when TXTEN='0' else T_BIT xor T_BGCOLOR(0);
+	X_BIT<='0' when TXTEN='0' else T_BIT xor T_BGCOLOR(0) xor REVERSE;
 	
 	G0F_BIT<='0' when GRAPHEN='0' else G0_BIT when GCOLOR='1' else T_FGCOLOR(0) and GM_BIT;
 	G1F_BIT<='0' when GRAPHEN='0' else G1_BIT when GCOLOR='1' else T_FGCOLOR(1) and GM_BIT;
