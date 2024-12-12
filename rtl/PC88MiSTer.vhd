@@ -562,6 +562,7 @@ port(
 	SPCHR		:in std_logic;
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
+	TXTLINES	:in std_logic_vector(5 downto 0);
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -1238,6 +1239,7 @@ signal  SMODE		:std_logic;
 signal	ATTRCOLOR	:std_logic;
 signal	SPCHR		:std_logic;
 signal	REVERSE		:std_logic;
+signal	TXTLINES	:std_logic_vector(5 downto 0);
 signal	TVRMODE		:std_logic;
 signal	TVRAM_WDAT	:std_logic_vector(7 downto 0);
 signal	TVRAM_MADR	:std_logic_vector(11 downto 0);
@@ -1834,6 +1836,7 @@ port map(
 	SPCHR		=>SPCHR,
 	TEXTEN		=>(not TEXTDS) and CRTCen and TDMAEN,
 	ATTRLEN		=>ATTRLEN,
+	TXTLINES	=>TXTLINES,
 	
 	TADR_TOP	=>TRAMTOP,
 
@@ -1906,6 +1909,7 @@ port map(
 	VMODE	=>VMODE,
 	CRTCen	=>CRTCen,
 	REVERSE	=>REVERSE,
+	L		=>TXTLINES,
 	S		=>SMODE,
 	AT0		=>ATTRCOLOR,
 	SC		=>SPCHR,
