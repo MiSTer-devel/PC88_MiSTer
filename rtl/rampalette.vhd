@@ -49,6 +49,9 @@ begin
 	begin
 		if(rstn='0')then
 			lastpal<="000";
+			PAL_R(9)<="000";	-- Don't reset by BASIC ROM
+			PAL_B(9)<="000";
+			PAL_G(9)<="000";
 		elsif(sclk' event and sclk='1')then
 			if(IOWRn='0')then
 				if(ADR>=x"54" and ADR<=x"5b")then
