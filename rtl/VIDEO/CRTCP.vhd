@@ -40,6 +40,7 @@ port(
 	MONOEN		:in std_logic_vector(2 downto 0);
 	TXTEN		:in std_logic;
 	CRTCEN		:in std_logic;
+	REVERSE		:in std_logic;
 
 	CURL		:in std_logic_vector(4 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
@@ -290,6 +291,9 @@ signal	GE_BITd	:std_logic;
 signal	X_BITd	:std_logic;
 signal	VIDENb	:std_logic;
 
+signal F_REVERSE :std_logic;
+signal A_REVERSE :std_logic_vector(2 downto 0);
+
 begin
 	TIM	:vtiming generic map(
 	DOTPU	=>DOTPU,
@@ -326,7 +330,10 @@ begin
 		VSY		=>VSY
 	) port map(UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk3,rstn);
 	
-	X_BIT<='0' when TXTEN='0' else T_BIT xor T_BGCOLOR(0);
+	F_REVERSE <= T_BGCOLOR(0) xor REVERSE;
+	A_REVERSE <= (others=>F_REVERSE);
+
+	X_BIT<='0' when TXTEN='0' else T_BIT when GCOLOR='0' else T_BIT xor F_REVERSE;
 	
 	G0F_BIT<='0' when GRAPHEN='0' else G0_BIT when GCOLOR='1' else T_FGCOLOR(0) and GM_BIT;
 	G1F_BIT<='0' when GRAPHEN='0' else G1_BIT when GCOLOR='1' else T_FGCOLOR(1) and GM_BIT;
@@ -340,7 +347,7 @@ begin
 	COLNUMT(1)	<=T_FGCOLOR(1) when T_BIT='1' else T_BGCOLOR(1);
 	COLNUMT(2)	<=T_FGCOLOR(2) when T_BIT='1' else T_BGCOLOR(2);
 	
-	COLNUM<=COLNUMN when TXTMODE='0' else COLNUMT;
+	COLNUM<=COLNUMT when TXTMODE='1' else COLNUMN when (GCOLOR='1' or TXTEN='0') else COLNUMN xor A_REVERSE;
 
 	PAL	:rampalette port map(
 		IORQn	=>IORQn,

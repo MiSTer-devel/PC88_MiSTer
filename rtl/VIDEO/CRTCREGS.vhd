@@ -23,6 +23,7 @@ port(
 	CBLINK	:out std_logic;
 	VMODE	:out std_logic;
 	CRTCen	:out std_logic;
+	REVERSE	:out std_logic;
 	DMAMODE	:out std_logic;
 	H		:out std_logic_vector(6 downto 0);	--Horizontal characters
 	B		:out std_logic_vector(1 downto 0);	--Cursor blink
@@ -66,6 +67,7 @@ begin
 			DATNUM<=0;
 			CRTCen<='0';
 			DMAMODE<='0';
+			REVERSE<='0';
 			mon0<=x"00";
 			mon1<=x"00";
 			mon2<=x"00";
@@ -88,6 +90,10 @@ begin
 						CRTCen<='0';
 					when x"20" =>	--Start display
 						CRTCen<='1';
+						REVERSE<='0';
+					when x"21" =>	--Start display with reverse
+						CRTCen<='1';
+						REVERSE<='1';
 					when x"43" =>	--Interrupt Enable
 					when x"80" =>	--cursor off
 						CURE<='0';
@@ -108,7 +114,8 @@ begin
 							L<=DATIN(5 downto 0);
 							if(DATIN(5 downto 0)="010011")then	--x"93":20 Lines
 								VMODE<='0';
-							elsif(DATIN(5 downto 0)="011000")then	--x"98":25 Lines
+							--elsif(DATIN(5 downto 0)="011000")then	--x"98":25 Lines
+							else
 								VMODE<='1';
 							end if;
 							mon1<=DATIN;
