@@ -38,6 +38,7 @@ port(
 	side	:out std_logic;		--pin32
 	usel	:out std_logic_vector(1 downto 0);
 	READY	:in std_logic;		--pin34
+	TWOSIDE	:in std_logic;
 	
 	int0	:in integer range 0 to maxbwidth;
 	int1	:in integer range 0 to maxbwidth;
@@ -4461,7 +4462,7 @@ begin
 	ST0<=sIC &sSE & sEC & sNR & sHD & sUS;
 	ST1<=sEN & '0' & sDE & sOR & '0' & sND & sNW & sMA;
 	ST2<='0' & sCM & sDD & sWC & sSH & sSN & sBC & sMD;
-	ST3<='0' & not WPRT & not READY & not track0s & '1' & sideb & uselb;
+	ST3<='0' & not WPRT & not READY & not track0s & TWOSIDE & sideb & uselb;
 	MSR<=sRQM & sDIO & sEXM & sCB & sDxB;
 	
 	RDAT<=	RDDAT_DAT when DACKn='0' else
