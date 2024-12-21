@@ -318,6 +318,7 @@ port(
 	side	:out std_logic;		--pin32
 	usel	:out std_logic_vector(1 downto 0);
 	READY	:in std_logic;		--pin34
+	TWOSIDE	:in std_logic;
 	
 	int0	:in integer range 0 to maxbwidth;
 	int1	:in integer range 0 to maxbwidth;
@@ -776,6 +777,7 @@ port map(
 	side	=>FDC_SIDEn,
 	usel	=>FD_USEL,
 	READY	=>FDC_READYn,
+	TWOSIDE	=>not FDC_READYn,
 	
 	int0	=>FD_int0,
 	int1	=>FD_int1,
