@@ -261,7 +261,7 @@ always @(posedge clk) begin
     end
     // flags
     flag[F_BRDY] <= clr_flag[F_BRDY] ? 1'b0 : (flag[F_BRDY] | ( ~ram_busy ));
-    flag[F_EOS]  <= clr_flag[F_EOS]  ? 1'b0 : ((~acmd_on_b & ram_eos) | (acmd_on_b & pcm_eos));
+    flag[F_EOS]  <= clr_flag[F_EOS]  ? 1'b0 : (flag[F_EOS] | (~acmd_on_b & ram_eos) | (acmd_on_b & pcm_eos));
     flag[F_ZERO] <= 1'b0; //clr_flag[F_ZERO] ? 1'b0 : adc_zero;
     flag[F_BUSY] <= clr_flag[F_BUSY] ? 1'b0 : chon;
     // clear internal flag
