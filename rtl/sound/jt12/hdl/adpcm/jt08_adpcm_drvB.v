@@ -248,7 +248,7 @@ always @(posedge clk) begin
         end else begin
             // cpu memory mode
             state       <= STATE_IDLE;
-            ram_addr    <= 21'd0;
+            ram_addr    <= astart;
             fread1      <= 1'b1;
             pre_start_b <= astart_b;
             ram_busy    <= 1'b0;
