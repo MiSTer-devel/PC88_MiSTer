@@ -54,6 +54,8 @@ signal	CURCMD	:std_logic_vector(7 downto 0);
 signal	DATNUM	:integer range 0 to 7;
 signal	IOWRn	:std_logic;
 signal	lWRn	:std_logic;
+signal	INTen	:std_logic;
+signal	DSPen	:std_logic;
 begin
 	IOWRn<=IORQn or WRn;
 	process(clk,rstn)begin
@@ -68,7 +70,8 @@ begin
 			CRTCen<='0';
 			DMAMODE<='0';
 			REVERSE<='0';
-			mon0<=x"00";
+			INTen<='0';
+			DSPen<='0';
 			mon1<=x"00";
 			mon2<=x"00";
 			mon3<=x"00";
@@ -80,25 +83,29 @@ begin
 					CURCMD<=DATIN;
 					DATNUM<=0;
 					DMAMODE<='0';
-					case DATIN is
-					when x"00" =>	--CRTC reset
+					case DATIN(7 downto 5) is
+					when "000" =>	--Reset, Stop Display
 						CURL<=(others=>'0');
 						CURC<=(others=>'0');
 						CURE<='0';
 						CURM<='0';
 						CBLINK<='0';
 						CRTCen<='0';
-					when x"20" =>	--Start display
+						DSPen<='0';
+						INTen<='0';
+					when "001" =>	--Start display
 						CRTCen<='1';
-						REVERSE<='0';
-					when x"21" =>	--Start display with reverse
-						CRTCen<='1';
-						REVERSE<='1';
-					when x"43" =>	--Interrupt Enable
-					when x"80" =>	--cursor off
-						CURE<='0';
-					when x"81" =>	--cursor on
-						CURE<='1';
+						DSPen<='1';
+						REVERSE<=DATIN(0);
+					when "010" =>	--Set Interrupt Mask
+						if(DATIN(0)='0')then
+							CRTCen<='0';	-- Stop display due to stop DMA caused by interrupt
+							INTen<='1';
+						else
+							INTen<='0';
+						end if;
+					when "100" =>	--Load Cursor Position
+						CURE<=DATIN(0);
 					when others =>
 					end case;
 				when DATADR=>
@@ -164,7 +171,7 @@ begin
 		end if;
 	end process;
 	
-	DATOUT<=CURCMD;
+	DATOUT<="000" & DSPen & "00" & (INTen and DSPen) & '0';
 	DATOE<='1' when ADR=CMDADR and IORQn='0' and RDn='0' else '0';
 	
 end MAIN;
