@@ -113,6 +113,7 @@ always @(posedge clk or negedge rst_n)
                 end
                 set_flag <= 'd0;
             end else if(arepeat) begin
+                set_flag <= 'd1;
                 restart <= 'd1;
                 clr_dec <= 'd1;
             end else begin

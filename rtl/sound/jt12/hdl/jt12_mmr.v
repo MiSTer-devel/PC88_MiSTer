@@ -466,7 +466,7 @@ always @(posedge clk) begin : memory_mapped_registers
                         // YM2608 ADPCM-B support, A1=1, regs 00-10
                         case(selected_register[4:0])
                             5'h0: {acmd_up_b, acmd_on_b,acmd_rec_b,acmd_mem_b,acmd_rep_b,acmd_spk_b, acmd_rst_b} <= {1'd1, din[7:3], din[0]};
-                            5'h1: {acmd_up_b, alr_b, acmd_smp_b,acmd_dac_b,acmd_x8_b,acmd_rom_b}  <= {1'b1, din[7:6], din[3:0]};
+                            5'h1: {alr_b, acmd_smp_b,acmd_dac_b,acmd_x8_b,acmd_rom_b}  <= {din[7:6], din[3:0]};
                             5'h2: astart_b [ 7:0] <= din;
                             5'h3: astart_b [15:8] <= din;
                             5'h4: aend_b   [ 7:0] <= din;
