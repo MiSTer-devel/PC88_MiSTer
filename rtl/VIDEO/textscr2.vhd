@@ -184,7 +184,7 @@ begin
 				end if;
 			elsif(UCOUNT=6)then
 				if(VCOUNT>=VIV and HUCOUNT>=HIV)then
-					if(TRAMDAT(3)='1' and BLKF='1')then
+					if((TRAMDAT(3)='1' and BLKF='1') or (TRAMDAT(5)='1'))then
 						BNXTDOT0:=(others=>'0');
 						BNXTDOT1:=(others=>'0');
 					else
@@ -195,6 +195,10 @@ begin
 							BNXTDOT0:=(others=>'0');
 							BNXTDOT1:=(others=>'0');
 						end if;
+					end if;
+					if(TRAMDAT(6)='1' and C_LIN=15)then	-- under line
+						BNXTDOT0:=(others=>'1');
+						BNXTDOT1:=(others=>'1');
 					end if;
 					if(CURV='1' and C_LOW=iCURL and C_COL=iCURC and (CURM='1' or C_LIN>(CHRLINES-CURLINE-1)))then
 						NXTDOT0<=not BNXTDOT0;

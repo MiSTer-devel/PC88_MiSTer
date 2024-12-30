@@ -1862,7 +1862,7 @@ port map(
 	-- DONE		=>TCNVDONE,
 	
 	clk			=>clk21m,
-	rstn		=>srstn
+	rstn		=>CPU_rstn
 );
 
 	TVRAM_WDAT	<=CPUDAT					when TMODE='0' and TVRMODE='1' else TCNV_WDAT;

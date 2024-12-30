@@ -274,13 +274,13 @@ begin
 						if(ATTRCOLOR='0')then
 							CURATR(3)<=RDDAT(1);
 							CURATR(4)<=RDDAT(2);
-							CURATR(5)<=RDDAT(4);
+							CURATR(5)<=RDDAT(0);
 							CURATR(6)<=RDDAT(5);
 							CURATR(7)<=RDDAT(7);
 						elsif(RDDAT(3)='0')then
 							CURATR(3)<=RDDAT(1);
 							CURATR(4)<=RDDAT(2);
-							CURATR(5)<=RDDAT(4);
+							CURATR(5)<=RDDAT(0);
 							CURATR(6)<=RDDAT(5);
 						else
 							CURATR(7)<=RDDAT(4);
