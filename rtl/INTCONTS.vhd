@@ -92,8 +92,6 @@ begin
 			for i in 0 to 7 loop
 				if(INTbn(i)='0' and lINTbn(i)='1')then
 					INTRQ(i)<='1';
-				elsif(INTbn(i)='1')then
-					INTRQ(i)<='0';
 				elsif(INTCLRN=i and INTCLR='1')then
 					INTRQ(i)<='0';
 				end if;
