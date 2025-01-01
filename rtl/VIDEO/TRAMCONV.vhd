@@ -150,7 +150,7 @@ begin
 						LINECNT<=0;
 						CURATR<="00000111";
 						LINESKIP<='0';
-					elsif(lHRET='1' and HRET='0' and (TEXTEN='1' or rTMODE='0'))then
+					elsif(lHRET='1' and HRET='0' and TEXTEN='1')then
 						CHARCNT<=0;
 						ATRCNT<=0;
 						if(LINECNT<MAXLINES)then
