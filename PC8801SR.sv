@@ -205,7 +205,7 @@ parameter CONF_STR = {
 	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"OHJ,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"-;",
-	"O78,Mode,N88V2,N88V1H,N88V1L,N;",
+	"O78,Mode,N88V2,N88V1H,N88V1S,N;",
 	"O9,Speed,4MHz,8MHz;",
 	"-;",
 	"S0,D88,FDD0;",
