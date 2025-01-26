@@ -224,7 +224,10 @@ type execstate_t is (
 		es_CRCd1,
 		es_CRCdc,
 		es_GAP3,
-		es_GAP4);
+		es_GAP4,
+		es_NEXT,
+		es_NEXT2
+	);
 
 signal	execstate	:execstate_t;
 
@@ -2650,23 +2653,6 @@ begin
 							end if;
 							bytecount<=conv_integer(GPL)/2;
 							execstate<=es_GAP3;
-							if(R<EOT)then
-								incR<='1';
-							elsif(MT='1')then
-								if(HD='0')then
-									resR<='1';
-									setH<='1';
-									setHD<='1';
-								else
-									resR<='1';
-									resH<='1';
-									resHD<='1';
-									incC<='1';
-								end if;
-							else
-								resR<='1';
-								incC<='1';
-							end if;
 						end if;
 					when es_GAP3 =>
 						if((MF='0' and fmtxemp='1') or (MF='1' and mfmtxemp='1'))then
@@ -2679,23 +2665,55 @@ begin
 									mfmtxwr<='1';
 								end if;
 								bytecount<=bytecount-1;
-							elsif(TCen='1')then
-								execstate<=es_IDLE;
-								sIC<="00";
-								sNR<=READY;
-								sEC<='0';
-								sSE<='0';
-								sHD<=HD;
-								sUS<=US;
-								PCN<=cPCN;
-								INT<='1';
-								-- iSE<='1';
-								end_EXEC<='1';
 							else
-								nturns<=0;
-								-- contdata<='1';
-								crcclr<='1';
-								execstate<=es_IAM0;
+								execstate<=es_NEXT;
+							end if;
+						end if;
+					when es_NEXT =>
+						if((MF='0' and fmtxend='1') or (MF='1' and mfmtxend='1'))then
+							bytecount<=3;
+							execstate<=es_NEXT2;
+						end if;
+					when es_NEXT2 =>
+						if(modsft='1')then
+							if(bytecount>0)then
+								bytecount<=bytecount-1;
+							else
+								if(R<EOT)then
+									incR<='1';
+								elsif(MT='1')then
+									if(HD='0')then
+										resR<='1';
+										setH<='1';
+										setHD<='1';
+									else
+										resR<='1';
+										resH<='1';
+										resHD<='1';
+										incC<='1';
+									end if;
+								else
+									resR<='1';
+									incC<='1';
+								end if;
+								if(TCen='1')then
+									execstate<=es_IDLE;
+									sIC<="00";
+									sHD<=HD;
+									sUS<=US;
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
+									PCN<=cPCN;
+									INT<='1';
+									-- iSE<='1';
+									end_EXEC<='1';
+								else
+									nturns<=0;
+									-- contdata<='1';
+									crcclr<='1';
+									execstate<=es_IAM0;
+								end if;
 							end if;
 						end if;
 					when others=>
