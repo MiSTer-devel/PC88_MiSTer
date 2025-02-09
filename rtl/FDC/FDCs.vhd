@@ -220,6 +220,7 @@ type execstate_t is (
 		es_DAM3,
 		es_DATA,
 		es_DATAw,
+		es_DATAs,
 		es_CRCd0,
 		es_CRCd1,
 		es_CRCdc,
@@ -1957,49 +1958,53 @@ begin
 							if(fmrxed='1')then
 								crcin<=fmrxdat;
 								crcwr<='1';
-								if(ND='0')then
-									DMARQ<='1';
-								else
-									sHD<=HD;
-									sUS<=US;
-									PCN<=cPCN;
-									sIC<="00";
-									sNR<=READY;
-									sEC<='0';
-									sSE<='0';
-									INT<='1';
-									-- iSE<='0';
+								if(sOR='0' and TCen='0')then
+									if(ND='0')then
+										DMARQ<='1';
+									else
+										sHD<=HD;
+										sUS<=US;
+										PCN<=cPCN;
+										sIC<="00";
+										sNR<=READY;
+										sEC<='0';
+										sSE<='0';
+										INT<='1';
+										-- iSE<='0';
+									end if;
+									RDDAT_DAT<=fmrxdat;
+									sDIOd<='1';
+									sRQM<='1';
 								end if;
-								RDDAT_DAT<=fmrxdat;
-								sDIOd<='1';
-								sRQM<='1';
 								execstate<=es_DATAw;
 							end if;
 						else
 							if(mfmrxed='1')then
 								crcin<=mfmrxdat;
 								crcwr<='1';
-								if(ND='0')then
-									DMARQ<='1';
-								else
-									sHD<=HD;
-									sUS<=US;
-									PCN<=cPCN;
-									sIC<="00";
-									sNR<=READY;
-									sEC<='0';
-									sSE<='0';
-									INT<='1';
-									-- iSE<='0';
+								if(sOR='0' and TCen='0')then
+									if(ND='0')then
+										DMARQ<='1';
+									else
+										sHD<=HD;
+										sUS<=US;
+										PCN<=cPCN;
+										sIC<="00";
+										sNR<=READY;
+										sEC<='0';
+										sSE<='0';
+										INT<='1';
+										-- iSE<='0';
+									end if;
+									RDDAT_DAT<=mfmrxdat;
+									sDIOd<='1';
+									sRQM<='1';
 								end if;
-								RDDAT_DAT<=mfmrxdat;
-								sDIOd<='1';
-								sRQM<='1';
 								execstate<=es_DATAw;
 							end if;
 						end if;
 					when es_DATAw =>
-						if(CPURD_DATf='1' or DMARDxf='1')then
+						if(CPURD_DATf='1' or DMARDxf='1' or sOR='1' or TCen='1')then
 							sRQM<='0';
 							if(bytecount>1)then
 								bytecount<=bytecount-1;
@@ -2009,17 +2014,22 @@ begin
 							end if;
 						elsif((MF='0' and fmrxed='1') or (MF='1' and mfmrxed='1'))then
 							sOR<='1';
-							sIC<="01";
-							sNR<=READY;
-							sEC<='0';
-							sSE<='0';
-							sHD<=HD;
-							sUS<=US;
-							PCN<=cPCN;
-							INT<='1';
-							-- iSE<='0';
-							end_EXEC<='1';
-							execstate<=es_IDLE;
+							sRQM<='0';
+							-- read next byte
+							if(MF='0')then
+								crcin<=fmrxdat;
+							else
+								crcin<=mfmrxdat;
+							end if;
+							crcwr<='1';
+							if(bytecount>2)then
+								bytecount<=bytecount-2;
+								execstate<=es_DATA;
+							elsif(bytecount=2)then
+								execstate<=es_CRCd0;
+							else
+								execstate<=es_CRCd1;
+							end if;
 						end if;
 					when es_CRCd0 =>
 						if(MF='0')then
@@ -2070,7 +2080,19 @@ begin
 									incC<='1';
 								end if;
 								sDE<='0';
-								if(TCen='1')then
+								if(sOR='1')then
+									sIC<="01";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
+									sHD<=HD;
+									sUS<=US;
+									PCN<=cPCN;
+									INT<='1';
+									-- iSE<='0';									INT<='1';
+									execstate<=es_IDLE;
+									end_EXEC<='1';
+								elsif(TCen='1')then
 									execstate<=es_IDLE;
 									sIC<="00";
 									sNR<=READY;
@@ -2602,36 +2624,46 @@ begin
 							end if;
 						elsif((MF='0' and fmtxend='1') or (MF='1' and mfmtxend='1'))then
 							sOR<='1';
-							sHD<=HD;
-							sUS<=US;
-							PCN<=cPCN;
-							sIC<="01";
-							sNR<=READY;
-							sEC<='0';
-							sSE<='0';
-							INT<='1';
-							-- iSE<='0';
-							execstate<=es_IDLE;
-							end_EXEC<='1';
+							execstate<=es_DATAs;
 						end if;
 					when es_DATAw =>
 						if((MF='0' and fmtxemp='1') or (MF='1' and mfmtxemp='1'))then
-							if(ND='0')then
-								DMARQ<='1';
+							if(sOR='0' and TCen='0')then
+								if(ND='0')then
+									DMARQ<='1';
+								else
+									sHD<=HD;
+									sUS<=US;
+									PCN<=cPCN;
+									sIC<="00";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
+									INT<='1';
+									-- iSE<='0';
+								end if;
+								sRQM<='1';
+								sDIOd<='0';
+								execstate<=es_DATA;
 							else
-								sHD<=HD;
-								sUS<=US;
-								PCN<=cPCN;
-								sIC<="00";
-								sNR<=READY;
-								sEC<='0';
-								sSE<='0';
-								INT<='1';
-								-- iSE<='0';
+								execstate<=es_DATAs;
 							end if;
-							sRQM<='1';
-							sDIOd<='0';
-							execstate<=es_DATA;
+						end if;
+					when es_DATAs =>
+						sRQM<='0';
+						txdat<=x"00";
+						crcin<=x"00";
+						if(MF='0')then
+							fmtxwr<='1';
+						else
+							mfmtxwr<='1';
+						end if;
+						crcwr<='1';
+						if(bytecount>1)then
+							bytecount<=bytecount-1;
+							execstate<=es_DATAw;
+						else
+							execstate<=es_CRCd0;
 						end if;
 					when es_CRCd0 =>
 						if(((MF='0' and fmtxemp='1') or (MF='1' and mfmtxemp='1')) and crcbusy='0')then
@@ -2696,7 +2728,19 @@ begin
 									resR<='1';
 									incC<='1';
 								end if;
-								if(TCen='1')then
+								if(sOR='1')then
+									sHD<=HD;
+									sUS<=US;
+									PCN<=cPCN;
+									sIC<="01";
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
+									INT<='1';
+									-- iSE<='0';
+									execstate<=es_IDLE;
+									end_EXEC<='1';
+								elsif(TCen='1')then
 									execstate<=es_IDLE;
 									sIC<="00";
 									sHD<=HD;
@@ -3861,7 +3905,20 @@ begin
 						end_EXEC<='1';
 						execstate<=es_IDLE;
 					elsif(lindex='1' and indexb='0')then
-						if(execstate/=es_windex)then
+						if(sOR='1')then
+							modbreak<='1';
+							sHD<=HD;
+							sUS<=US;
+							PCN<=cPCN;
+							sIC<="01";
+							sNR<=READY;
+							sEC<='0';
+							sSE<='0';
+							INT<='1';
+							-- iSE<='0';
+							execstate<=es_IDLE;
+							end_EXEC<='1';
+						elsif(execstate/=es_windex)then
 							modbreak<='1';
 							sHD<=HD;
 							sUS<=US;
@@ -4112,17 +4169,7 @@ begin
 							end case;
 						elsif((MF='0' and fmtxend='1') or (MF='1' and mfmtxend='1'))then
 							sOR<='1';
-							sHD<=HD;
-							sUS<=US;
-							PCN<=cPCN;
-							sIC<="01";
-							sNR<=READY;
-							sEC<='0';
-							sSE<='0';
-							INT<='1';
-							-- iSE<='0';
-							execstate<=es_IDLE;
-							end_EXEC<='1';
+							execstate<=es_GAP4;
 						end if;
 					when es_Cw | es_Hw | es_Rw =>
 						if((MF='0' and fmtxemp='1') or (MF='1' and mfmtxemp='1'))then
