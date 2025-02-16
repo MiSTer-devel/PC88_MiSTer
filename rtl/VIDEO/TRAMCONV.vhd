@@ -301,7 +301,7 @@ begin
 				when ST_SETATR2 =>
 					if(CHARCNT<LINECHARS)then
 						CDSTADR<=CDSTADR+x"002";
-						if((fATTR(CHARCNT)='1') and (ATRCNT<iATTRLEN))then
+						if((fATTR(CHARCNT)='1') and (ATRCNT<iATTRLEN+1))then
 							STATE<=ST_RDATR2;
 						else
 							STATE<=ST_SETATR;
