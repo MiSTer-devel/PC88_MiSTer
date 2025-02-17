@@ -79,7 +79,6 @@ signal	H		:std_logic_vector(7 downto 0);
 signal	MF		:std_logic;
 signal	MT		:std_logic;
 signal	N		:std_logic_vector(7 downto 0);
-signal	Nf		:std_logic_vector(7 downto 0);
 -- signal	NCN		:integer range 0 to maxtrack;
 signal	ND		:std_logic;
 signal	PCN0	:std_logic_vector(7 downto 0);
@@ -1342,7 +1341,6 @@ begin
 			mfmma1wr<='0';
 			mfmmc2wr<='0';
 			modbreak<='0';
-			Nf<=(others=>'0');
 			NRDSTART<='0';
 			ecommand<=(others=>'0');
 			COMPDAT<=(others=>'0');
@@ -4162,7 +4160,6 @@ begin
 							when es_R =>
 								execstate<=es_Rw;
 							when es_N =>
-								Nf<=CPUWRDAT;
 								execstate<=es_Nw;
 							when others =>
 								execstate<=es_IDLE;
@@ -4291,21 +4288,21 @@ begin
 								execstate<=es_DAM1;
 							end if;
 							crcwr<='1';
-							if(Nf=x"00")then
+							if(N=x"00")then
 --								bytecount<=conv_integer(DTL);
---							elsif(Nf=x"00")then
+--							elsif(N=x"00")then
 								bytecount<=128;
-							elsif(Nf=x"01")then
+							elsif(N=x"01")then
 								bytecount<=256;
-							elsif(Nf=x"02")then
+							elsif(N=x"02")then
 								bytecount<=512;
-							elsif(Nf=x"03")then
+							elsif(N=x"03")then
 								bytecount<=1024;
-							elsif(Nf=x"04")then
+							elsif(N=x"04")then
 								bytecount<=2048;
-							elsif(Nf=x"05")then
+							elsif(N=x"05")then
 								bytecount<=4096;
-							elsif(Nf=x"06")then
+							elsif(N=x"06")then
 								bytecount<=8192;
 							else
 								bytecount<=16384;
