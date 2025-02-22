@@ -53,27 +53,12 @@ begin
 				case state is
 				when st_IDLE =>
 					if(lWRENn="10")then
-						counter<=GAPS-1;
-						MKEN<='1';
-						MKDAT<=GAPDAT;
---						waitcount<=3;
-						state<=st_PREGAP;
-					end if;
-				when st_PREGAP =>
-					MK<='1';
---					waitcount<=3;
-					state<=st_GAP;
-				when st_GAP =>
-					if(MKDONE='1')then
+						counter<=SYNCS-2;
 						MK<='1';
-						if(counter>0)then
-							counter<=counter-1;
-						else
-							MKDAT<=x"00";
-							counter<=SYNCS;
-							state<=st_SYNC;
-						end if;
+						MKEN<='1';
+						MKDAT<=x"00";
 --						waitcount<=3;
+						state<=st_SYNC;						
 					end if;
 				when st_SYNC =>
 					if(MKDONE='1')then

@@ -2409,7 +2409,6 @@ begin
 							if(fmrxed='1')then
 								crcin<=fmrxdat;
 								crcwr<='1';
-								dembreak<='1';
 								execstate<=es_CRCic;
 							elsif(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmmfedet='1')then
 								dembreak<='1';
@@ -2420,7 +2419,6 @@ begin
 							if(mfmrxed='1')then
 								crcin<=mfmrxdat;
 								crcwr<='1';
-								dembreak<='1';
 								execstate<=es_CRCic;
 							elsif(mfmma1det='1' or mfmmc2det='1')then
 								dembreak<='1';
@@ -2434,13 +2432,9 @@ begin
 								if(rxC=C)then
 									execstate<=es_Gap2;
 									if(MF='0')then
-										bytecount<=nfmGap2-1;
-										txdat<=x"ff";
-										fmtxwr<='1';
+										bytecount<=nfmGap2-3;
 									else
-										bytecount<=nmfmGap2-1;
-										txdat<=x"4e";
-										mfmtxwr<='1';
+										bytecount<=nmfmGap2-3;
 									end if;
 									crcclr<='1';
 									DETSECT<='1';
@@ -2465,16 +2459,9 @@ begin
 							end if;
 						end if;
 					when es_Gap2 =>
-						if((MF='0' and fmtxemp='1') or (MF='1' and mfmtxemp='1'))then
+						if((MF='0' and fmrxed='1') or (MF='1' and mfmrxed='1'))then
 							if(bytecount>0)then
 								bytecount<=bytecount-1;
-								if(MF='0')then
-									txdat<=x"ff";
-									fmtxwr<='1';
-								else
-									txdat<=x"4e";
-									mfmtxwr<='1';
-								end if;
 							else
 								txdat<=x"00";
 								if(MF='0')then
@@ -2484,6 +2471,7 @@ begin
 									bytecount<=nmfmSyncd-1;
 									mfmtxwr<='1';
 								end if;
+								dembreak<='1';
 								execstate<=es_Syncd;
 								crcclr<='1';
 							end if;
@@ -2681,27 +2669,22 @@ begin
 							else
 								mfmtxwr<='1';
 							end if;
-							bytecount<=conv_integer(GPL)/2;
 							execstate<=es_GAP3;
 						end if;
 					when es_GAP3 =>
 						if((MF='0' and fmtxemp='1') or (MF='1' and mfmtxemp='1'))then
-							if(bytecount>1)then
-								if(MF='0')then
-									txdat<=x"ff";
-									fmtxwr<='1';
-								else
-									txdat<=x"4e";
-									mfmtxwr<='1';
-								end if;
-								bytecount<=bytecount-1;
+							if(MF='0')then
+								txdat<=x"ff";
+								fmtxwr<='1';
 							else
-								execstate<=es_NEXT;
+								txdat<=x"4e";
+								mfmtxwr<='1';
 							end if;
+							execstate<=es_NEXT;
 						end if;
 					when es_NEXT =>
 						if((MF='0' and fmtxend='1') or (MF='1' and mfmtxend='1'))then
-							bytecount<=3;
+							bytecount<=conv_integer(GPL)*4;
 							execstate<=es_NEXT2;
 						end if;
 					when es_NEXT2 =>
