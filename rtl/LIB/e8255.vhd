@@ -45,6 +45,10 @@ signal	REG		:std_logic_vector(7 downto 0);
 signal	PA,PB,PC:std_logic_vector(7 downto 0);
 signal	RD		:std_logic;
 signal	WR		:std_logic;
+signal	DAT_A	:std_logic_vector(7 downto 0);
+signal	DAT_B	:std_logic_vector(7 downto 0);
+signal	DAT_C	:std_logic_vector(7 downto 0);
+signal	lWR		:std_logic;
 -- signal	MODE	:std_logic_vector(1 downto 0);
 begin
 	RD<='1' when CSn='0' and RDn='0' else '0';
@@ -59,15 +63,20 @@ begin
 			OE_B<='0';
 			OE_CH<='0';
 			OE_CL<='0';
+			DAT_A<=(others=>deflogic);
+			DAT_B<=(others=>deflogic);
+			DAT_C<=(others=>deflogic);
+			lWR<='0';
 		elsif(clk' event and clk='1')then
+			lWR<=WR;
 			if(WR='1')then
 				case ADR is
 				when "00" =>
-					ODAT_A<=DATIN;
+					DAT_A<=DATIN;
 				when "01" =>
-					ODAT_B<=DATIN;
+					DAT_B<=DATIN;
 				when "10" =>
-					ODAT_C<=DATIN;
+					DAT_C<=DATIN;
 				when "11" =>
 					REG<=DATIN;
 					if(DATIN(7)='1')then	--mode select
@@ -77,40 +86,44 @@ begin
 						OE_B<=not DATIN(1);
 						OE_CL<=not DATIN(0);
 						if(DATIN(4)='0')then
-							ODAT_A<=(others=>'0');
+							DAT_A<=(others=>'0');
 						end if;
 						if(DATIN(1)='0')then
-							ODAT_B<=(others=>'0');
+							DAT_B<=(others=>'0');
 						end if;
 						if(DATIN(3)='0')then
-							ODAT_C(7 downto 4)<=(others=>'0');
+							DAT_C(7 downto 4)<=(others=>'0');
 						end if;
 						if(DATIN(0)='0')then
-							ODAT_C(3 downto 0)<=(others=>'0');
+							DAT_C(3 downto 0)<=(others=>'0');
 						end if;
 					else
 						case DATIN(3 downto 1) is
 						when "000" =>
-							ODAT_C(0)<=DATIN(0);
+							DAT_C(0)<=DATIN(0);
 						when "001" =>
-							ODAT_C(1)<=DATIN(0);
+							DAT_C(1)<=DATIN(0);
 						when "010" =>
-							ODAT_C(2)<=DATIN(0);
+							DAT_C(2)<=DATIN(0);
 						when "011" =>
-							ODAT_C(3)<=DATIN(0);
+							DAT_C(3)<=DATIN(0);
 						when "100" =>
-							ODAT_C(4)<=DATIN(0);
+							DAT_C(4)<=DATIN(0);
 						when "101" =>
-							ODAT_C(5)<=DATIN(0);
+							DAT_C(5)<=DATIN(0);
 						when "110" =>
-							ODAT_C(6)<=DATIN(0);
+							DAT_C(6)<=DATIN(0);
 						when "111" =>
-							ODAT_C(7)<=DATIN(0);
+							DAT_C(7)<=DATIN(0);
 						when others =>
 						end case;
 					end if;
 				when others=>
 				end case;
+			elsif(lWR='1')then
+				ODAT_A<=DAT_A;
+				ODAT_B<=DAT_B;
+				ODAT_C<=DAT_C;
 			end if;
 		end if;
 	end process;

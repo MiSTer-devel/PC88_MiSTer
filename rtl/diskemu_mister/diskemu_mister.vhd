@@ -1013,9 +1013,16 @@ begin
 						img_unit<='1';
 					when others=>
 					end case;
-					img_addr<=haddr+x"06";
-					img_rd<='1';
-					fdstate<=fs_loadsheadw;
+					if(haddr=x"00000000")then				-- unformat
+						track_curaddr<=(others=>'0');
+						trackwrdat<=x"00ff";
+						trackwr<='1';
+						fdstate<=fs_gap4;
+					else
+						img_addr<=haddr+x"06";
+						img_rd<='1';
+						fdstate<=fs_loadsheadw;
+					end if;
 				when fs_loadsheadw =>
 					if(img_busy='0')then
 						mfm<=not img_rddat(6);
@@ -1506,9 +1513,10 @@ begin
 				when fs_nxttrack =>
 					if(haddr=x"00000000")then
 						if(trackno<tracks)then
-							trackno<=trackno+1;
-							tbladdr<=trackno+x"09";
-							swait:=2;
+							track_curaddr<=(others=>'0');
+							trackwrdat<=x"00ff";
+							trackwr<='1';
+							fdstate<=fs_gap4;
 						else
 							fddone<='1';
 							fdstate<=fs_IDLE;
