@@ -2068,7 +2068,7 @@ begin
 					when es_CRCdc =>
 						if(crcdone='1')then
 							if((crczero='1') or (ecommand=cmd_READATRACK))then
-								if(R<EOT)then
+								if(R/=EOT)then
 									incR<='1';
 								elsif(MT='1')then
 									if(HD='0')then
@@ -2101,19 +2101,6 @@ begin
 								elsif(TCen='1')then
 									execstate<=es_IDLE;
 									sIC<="00";
-									sNR<=READY;
-									sEC<='0';
-									sSE<='0';
-									sHD<=HD;
-									sUS<=US;
-									PCN<=cPCN;
-									INT<='1';
-									-- iSE<='1';
-									end_EXEC<='1';
-								elsif(R>=EOT and (MT='0' or HD='1'))then
-									sEN<='1';
-									execstate<=es_IDLE;
-									sIC<="01";
 									sNR<=READY;
 									sEC<='0';
 									sSE<='0';
@@ -2704,7 +2691,7 @@ begin
 							if(bytecount>0)then
 								bytecount<=bytecount-1;
 							else
-								if(R<EOT)then
+								if(R/=EOT)then
 									incR<='1';
 								elsif(MT='1')then
 									if(HD='0')then
@@ -3815,7 +3802,7 @@ begin
 					when es_CRCdc =>
 						if(crcdone='1')then
 							if(crczero='1')then
-								if(R<EOT)then
+								if(R/=EOT)then
 									incR<='1';
 								elsif(MT='1')then
 									if(HD='0')then
@@ -3836,19 +3823,6 @@ begin
 								if(TCen='1')then
 									execstate<=es_IDLE;
 									sIC<="00";
-									sNR<=READY;
-									sEC<='0';
-									sSE<='0';
-									sHD<=HD;
-									sUS<=US;
-									PCN<=cPCN;
-									INT<='1';
-									-- iSE<='1';
-									end_EXEC<='1';
-								elsif(R>=EOT)then
-									sEN<='1';
-									execstate<=es_IDLE;
-									sIC<="01";
 									sNR<=READY;
 									sEC<='0';
 									sSE<='0';
