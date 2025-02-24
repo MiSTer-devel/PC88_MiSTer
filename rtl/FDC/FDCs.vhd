@@ -1586,11 +1586,10 @@ begin
 							sNR<=READY;
 							sEC<='0';
 							sSE<='0';
-							sND<='1';
 							if(DETSECT='0')then
 								sMA<='1';
 							else
-								sMD<='1';
+								sND<='1';
 							end if;
 							PCN<=cPCN;
 							INT<='1';
@@ -1648,6 +1647,7 @@ begin
 							if(fmmfedet='1')then
 								crcin<=x"fe";
 								crcwr<='1';
+								DETSECT<='1';
 								execstate<=es_C;
 							elsif(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmrxed='1')then
 								dembreak<='1';
@@ -1684,6 +1684,7 @@ begin
 						if(mfmrxed='1' and mfmrxdat=x"fe")then
 							crcin<=x"fe";
 							crcwr<='1';
+							DETSECT<='1';
 							execstate<=es_C;
 						elsif(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
@@ -1839,7 +1840,6 @@ begin
 									sWC<='0';
 									execstate<=es_DAM0;
 									crcclr<='1';
-									DETSECT<='1';
 								else
 									sHD<=HD;
 									sUS<=US;
@@ -1859,7 +1859,6 @@ begin
 								rxN<=N;		-- Change the sector length as the specified
 								execstate<=es_DAM0;
 								crcclr<='1';
-								DETSECT<='1';
 							else
 								crcclr<='1';
 								execstate<=es_IAM0;
@@ -1867,7 +1866,7 @@ begin
 						end if;
 					when es_DAM0 =>
 						if(MF='0')then
-							if(fmmf8det='1')then
+							if(((ecommand=cmd_READDATA or ecommand=cmd_READATRACK) and fmmf8det='1') or (ecommand=cmd_READDELETEDDATA and fmmfbdet='1'))then
 								sCM<='1';
 							end if;
 							if((((ecommand=cmd_READDATA or ecommand=cmd_READATRACK) or SK='0') and fmmfbdet='1') or ((ecommand=cmd_READDELETEDDATA or SK='0') and fmmf8det='1'))then
@@ -1878,10 +1877,12 @@ begin
 								end if;
 								crcwr<='1';
 								TCclr<='1';
+								sMD<='0';
 								execstate<=es_DATA;
 							elsif(fmmf8det='1' or fmmfbdet='1'or fmmfcdet='1' or fmmfedet='1' or fmrxed='1')then
 								dembreak<='1';
 								crcclr<='1';
+								sMD<='1';
 								execstate<=es_IAM0;
 							end if;
 						else
@@ -1892,6 +1893,7 @@ begin
 							elsif(mfmmc2det='1' or mfmrxed='1')then
 								dembreak<='1';
 								crcclr<='1';
+								sMD<='1';
 								execstate<=es_IAM0;
 							end if;
 						end if;
@@ -1923,6 +1925,7 @@ begin
 						elsif(mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
 							crcclr<='1';
+							sMD<='1';
 							execstate<=es_IAM0;
 						end if;
 					when es_DAM2 =>
@@ -1933,11 +1936,12 @@ begin
 						elsif(mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
 							crcclr<='1';
+							sMD<='1';
 							execstate<=es_IAM0;
 						end if;
 					when es_DAM3 =>
 						if(mfmrxed='1')then
-							if(mfmrxdat=x"f8")then
+							if(((ecommand=cmd_READDATA or ecommand=cmd_READATRACK) and mfmrxdat=x"f8") or (ecommand=cmd_READDELETEDDATA and mfmrxdat=x"fb"))then
 								sCM<='1';
 							end if;
 						end if;
@@ -1945,10 +1949,12 @@ begin
 							crcin<=mfmrxdat;
 							crcwr<='1';
 							TCclr<='1';
+							sMD<='0';
 							execstate<=es_DATA;
 						elsif(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
 							crcclr<='1';
+							sMD<='1';
 							execstate<=es_IAM0;
 						end if;
 					when es_DATA =>
@@ -2119,7 +2125,6 @@ begin
 									nturns<=0;
 									crcclr<='1';
 									-- contdata<='1';
-									DETSECT<='0';
 									execstate<=es_IAM0;
 								end if;
 							else
@@ -2193,8 +2198,11 @@ begin
 							sNR<=READY;
 							sEC<='0';
 							sSE<='0';
-							sND<='1';
-							sMA<='1';
+							if (DETSECT='0')then
+								sMA<='1';
+							else
+								sND<='1';
+							end if;
 							end_EXEC<='1';
 							execstate<=es_IDLE;
 						end if;
@@ -2244,6 +2252,7 @@ begin
 							if(fmmfedet='1')then
 								crcin<=x"fe";
 								crcwr<='1';
+								DETSECT<='1';
 								execstate<=es_C;
 							elsif(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmrxed='1')then
 								dembreak<='1';
@@ -2280,6 +2289,7 @@ begin
 						if(mfmrxed='1' and mfmrxdat=x"fe")then
 							crcin<=x"fe";
 							crcwr<='1';
+							DETSECT<='1';
 							execstate<=es_C;
 						elsif(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
@@ -2437,7 +2447,6 @@ begin
 										bytecount<=nmfmGap2-3;
 									end if;
 									crcclr<='1';
-									DETSECT<='1';
 									sWC<='0';
 								else
 									sHD<=HD;
@@ -3035,8 +3044,11 @@ begin
 								sNR<=READY;
 								sEC<='0';
 								sSE<='0';
-								sND<='1';
-								sMA<='1';
+								if (DETSECT='0')then
+									sMA<='1';
+								else
+									sND<='1';
+								end if;
 								PCN<=cPCN;
 								INT<='1';
 								-- iSE<='0';
@@ -3069,6 +3081,7 @@ begin
 							if(fmmfedet='1')then
 								crcin<=x"fe";
 								crcwr<='1';
+								DETSECT<='1';
 								execstate<=es_C;
 							elsif(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmrxed='1')then
 								dembreak<='1';
@@ -3105,6 +3118,7 @@ begin
 						if(mfmrxed='1' and mfmrxdat=x"fe")then
 							crcin<=x"fe";
 							crcwr<='1';
+							DETSECT<='1';
 							execstate<=es_C;
 						elsif(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
@@ -3277,19 +3291,7 @@ begin
 								end_EXEC<='1';
 								crcclr<='1';
 							else
-								sHD<=HD;
-								sUS<=US;
-								sIC<="01";
-								sNR<=READY;
-								sEC<='0';
-								sSE<='0';
-								sND<='1';
-								sMA<='0';
-								PCN<=cPCN;
-								INT<='1';
-								-- iSE<='0';
-								end_EXEC<='1';
-								execstate<=es_IDLE;
+								execstate<=es_IAM0;
 								crcclr<='1';
 							end if;
 						end if;
@@ -3309,11 +3311,10 @@ begin
 							sNR<=READY;
 							sEC<='0';
 							sSE<='0';
-							sND<='1';
 							if(DETSECT='0')then
 								sMA<='1';
 							else
-								sMD<='1';
+								sND<='1';
 							end if;
 							PCN<=cPCN;
 							INT<='1';
@@ -3367,6 +3368,7 @@ begin
 							if(fmmfedet='1')then
 								crcin<=x"fe";
 								crcwr<='1';
+								DETSECT<='1';
 								execstate<=es_C;
 							elsif(fmmf8det='1' or fmmfbdet='1' or fmmfcdet='1' or fmrxed='1')then
 								dembreak<='1';
@@ -3403,6 +3405,7 @@ begin
 						if(mfmrxed='1' and mfmrxdat=x"fe")then
 							crcin<=x"fe";
 							crcwr<='1';
+							DETSECT<='1';
 							execstate<=es_C;
 						elsif(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
@@ -3558,7 +3561,6 @@ begin
 									sWC<='0';
 									execstate<=es_DAM0;
 									crcclr<='1';
-									DETSECT<='1';
 								else
 									sHD<=HD;
 									sUS<=US;
@@ -3591,11 +3593,13 @@ begin
 								end if;
 								crcwr<='1';
 								TCclr<='1';
+								sMD<='0';
 								execstate<=es_DATA;
 								scancomp<='0';
 							elsif(fmmf8det='1' or fmmfbdet='1'or fmmfcdet='1' or fmmfedet='1' or fmrxed='1')then
 								dembreak<='1';
 								crcclr<='1';
+								sMD<='1';
 								execstate<=es_IAM0;
 							end if;
 						else
@@ -3606,6 +3610,7 @@ begin
 							elsif(mfmmc2det='1' or mfmrxed='1')then
 								dembreak<='1';
 								crcclr<='1';
+								sMD<='1';
 								execstate<=es_IAM0;
 							end if;
 						end if;
@@ -3637,6 +3642,7 @@ begin
 						elsif(mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
 							crcclr<='1';
+							sMD<='1';
 							execstate<=es_IAM0;
 						end if;
 					when es_DAM2 =>
@@ -3647,6 +3653,7 @@ begin
 						elsif(mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
 							crcclr<='1';
+							sMD<='1';
 							execstate<=es_IAM0;
 						end if;
 					when es_DAM3 =>
@@ -3659,11 +3666,13 @@ begin
 							crcin<=mfmrxdat;
 							crcwr<='1';
 							TCclr<='1';
+							sMD<='0';
 							execstate<=es_DATA;
 							scancomp<='0';
 						elsif(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
 							crcclr<='1';
+							sMD<='1';
 							execstate<=es_IAM0;
 						end if;
 					when es_DATA =>
@@ -3849,7 +3858,6 @@ begin
 									nturns<=0;
 									crcclr<='1';
 									-- contdata<='1';
-									DETSECT<='0';
 									execstate<=es_IAM0;
 								end if;
 							else
