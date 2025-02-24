@@ -1573,8 +1573,8 @@ begin
 --								execstate<=es_IDLE;
 --							end if;
 --						end if;
-						if(nturns<3)then
-							nturns<=nturns+1;
+						if(nturns=0)then
+							nturns<=1;
 --							if(nturns=2 and MT='1' and H='0')then
 --								nturns<=0;
 --								setHD<='1';
@@ -1857,6 +1857,7 @@ begin
 							elsif (ecommand=cmd_READATRACK) then
 								sND<='1';	-- Set the "nodata" and continue reading as if the sector was found...
 								rxN<=N;		-- Change the sector length as the specified
+								nturns<=0;	-- Reset IAM counter for huge N
 								execstate<=es_DAM0;
 								crcclr<='1';
 							else
@@ -2182,12 +2183,12 @@ begin
 --								execstate<=es_IDLE;
 --							end if;
 --						end if;
-						if(nturns<3)then
+						if(nturns=0)then
 --							if(nturns=2 and MT='1' and HD='0')then
 --								nturns<=0;
 --								setH<='1';
 --							end if;
-							nturns<=nturns+1;
+							nturns<=1;
 						else
 							sHD<=HD;
 							sUS<=US;
@@ -3028,12 +3029,12 @@ begin
 --					end case;
 				when cmd_READID =>
 					if(execstate/=es_seek and lindex='1' and indexb='0')then
-						if(nturns<3)then
+						if(nturns=0)then
 --							if(nturns=2 and MT='1' and HD='0')then
 --								nturns<=0;
 --								setH<='1';
 --							end if;
-							nturns<=nturns+1;
+							nturns<=1;
 						else
 							if(MT='1' and HD='0')then
 								setHD<='1';
@@ -3302,8 +3303,8 @@ begin
 
 				when cmd_SCANEQUAL | cmd_SCANLOWEQUAL| cmd_SCANHIGHEQUAL =>
 					if(execstate/=es_seek and lindex='1' and indexb='0')then
-						if(nturns<3)then
-							nturns<=nturns+1;
+						if(nturns=0)then
+							nturns<=1;
 						else
 							sHD<=HD;
 							sUS<=US;
