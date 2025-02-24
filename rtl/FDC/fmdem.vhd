@@ -31,7 +31,7 @@ end fmdem;
 
 architecture rtl of fmdem is
 signal	fmsync		:std_logic;
-signal	datsft		:std_logic_vector(15 downto 0);
+signal	datsft		:std_logic_vector(31 downto 0);
 signal	lencount	:integer range 0 to bwidth*2;
 signal	curwidth	:integer range 0 to bwidth*2;
 signal	dpulse		:std_logic;
@@ -126,7 +126,7 @@ begin
 			if(break='1')then
 				datsft<=(others=>'0');
 			elsif(sft='1')then
-				datsft<=datsft(14 downto 0) & datum;
+				datsft<=datsft(30 downto 0) & datum;
 			end if;
 			lsft<=sft;
 		end if;
@@ -154,22 +154,22 @@ begin
 				fmsync<='0';
 				charcount<=0;
 			elsif(lsft='1')then
-				if(datsft="1111010101101010")then
+				if(datsft="10101010101010101111010101101010")then
 					fmsync<='1';
 					RXED<='1';
 					charcount<=0;
 					DetMF8<='1';
-				elsif(datsft="1111010101101111")then
+				elsif(datsft="10101010101010101111010101101111")then
 					fmsync<='1';
 					RXED<='1';
 					charcount<=0;
 					DetMFB<='1';
-				elsif(datsft="1111011101111010")then
+				elsif(datsft="10101010101010101111011101111010")then
 					fmsync<='1';
 					RXED<='1';
 					charcount<=0;
 					DetMFC<='1';
-				elsif(datsft="1111010101111110")then
+				elsif(datsft="10101010101010101111010101111110")then
 					fmsync<='1';
 					RXED<='1';
 					charcount<=0;
