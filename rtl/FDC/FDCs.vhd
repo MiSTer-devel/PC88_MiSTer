@@ -1838,6 +1838,7 @@ begin
 							if(crczero='1' and rxC=C and rxH=H and rxR=R and rxN=N)then
 								if(rxC=C)then
 									sWC<='0';
+									nturns<=0;	-- Reset IAM counter for avoid stop between data reading
 									execstate<=es_DAM0;
 									crcclr<='1';
 								else
@@ -2447,6 +2448,7 @@ begin
 									else
 										bytecount<=nmfmGap2-3;
 									end if;
+									nturns<=0;	-- Reset IAM counter for avoid stop between data reading
 									crcclr<='1';
 									sWC<='0';
 								else
@@ -3560,6 +3562,7 @@ begin
 							if(crczero='1' and rxC=C and rxH=H and rxR=R and rxN=N)then
 								if(rxC=C)then
 									sWC<='0';
+									nturns<=0;	-- Reset IAM counter for avoid stop between data reading
 									execstate<=es_DAM0;
 									crcclr<='1';
 								else
