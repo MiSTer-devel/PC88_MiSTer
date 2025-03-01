@@ -509,8 +509,8 @@ video_freak video_freak
 (
     .*,
     .VGA_DE_IN(vga_de),
-    .ARX((!ar) ? 12'd4 : (ar - 1'd1)),
-    .ARY((!ar) ? 12'd3 : 12'd0),
+    .ARX((!ar) ? 12'd16 : (ar - 1'd1)),
+    .ARY((!ar) ? 12'd10 : 12'd0),
     .CROP_SIZE(en400p ? 10'd400 : 10'd0),
     .CROP_OFF(0),
     .SCALE(status[4:3])
