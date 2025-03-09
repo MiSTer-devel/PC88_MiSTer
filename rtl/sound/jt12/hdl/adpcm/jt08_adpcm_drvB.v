@@ -62,6 +62,8 @@ wire nibble_sel;
 wire adv;           // advance to next reading
 wire clr_dec;
 wire chon;
+wire dsign;
+wire [15:0] deltax;
 
 // `ifdef SIMULATION
 // real fsample;
@@ -304,16 +306,21 @@ jt10_adpcmb u_decoder(
     .data   ( din            ),
     .chon   ( chon           ),
     .clr    ( clr_dec        ),
+    .dsign  ( dsign          ),
+    .dx     ( deltax         ),
     .pcm    ( pcmdec         )
 );
 
-`ifdef NOBINTERPOL
-jt10_adpcmb_interpol u_interpol(
+`ifndef NOBINTERPOL
+jt08_adpcmb_interpol u_interpol(
     .rst_n  ( rst_n          ),
     .clk    ( clk            ),
     .cen    ( cen            ),
     .cen55  ( cen55  && chon ),
     .adv    ( adv            ),
+    .deltan ( adeltan_b      ),
+    .dsign  ( dsign          ),
+    .deltax ( deltax         ),
     .pcmdec ( pcmdec         ),
     .pcmout ( pcminter       )
 );
