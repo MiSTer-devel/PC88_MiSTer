@@ -66,7 +66,7 @@ module jt08(
 // Uses 6 FM channels, ADPCM-A, ADPCM-B
 jt12_top #(
     .use_lfo(1),.use_ssg(1), .num_ch(6), .use_pcm(0), .use_adpcm(2),
-    .JT49_DIV(3),.use_chipid(1) )
+    .JT49_COMP(3'd0),.JT49_DIV(3),.use_chipid(1) )
 u_jt12(
     .rst            ( rst          ),        // rst should be at least 6 clk&cen cycles long
     .clk            ( clk          ),        // CPU clock
