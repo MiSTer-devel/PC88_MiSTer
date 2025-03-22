@@ -41,7 +41,7 @@ always @(posedge clk)
 
 initial begin
     lut[0] = 8'd0;
-    lut[1] = 8'd1;
+    lut[1] = 8'd0;
     lut[2] = 8'd1;
     lut[3] = 8'd1;
     lut[4] = 8'd2;
@@ -73,7 +73,7 @@ initial begin
     lut[30] = 8'd214;
     lut[31] = 8'd255;
     lut[32] = 8'd0;
-    lut[33] = 8'd7;
+    lut[33] = 8'd0;
     lut[34] = 8'd8;
     lut[35] = 8'd10;
     lut[36] = 8'd11;
