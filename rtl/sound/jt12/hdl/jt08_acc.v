@@ -109,8 +109,8 @@ end
 always @(*)
     case( {cen_pcm_a,cen_pcm_b} )
         2'b10: begin // ADPCM-A:
-            acc_input_l = (adpcmA_l <<< 2) + (adpcmA_l <<< 1);
-            acc_input_r = (adpcmA_r <<< 2) + (adpcmA_r <<< 1);
+            acc_input_l = adpcmA_l;
+            acc_input_r = adpcmA_r;
             `ifndef NOMIX
             acc_en_l    = 1'b1;
             acc_en_r    = 1'b1;
