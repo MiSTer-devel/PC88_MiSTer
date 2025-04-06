@@ -29,6 +29,8 @@ module jt10_adpcmb(
     input           chon,       // high if this channel is on
     input           adv,
     input           clr,
+    output reg      dsign,
+    output reg [15:0] dx,
     output signed [15:0] pcm
 );
 
@@ -77,6 +79,8 @@ always @( posedge clk or negedge rst_n )
         x1 <= 'd0; step1 <= 'd127;
         d2 <= 'd0; d3 <= 'd0; d4 <= 'd0;
 		  need_clr <= 0;
+        dx <= 'd0;
+        dsign <= 0;
     end else begin
     if( clr )
 		  need_clr <= 1'd1;
@@ -90,8 +94,10 @@ always @( posedge clk or negedge rst_n )
         end
         // II multiply and obtain the offset
         d3        <= { {xw-16{1'b0}}, d2l[18:3] }; // xw bits
+        dx        <= d2l[18:3];
         next_step3<= step2l[22:6];
 		  sign_data3<=sign_data2;
+        dsign     <=sign_data2;
         // III 2's complement of d3 if necessary
         d4        <= sign_data3 ? ~d3+1'd1 : d3;
 		  sign_data4<=sign_data3;
@@ -124,6 +130,8 @@ always @( posedge clk or negedge rst_n )
 				d2 <= 'd0; d3 <= 'd0; d4 <= 'd0;
 				next_x5 <= 'd0;
 				need_clr <= 1'd0;
+            dsign <= 1'd0;
+            dx <= 'd0;
         end
     end
 	 end

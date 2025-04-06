@@ -151,7 +151,7 @@ end
 
 wire [1:0] lr;
 
-jt10_adpcm_gain u_gain(
+jt08_adpcm_gain u_gain(
     .rst_n  ( rst_n          ),
     .clk    ( clk            ),
     .cen    ( cen6           ),
@@ -174,7 +174,7 @@ wire signed [15:0] pre_pcm55_l, pre_pcm55_r;
 assign pcm55_l = pre_pcm55_l;
 assign pcm55_r = pre_pcm55_r;
 
-jt10_adpcm_acc u_acc_left(
+jt08_adpcm_acc u_acc_left(
     .rst_n  ( rst_n     ),
     .clk    ( clk       ),
     .cen    ( cen6      ),
@@ -189,7 +189,7 @@ jt10_adpcm_acc u_acc_left(
     .pcm_out( pre_pcm55_l   )     // 55.5 kHz
 );
 
-jt10_adpcm_acc u_acc_right(
+jt08_adpcm_acc u_acc_right(
     .rst_n  ( rst_n     ),
     .clk    ( clk       ),
     .cen    ( cen6      ),

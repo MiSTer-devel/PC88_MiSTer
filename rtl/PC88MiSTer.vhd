@@ -2396,7 +2396,7 @@ end process;
 			psg_B	=>open,
 			psg_C	=>open,
 			fm_snd	=>sndFM,
-			psg_snd	=>sndPSG(13 downto 4),
+			psg_snd	=>sndPSG(14 downto 5),
 			snd		=>open,
 
 			snd_sample =>open,
@@ -2408,8 +2408,8 @@ end process;
 		PCMWR		<='0';
 		PCMWDAT	<=(others=>'0');
 
-		sndPSG(15 downto 14)<="00";
-		sndPSG(3 downto 0)<="0000";
+		sndPSG(15)<='0';
+		sndPSG(4 downto 0)<="00000";
 
 		sndL <= sndFM + sndPSG;
 
@@ -2456,12 +2456,12 @@ end process;
 
 			fm_snd_right	=>sndFMR,
 			fm_snd_left		=>sndFML,
-			psg_snd		=>sndPSG(12 downto 3)
+			psg_snd		=>sndPSG(13 downto 4)
 
 		);
 		
-		sndPSG(15 downto 13)<="000";
-		sndPSG(2 downto 0)<="000";
+		sndPSG(15 downto 14)<="00";
+		sndPSG(3 downto 0)<="0000";
 
 		sndL <= sndFML + sndPSG;
 		sndR <= sndFMR + sndPSG;
@@ -2528,14 +2528,14 @@ end process;
 			psg_B	=>open,
 			psg_C	=>open,
 			fm_snd	=>sndFM,
-			psg_snd	=>sndPSG(13 downto 4),
+			psg_snd	=>sndPSG(14 downto 5),
 			snd		=>open,
 
 			snd_sample =>open,
 			debug_view	=>open
 		);
-		sndPSG(15 downto 14)<="00";
-		sndPSG(3 downto 0)<="0000";
+		sndPSG(15)<='0';
+		sndPSG(4 downto 0)<="00000";
 
 		FMSB2: JTOPNA port map (
 			rst		=>not CPU_rstn,
@@ -2565,12 +2565,12 @@ end process;
 
 			fm_snd_right	=>sndFMR,
 			fm_snd_left		=>sndFML,
-			psg_snd		=>sndPSG2(12 downto 3)
+			psg_snd		=>sndPSG2(13 downto 4)
 
 		);
 		
-		sndPSG2(15 downto 13)<="000";
-		sndPSG2(2 downto 0)<="000";
+		sndPSG2(15 downto 14)<="00";
+		sndPSG2(3 downto 0)<="0000";
 
 		sndL <= sndFM + sndFML + sndPSG + sndPSG2;
 		sndR <= sndFM + sndFMR + sndPSG + sndPSG2;
