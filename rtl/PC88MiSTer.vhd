@@ -2187,7 +2187,7 @@ port map(
 
 	PCLKG	:unchchata port map(not pjoya(1),pclk,cpu_clk,srstn);
 	
-	TIMP600	:sftclk generic map(21477270,600,1) port map("0",RTI,clk21m,srstn);
+	TIMP600	:sftclk generic map(sysclk*1000,600,1) port map("0",RTI,clk21m,srstn);
 	
 	SUBU	:SUBunitsMiSTer generic map(SYSCLK,RAMCLK,RAMAWIDTH) port map(
 		RAMADR			=>SUBADR,

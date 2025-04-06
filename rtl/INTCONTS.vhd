@@ -44,7 +44,7 @@ signal	INTln	:std_logic_vector(7 downto 0);
 -- signal	INTmn	:std_logic_vector(7 downto 0);
 -- signal	VECoe	:std_logic;
 -- signal	lM1n	:std_logic;
-signal	INTing	:integer range 0 to 3;
+signal	INTing	:integer range 0 to 4;
 signal	SEND	:std_logic;
 signal	INTmsk	:std_logic_vector(7 downto 0);
 signal	INTlmsk	:std_logic_vector(7 downto 0);
@@ -59,6 +59,7 @@ signal	INTRQ	:std_logic_vector(7 downto 0);
 signal	INTRQm	:std_logic_vector(7 downto 0);
 signal	INTCLR	:std_logic;
 signal	INTCLRN	:integer range 0 to 7;
+signal	INTdisCLR	:std_logic;		-- INT DIS FF clear req
 
 begin
 
@@ -108,11 +109,14 @@ begin
 		if(rstn='0')then
 			INTmsk<=(others=>'1');
 			INTlev<=(others=>'0');
+			INTdisCLR<='0';
 		elsif(cpuclk' event and cpuclk='1')then
+			INTdisCLR<='0';
 			if(IOWRn='0')then
 				case ADR is
 				when CNTADR =>
 					INTlev<=DATIN(3 downto 0);
+					INTdisCLR<='1';
 				when MSKADR =>
 					INTmsk(0)<=DATIN(2);
 					INTmsk(1)<=DATIN(1);
@@ -143,14 +147,18 @@ begin
 			if(INTing/=3)then
 				INTCLR<='0';
 				INTen:='0';
-				for i in 7 downto 0 loop
-					if(INTRQm(i)='1')then
-						INTen:='1';
-						INTx:=i;
-					end if;
-				end loop;
+				if(INTing/=4)then
+					for i in 7 downto 0 loop
+						if(INTRQm(i)='1')then
+							INTen:='1';
+							INTx:=i;
+						end if;
+					end loop;
+				end if;
 				if(INTen='0')then
-					INTing<=0;
+					if(INTdisCLR='1')then
+						INTing<=0;
+					end if;
 					INTn<='1';
 				elsif(INTing=0)then
 					INTing<=1;
@@ -179,7 +187,7 @@ begin
 							INTing<=1;
 						elsif(IORQn='1')then -- Holds DATOUT until sampled by CPU
 							INTn<='1';
-							INTing<=0;
+							INTing<=4;
 							-- VECOE<='0';
 							-- INTCLRN<=INTx;
 							INTCLR<='1';
