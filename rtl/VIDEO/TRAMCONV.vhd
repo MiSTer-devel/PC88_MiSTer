@@ -231,13 +231,13 @@ begin
 					end if;
 				when ST_RDATR1 =>
 					if(rTMODE='0' or MRAM_WAIT='0')then
-						case(RDDAT(7 downto 4))is
-							when x"0"|x"1"|x"2"|x"3"|x"4" =>
+						case(RDDAT(6 downto 4))is
+							when o"0"|o"1"|o"2"|o"3"|o"4" =>
 								iATTRCUL:=conv_integer(RDDAT);
+								fATTR(iATTRCUL)<='1';
 							when others =>
-								iATTRCUL:=0;
+								iATTRCUL:=80;
 						end case;
-						fATTR(iATTRCUL)<='1';
 						MRAM_RDn<='1';
 						if (ATRCNT=iATTRLEN)then
 							CATRADR<=SATRADR+1;
