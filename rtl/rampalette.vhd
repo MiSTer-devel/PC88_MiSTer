@@ -37,7 +37,7 @@ signal	ipalno	:integer range 0 to 7;
 signal	lastpal	:std_logic_vector(2 downto 0);
 signal	lastno	:integer range 0 to 7;
 signal	g_bit	:std_logic;
-signal	mode	:std_logic_vector(3 downto 0);
+signal	mode	:std_logic_vector(4 downto 0);
 
 begin
 
@@ -84,27 +84,31 @@ begin
 	ipalno<=conv_integer(DOTIN);
 	lastno<=conv_integer(lastpal);
 	g_bit <='0' when ipalno=0 else '1';
-	mode  <=GCOLOR & X_BIT & g_bit & CRTCEN;
+	mode  <=PMODE & GCOLOR & X_BIT & g_bit & CRTCEN;
 	process(gclk)begin
 		if(gclk' event and gclk='1')then
 			case(mode)is
-				when "0000"|"0001" =>
-					-- Mono-CG, no T-bit, no G-bit: BG COLOR
-					if(PMODE='1')then
-						ROUT<=PAL_R(8);
-						GOUT<=PAL_G(8);
-						BOUT<=PAL_B(8);
-					else
-						ROUT<=PAL_R(9);
-						GOUT<=PAL_G(9);
-						BOUT<=PAL_B(9);
-					end if;
-				when "0010" =>
-					-- Mono-CG, G-bit on, CRTC off: G-bit colored in the last palette
+				when "00000"|"00001" =>
+					-- D-pal, Mono-CG, no T-bit, no G-bit: BG COLOR (Digital)
+					ROUT<=PAL_R(9);
+					GOUT<=PAL_G(9);
+					BOUT<=PAL_B(9);
+				when "10000"|"10001" =>
+					-- A-pal, Mono-CG, no T-bit, no G-bit: BG COLOR (Analog)
+					ROUT<=PAL_R(8);
+					GOUT<=PAL_G(8);
+					BOUT<=PAL_B(8);
+				when "00010" =>
+					-- D-pal, Mono-CG, G-bit on, CRTC off: white color
+					ROUT<=(others=>'1');
+					GOUT<=(others=>'1');
+					BOUT<=(others=>'1');
+				when "10010" =>
+					-- A-pal, Mono-CG, G-bit on, CRTC off: G-bit colored in the last palette
 					ROUT<=PAL_R(lastno);
 					GOUT<=PAL_G(lastno);
 					BOUT<=PAL_B(lastno);
-				when "1101"|"1111" =>
+				when "01101"|"01111"|"11101"|"11111" =>
 					-- Color-CG, T-bit on: T-bit colored in digital palettes
 					ROUT<=(others=>DOTIN(1));
 					GOUT<=(others=>DOTIN(2));
