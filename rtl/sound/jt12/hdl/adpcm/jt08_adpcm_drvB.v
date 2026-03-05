@@ -316,7 +316,7 @@ jt08_adpcmb_interpol u_interpol(
     .rst_n  ( rst_n          ),
     .clk    ( clk            ),
     .cen    ( cen            ),
-    .cen55  ( cen55  && chon ),
+    .cen55  ( cen55          ),
     .adv    ( adv            ),
     .deltan ( adeltan_b      ),
     .dsign  ( dsign          ),
