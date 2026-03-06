@@ -28,7 +28,7 @@ module jtopna(
     // Output
     output  signed  [15:0] fm_snd_right,
     output  signed  [15:0] fm_snd_left,
-    output          [ 9:0] psg_snd
+    output          [11:0] psg_snd
 );
 
 // ADPCM-A

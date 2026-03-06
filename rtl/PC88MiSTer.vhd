@@ -987,12 +987,12 @@ component JT03
 		IOA_oe	:out std_logic;
 		IOB_oe	:out std_logic;
 
-		psg_A	:out std_logic_vector(7 downto 0);
-		psg_B	:out std_logic_vector(7 downto 0);
-		psg_C	:out std_logic_vector(7 downto 0);
+		psg_A	:out std_logic_vector(9 downto 0);
+		psg_B	:out std_logic_vector(9 downto 0);
+		psg_C	:out std_logic_vector(9 downto 0);
 		fm_snd	:out std_logic_vector(15 downto 0);
 
-		psg_snd	:out std_logic_vector(9 downto 0);
+		psg_snd	:out std_logic_vector(11 downto 0);
 		snd		:out std_logic_vector(15 downto 0);
 		snd_sample	:out std_logic;
 
@@ -1029,7 +1029,7 @@ component JTOPNA
 
 		fm_snd_right	:out std_logic_vector(15 downto 0);
 		fm_snd_left		:out std_logic_vector(15 downto 0);
-		psg_snd	:out std_logic_vector(9 downto 0)
+		psg_snd	:out std_logic_vector(11 downto 0)
 	);
 end component;
 
@@ -2396,7 +2396,7 @@ end process;
 			psg_B	=>open,
 			psg_C	=>open,
 			fm_snd	=>sndFM,
-			psg_snd	=>sndPSG(14 downto 5),
+			psg_snd	=>sndPSG(14 downto 3),
 			snd		=>open,
 
 			snd_sample =>open,
@@ -2409,7 +2409,7 @@ end process;
 		PCMWDAT	<=(others=>'0');
 
 		sndPSG(15)<='0';
-		sndPSG(4 downto 0)<="00000";
+		sndPSG(2 downto 0)<="000";
 
 		sndL <= sndFM + sndPSG;
 
@@ -2456,12 +2456,12 @@ end process;
 
 			fm_snd_right	=>sndFMR,
 			fm_snd_left		=>sndFML,
-			psg_snd		=>sndPSG(13 downto 4)
+			psg_snd		=>sndPSG(13 downto 2)
 
 		);
 		
 		sndPSG(15 downto 14)<="00";
-		sndPSG(3 downto 0)<="0000";
+		sndPSG(1 downto 0)<="00";
 
 		sndL <= sndFML + sndPSG;
 		sndR <= sndFMR + sndPSG;
@@ -2528,14 +2528,14 @@ end process;
 			psg_B	=>open,
 			psg_C	=>open,
 			fm_snd	=>sndFM,
-			psg_snd	=>sndPSG(14 downto 5),
+			psg_snd	=>sndPSG(14 downto 3),
 			snd		=>open,
 
 			snd_sample =>open,
 			debug_view	=>open
 		);
 		sndPSG(15)<='0';
-		sndPSG(4 downto 0)<="00000";
+		sndPSG(2 downto 0)<="000";
 
 		FMSB2: JTOPNA port map (
 			rst		=>not CPU_rstn,
@@ -2565,12 +2565,12 @@ end process;
 
 			fm_snd_right	=>sndFMR,
 			fm_snd_left		=>sndFML,
-			psg_snd		=>sndPSG2(13 downto 4)
+			psg_snd		=>sndPSG2(13 downto 2)
 
 		);
 		
 		sndPSG2(15 downto 14)<="00";
-		sndPSG2(3 downto 0)<="0000";
+		sndPSG2(1 downto 0)<="00";
 
 		sndL <= sndFM + sndFML + sndPSG + sndPSG2;
 		sndR <= sndFM + sndFMR + sndPSG + sndPSG2;
