@@ -17,33 +17,50 @@ port(
 end tracktable;
  
 architecture rtl of tracktable is
-subtype DAT_LAT_TYPE is std_logic_vector(7 downto 0); 
+subtype DAT_LAT_TYPE is std_logic_vector(31 downto 0); 
 type DAT_LAT_ARRAY is array (natural range <>) of DAT_LAT_TYPE; 
-signal	RAM0,RAM1,RAM2,RAM3	:DAT_LAT_ARRAY(0 to 256);
-signal	iwaddr	:integer range 0 to 256;
-signal	itable	:integer range 0 to 256;
+signal	RAM		:DAT_LAT_ARRAY(0 to 255);
+signal	iwaddr	:integer range 0 to 255;
+signal	itable	:integer range 0 to 255;
+signal	imgsize	:std_logic_vector(31 downto 0);
+signal 	BUF0 	:std_logic_vector(7 downto 0);
+signal 	BUF1 	:std_logic_vector(7 downto 0);
+signal 	BUF2 	:std_logic_vector(7 downto 0);
 
 begin
 
 	iwaddr<=conv_integer(wraddr(9 downto 2));
 	itable<=conv_integer(table);
 	
-	process(clk)begin
+	process(clk)
+	variable BUF3	:std_logic_vector(7 downto 0);
+	variable BUFF	:std_logic_vector(31 downto 0);
+	begin
 		if(clk' event and clk='1')then
 			if(wr='1')then
+				BUF3:=x"00";
 				case wraddr(1 downto 0) is
 				when "00" =>
-					RAM0(iwaddr)<=wrdat;
+					BUF0<=wrdat;
 				when "01" =>
-					RAM1(iwaddr)<=wrdat;
+					BUF1<=wrdat;
 				when "10" =>
-					RAM2(iwaddr)<=wrdat;
+					BUF2<=wrdat;
 				when "11" =>
-					RAM3(iwaddr)<=wrdat;
+					BUF3:=wrdat;
 				when others =>
 				end case;
+				BUFF:=BUF3 & BUF2 & BUF1 & BUF0;
+				if(iwaddr=7)then
+					imgsize<=BUFF;
+				end if;
+				if((iwaddr>7) and (BUFF>=imgsize))then
+					RAM(iwaddr)<=x"00000000";
+				else
+					RAM(iwaddr)<=BUFF;
+				end if;
 			end if;
-			haddr<=RAM3(itable) & RAM2(itable) & RAM1(itable) & RAM0(itable);
+			haddr<=RAM(itable);
 		end if;
 	end process;
 	
