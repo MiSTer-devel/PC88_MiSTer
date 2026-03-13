@@ -146,6 +146,7 @@ type fdstate_t is (
 	fs_crcd1,
 	fs_gap3,
 	fs_gap4,
+	fs_nxtsector,
 	fs_nxttrack,
 	fs_scantrack,
 	fs_scaniam,
@@ -1477,18 +1478,9 @@ begin
 									end if;
 								end if;
 							else
-								sectcount<=sectcount+1;
-								cursecthead<=nxtsecthead;
-								if(mfm='1')then
-									trackwrdat<=x"0200";
-									bytecount<=12;
-								else
-									trackwrdat<=x"0000";
-									bytecount<=6;
-								end if;
-								trackwr<='1';
-								swait:=1;
-								fdstate<=fs_synci;
+								img_addr<=nxtsecthead+6;
+								img_rd<='1';
+								fdstate<=fs_nxtsector;
 							end if;
 						end if;
 					end if;
@@ -1509,6 +1501,22 @@ begin
 								fdstate<=fs_IDLE;
 							end if;
 						end if;
+					end if;
+				when fs_nxtsector =>
+					if(img_busy='0')then
+						sectcount<=sectcount+1;
+						cursecthead<=nxtsecthead;
+						mfm<=not img_rddat(6);	-- FM/MFM can be mixed in a track, so reconfigure it here.
+						if(img_rddat(6)='0')then
+							trackwrdat<=x"0200";
+							bytecount<=12;
+						else
+							trackwrdat<=x"0000";
+							bytecount<=6;
+						end if;
+						trackwr<='1';
+						swait:=1;
+						fdstate<=fs_synci;
 					end if;
 				when fs_nxttrack =>
 					if(haddr=x"00000000")then
