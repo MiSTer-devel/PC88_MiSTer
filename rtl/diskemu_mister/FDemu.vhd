@@ -316,22 +316,22 @@ begin
 	bitlenw<=	4000*sysclk/1000000	when WRFDMODE(1)='0' else 2000*sysclk/1000000;
 				
 	tracklen0<=	conv_std_logic_vector( 6250,14) when fdmode0="00" else
-				conv_std_logic_vector( 7000,14) when fdmode0="01" else
+				conv_std_logic_vector( 8000,14) when fdmode0="01" else
 				conv_std_logic_vector(10416,14) when fdmode0="10" else
 				conv_std_logic_vector(12500,14) when fdmode0="11" else
 				(others=>'0');
 	tracklen1<=	conv_std_logic_vector( 6250,14) when fdmode1="00" else
-				conv_std_logic_vector( 7000,14) when fdmode1="01" else
+				conv_std_logic_vector( 8000,14) when fdmode1="01" else
 				conv_std_logic_vector(10416,14) when fdmode1="10" else
 				conv_std_logic_vector(12500,14) when fdmode1="11" else
 				(others=>'0');
 	tracklen2<=	conv_std_logic_vector( 6250,14) when fdmode2="00" else
-				conv_std_logic_vector( 7000,14) when fdmode2="01" else
+				conv_std_logic_vector( 8000,14) when fdmode2="01" else
 				conv_std_logic_vector(10416,14) when fdmode2="10" else
 				conv_std_logic_vector(12500,14) when fdmode2="11" else
 				(others=>'0');
 	tracklen3<=	conv_std_logic_vector( 6250,14) when fdmode3="00" else
-				conv_std_logic_vector( 7000,14) when fdmode3="01" else
+				conv_std_logic_vector( 8000,14) when fdmode3="01" else
 				conv_std_logic_vector(10416,14) when fdmode3="10" else
 				conv_std_logic_vector(12500,14) when fdmode3="11" else
 				(others=>'0');

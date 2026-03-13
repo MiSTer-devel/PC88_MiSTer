@@ -1486,7 +1486,7 @@ begin
 					end if;
 				when fs_gap4 =>
 					if(trackbusy='0')then
-						if(track_curaddr<(diskmode(1) & "1101111110000"))then	-- '0'/'1' & x"1BF0"
+						if(track_curaddr<(diskmode(1) & "1111101000000"))then	-- '0'/'1' & x"1F40" -- D=8032, H=16624
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
 						else
