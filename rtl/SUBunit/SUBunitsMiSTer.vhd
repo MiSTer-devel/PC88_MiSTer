@@ -776,7 +776,7 @@ port map(
 	index	=>FDC_INDEXn,
 	side	=>FDC_SIDEn,
 	usel	=>FD_USEL,
-	READY	=>FDC_READYn,
+	READY	=>'0',	-- The actual chip is active high, but here it's active low.
 	TWOSIDE	=>not FDC_READYn,
 	
 	int0	=>FD_int0,

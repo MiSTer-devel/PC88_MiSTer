@@ -2090,11 +2090,11 @@ begin
 	fdc_track0n<=	fde_track0n when fdc_useln="10" else
 						fde_track0n when fdc_useln="01" else
 						'1';
-	fdc_indexn<=	fde_indexn	when fdc_useln="10" else
-						fde_indexn	when fdc_useln="01" else
+	fdc_indexn<=	fde_indexn	when fdc_motorn(0)='0' and fdc_indiskb(0)='1' and fdc_useln="10" else
+						fde_indexn	when  fdc_motorn(1)='0' and fdc_indiskb(1)='1' and fdc_useln="01" else
 						'1';
-	fdc_rdbitn<=	fde_rdbitn	when fdc_useln="10" else
-						fde_rdbitn	when fdc_useln="01" else
+	fdc_rdbitn<=	fde_rdbitn	when fdc_motorn(0)='0' and fdc_indiskb(0)='1' and fdc_useln="10" else
+						fde_rdbitn	when  fdc_motorn(1)='0' and fdc_indiskb(1)='1' and fdc_useln="01" else
 						'1';
 	
 	fdc_readyn<=fdc_motorn(0) when fdc_indiskb(0)='1' and fdc_useln(0)='0' else
