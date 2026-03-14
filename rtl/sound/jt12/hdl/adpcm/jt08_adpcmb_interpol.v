@@ -34,14 +34,13 @@ module jt08_adpcmb_interpol(
 
 localparam stages=6;
 
-reg signed [15:0] pcmlast;
-reg start_div=1'b0;
+reg start_div;
 reg [stages-1:0] adv2;
 
 reg signed [16:0] preout;
-reg signed [16:0] step;
+reg [15:0] step_dx;
 reg step_sign;
-wire [16:0] ustep, pcminter;
+wire [16:0] step, pcminter, pcmlimit;
 
 wire [16:0] limpos = { {2{1'b0}}, {15{1'b1}} };
 wire [16:0] limneg = { {2{1'b1}}, {15{1'b0}} };
@@ -52,31 +51,27 @@ end
 
 always @(posedge clk) if(cen) begin
     start_div <= 1'b0;
-    if(adv2[1]) begin
-        pcmlast     <= pcmdec;
-    end
     if(adv2[2]) begin
         start_div   <= 1'b1;
+        step_dx     <= deltax;
+        step_sign   <= dsign;
     end
 end
 
 assign pcminter = step_sign ? preout - step : preout + step;
+assign pcmlimit = step_sign ? limneg : limpos;
 assign pcmout = preout[15:0];
 
 always @(posedge clk) begin
     if(!rst_n) begin
         preout      <= 'd0;
-        step        <= 'd0;
-        step_sign   <= 'd0;
     end
     if(cen55) begin
         if(adv) begin
-            step        <= ustep;
-            step_sign   <= dsign;
-            preout      <= {pcmlast[15], pcmlast};
+            preout      <= {pcmdec[15], pcmdec};
         end else begin
             if(pcminter[16] ^ pcminter[15])
-                preout  <= step_sign ? limneg : limpos;
+                preout  <= pcmlimit;
             else
                 preout  <= pcminter;
         end
@@ -88,11 +83,11 @@ jt08_adpcm_rmul #(.DW(16)) u_div(
     .clk    ( clk         ),
     .cen    ( cen         ),
     .start  ( start_div   ),
-    .a      ( deltax      ),
+    .a      ( step_dx     ),
     .b      ( deltan      ),
-    .d      ( ustep[15:0] ),
+    .d      ( step[15:0]  ),
     .working(             )
 );
-assign ustep[16] = 1'b0;
+assign step[16] = 1'b0;
 
 endmodule // jt08_adpcmb_interpol

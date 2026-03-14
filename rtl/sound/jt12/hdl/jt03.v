@@ -40,12 +40,12 @@ module jt03(
     output          IOA_oe,
     output          IOB_oe,
     // Separated output
-    output          [ 7:0] psg_A,
-    output          [ 7:0] psg_B,
-    output          [ 7:0] psg_C,
+    output          [ 9:0] psg_A,
+    output          [ 9:0] psg_B,
+    output          [ 9:0] psg_C,
     output  signed  [15:0] fm_snd,
     // combined output
-    output          [ 9:0] psg_snd,
+    output          [11:0] psg_snd,
     output  signed  [15:0] snd,
     output                 snd_sample,
     // Debug

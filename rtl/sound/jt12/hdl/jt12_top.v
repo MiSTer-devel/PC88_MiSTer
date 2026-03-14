@@ -56,9 +56,9 @@ module jt12_top (
     output           IOA_oe,
     output           IOB_oe,
     // Separated output
-    output          [ 7:0] psg_A,
-    output          [ 7:0] psg_B,
-    output          [ 7:0] psg_C,
+    output          [ 9:0] psg_A,
+    output          [ 9:0] psg_B,
+    output          [ 9:0] psg_C,
     output  signed  [15:0] fm_snd_left,
     output  signed  [15:0] fm_snd_right,
     output  signed  [15:0] adpcmA_l,
@@ -66,7 +66,7 @@ module jt12_top (
     output  signed  [15:0] adpcmB_l,
     output  signed  [15:0] adpcmB_r,
     // combined output
-    output          [ 9:0] psg_snd,
+    output          [11:0] psg_snd,
     output  signed  [15:0] snd_right, // FM+PSG
     output  signed  [15:0] snd_left,  // FM+PSG
     output                 snd_sample,
@@ -648,16 +648,16 @@ generate
             // Unused:
             .sample     (           )
         );
-        assign snd_left  = fm_snd_left  + { 1'b0, psg_snd[9:0],5'd0};
-        assign snd_right = fm_snd_right + { 1'b0, psg_snd[9:0],5'd0};
+        assign snd_left  = fm_snd_left  + { 1'b0, psg_snd[11:0],3'd0};
+        assign snd_right = fm_snd_right + { 1'b0, psg_snd[11:0],3'd0};
     end else begin : gen_nossg
-        assign psg_snd  = 10'd0;
+        assign psg_snd  = 12'd0;
         assign snd_left = fm_snd_left;
         assign snd_right= fm_snd_right;
         assign psg_dout = 8'd0;
-        assign psg_A    = 8'd0;
-        assign psg_B    = 8'd0;
-        assign psg_C    = 8'd0;
+        assign psg_A    = 10'd0;
+        assign psg_B    = 10'd0;
+        assign psg_C    = 10'd0;
         assign IOA_oe   = 0;
         assign IOB_oe   = 0;
         assign IOA_out  = 0;
@@ -665,7 +665,7 @@ generate
     end
 endgenerate
 `else
-    assign psg_snd  = 10'd0;
+    assign psg_snd  = 12'd0;
     assign snd_left = fm_snd_left;
     assign snd_right= fm_snd_right;
     assign psg_dout = 8'd0;

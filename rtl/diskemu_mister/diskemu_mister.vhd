@@ -146,6 +146,7 @@ type fdstate_t is (
 	fs_crcd1,
 	fs_gap3,
 	fs_gap4,
+	fs_nxtsector,
 	fs_nxttrack,
 	fs_scantrack,
 	fs_scaniam,
@@ -1477,24 +1478,15 @@ begin
 									end if;
 								end if;
 							else
-								sectcount<=sectcount+1;
-								cursecthead<=nxtsecthead;
-								if(mfm='1')then
-									trackwrdat<=x"0200";
-									bytecount<=12;
-								else
-									trackwrdat<=x"0000";
-									bytecount<=6;
-								end if;
-								trackwr<='1';
-								swait:=1;
-								fdstate<=fs_synci;
+								img_addr<=nxtsecthead+6;
+								img_rd<='1';
+								fdstate<=fs_nxtsector;
 							end if;
 						end if;
 					end if;
 				when fs_gap4 =>
 					if(trackbusy='0')then
-						if(track_curaddr<(diskmode(1) & "1101111110000"))then	-- '0'/'1' & x"1BF0"
+						if(track_curaddr<(diskmode(1) & "1111101000000"))then	-- '0'/'1' & x"1F40" -- D=8032, H=16624
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
 						else
@@ -1509,6 +1501,22 @@ begin
 								fdstate<=fs_IDLE;
 							end if;
 						end if;
+					end if;
+				when fs_nxtsector =>
+					if(img_busy='0')then
+						sectcount<=sectcount+1;
+						cursecthead<=nxtsecthead;
+						mfm<=not img_rddat(6);	-- FM/MFM can be mixed in a track, so reconfigure it here.
+						if(img_rddat(6)='0')then
+							trackwrdat<=x"0200";
+							bytecount<=12;
+						else
+							trackwrdat<=x"0000";
+							bytecount<=6;
+						end if;
+						trackwr<='1';
+						swait:=1;
+						fdstate<=fs_synci;
 					end if;
 				when fs_nxttrack =>
 					if(haddr=x"00000000")then
@@ -2082,11 +2090,11 @@ begin
 	fdc_track0n<=	fde_track0n when fdc_useln="10" else
 						fde_track0n when fdc_useln="01" else
 						'1';
-	fdc_indexn<=	fde_indexn	when fdc_useln="10" else
-						fde_indexn	when fdc_useln="01" else
+	fdc_indexn<=	fde_indexn	when fdc_motorn(0)='0' and fdc_indiskb(0)='1' and fdc_useln="10" else
+						fde_indexn	when  fdc_motorn(1)='0' and fdc_indiskb(1)='1' and fdc_useln="01" else
 						'1';
-	fdc_rdbitn<=	fde_rdbitn	when fdc_useln="10" else
-						fde_rdbitn	when fdc_useln="01" else
+	fdc_rdbitn<=	fde_rdbitn	when fdc_motorn(0)='0' and fdc_indiskb(0)='1' and fdc_useln="10" else
+						fde_rdbitn	when  fdc_motorn(1)='0' and fdc_indiskb(1)='1' and fdc_useln="01" else
 						'1';
 	
 	fdc_readyn<=fdc_motorn(0) when fdc_indiskb(0)='1' and fdc_useln(0)='0' else

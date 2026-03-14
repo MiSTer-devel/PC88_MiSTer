@@ -31,10 +31,10 @@ module jt49 ( // note that input ports are not multiplexed
     input  [7:0]     din,
     input            sel, // if sel is low, the clock is divided by 2
     output reg [7:0] dout,
-    output reg [9:0] sound,  // combined channel output
-    output reg [7:0] A,      // linearised channel output
-    output reg [7:0] B,
-    output reg [7:0] C,
+    output reg [11:0] sound,  // combined channel output
+    output reg [9:0] A,      // linearised channel output
+    output reg [9:0] B,
+    output reg [9:0] C,
     output           sample,
 
     input      [7:0] IOA_in,
@@ -138,7 +138,7 @@ jt49_eg u_env(
 );
 
 reg  [4:0] logA, logB, logC, log;
-wire [7:0] lin;
+wire [9:0] lin;
 
 jt49_exp u_exp(
     .clk    ( clk  ),
@@ -169,19 +169,19 @@ always @(posedge clk) if( clk_en ) begin
     logC <= !Cmix ? 5'd0 : (use_envC ? envelope : volC );
 end
 
-reg  [9:0] acc;
-wire [9:0] elin;
+reg  [11:0] acc;
+wire [11:0] elin;
 
 assign elin = {2'd0,lin};
 
 always @(posedge clk, negedge rst_n) begin
     if( !rst_n ) begin
         acc_st <= 4'b1;
-        acc    <= 10'd0;
-        A      <= 8'd0;
-        B      <= 8'd0;
-        C      <= 8'd0;
-        sound  <= 10'd0;
+        acc    <= 12'd0;
+        A      <= 10'd0;
+        B      <= 10'd0;
+        C      <= 10'd0;
+        sound  <= 12'd0;
     end else if(clk_en) begin
         acc_st <= { acc_st[2:0], acc_st[3] };
         // Lumping the channel outputs for YM2203 will cause only the higher
@@ -190,7 +190,7 @@ always @(posedge clk, negedge rst_n) begin
         case( acc_st )
             4'b0001: begin
                 log   <= logA;
-                acc   <= 10'd0;
+                acc   <= 12'd0;
                 sound <= acc;
             end
             4'b0010: begin
