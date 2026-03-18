@@ -1331,6 +1331,9 @@ begin
 								trackwrdat<=x"0000";
 							end if;
 							fdstate<=fs_syncd;
+							if(sectlen=x"0000")then
+								sectlen<=x"0080";
+							end if;
 						end if;
 						trackwr<='1';
 						swait:=1;
