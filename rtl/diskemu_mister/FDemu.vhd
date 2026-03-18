@@ -22,6 +22,7 @@ port(
 	wrote		:out std_logic_vector(3 downto 0);
 	wprot		:in std_logic_vector(3 downto 0);
 	tracklen	:out std_logic_vector(13 downto 0);
+	fdenable	:in std_logic_vector(3 downto 0);
 	
 	USEL	:in std_logic_vector(1 downto 0);
 	MOTOR	:in std_logic;
@@ -112,6 +113,14 @@ signal	fdmode1	:std_logic_vector(1 downto 0);
 signal	fdmode2	:std_logic_vector(1 downto 0);
 signal	fdmode3	:std_logic_vector(1 downto 0);
 signal	selfdmode:std_logic_vector(1 downto 0);
+
+signal	txenable	:std_logic;
+signal	fdenbl0		:std_logic;
+signal	fdenbl1		:std_logic;
+signal	fdenbl2		:std_logic;
+signal	fdenbl3		:std_logic;
+signal	l1fdenable	:std_logic_vector(3 downto 0);
+signal	l2fdenable	:std_logic_vector(3 downto 0);
 
 signal	rxwr	:std_logic;
 signal	GAPS	:integer	range 0 to 31;
@@ -302,7 +311,27 @@ begin
 			end if;
 		end if;
 	end process;
-	
+	process(clk,rstn)begin
+		if(rstn='0')then
+			fdenbl0<='0';
+			fdenbl1<='0';
+			fdenbl2<='0';
+			fdenbl3<='0';
+		elsif(clk' event and clk='1')then
+			l1fdenable<=fdenable;
+			case USEL is
+			when "00" =>
+				fdenbl0<=l1fdenable(0);
+			when "01" =>
+				fdenbl1<=l1fdenable(1);
+			when "10" =>
+				fdenbl2<=l1fdenable(2);
+			when "11" =>
+				fdenbl3<=l1fdenable(3);
+			when others =>
+			end case;
+		end if;	
+	end process;
 	
 	selfdmode<=	fdmode0	when USEL="00" else
 					fdmode1	when USEL="01" else
@@ -310,6 +339,11 @@ begin
 					fdmode3	when USEL="11" else
 					"00";
 	curfdmode<=fdmode3 & fdmode2 & fdmode1 & fdmode0;
+	txenable<= fdenbl0 when USEL="00" else
+					fdenbl1	when USEL="01" else
+					fdenbl2	when USEL="10" else
+					fdenbl3	when USEL="11" else
+					'0';
 
 	bitlenr<=	4000*sysclk/1000000	when selfdmode(1)='0' else 2000*sysclk/1000000;
 				
@@ -348,7 +382,7 @@ begin
 		elsif(clk' event and clk='1')then
 			txwr<='0';
 			if(MOTOR='1')then
-				if(WRENn='1' and txemp='1')then
+				if(WRENn='1' and txemp='1' and txenable='1')then
 					if(WRENn='1')then
 						txwr<='1';
 					end if;
