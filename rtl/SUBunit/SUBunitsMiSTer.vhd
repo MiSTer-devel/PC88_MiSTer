@@ -624,6 +624,8 @@ signal	FDC_INDEXn	:std_logic;
 signal	FDC_SIDEn	:std_logic;
 signal	FDC_WPROTn	:std_logic;
 signal	FDC_MFM		:std_logic;
+signal	FDC_TWOSIDE	:std_logic;
+signal	FDC_READY	:std_logic;
 signal	FDE_EMUEN	:std_logic_vector(1 downto 0);
 signal	TDSEL		:std_logic;
 signal	RVSEL		:std_logic;
@@ -776,8 +778,8 @@ port map(
 	index	=>FDC_INDEXn,
 	side	=>FDC_SIDEn,
 	usel	=>FD_USEL,
-	READY	=>'0',	-- The actual chip is active high, but here it's active low.
-	TWOSIDE	=>not FDC_READYn,
+	READY	=>FDC_READY,	-- The actual chip is active high, but here it's active low.
+	TWOSIDE	=>FDC_TWOSIDE,
 	
 	int0	=>FD_int0,
 	int1	=>FD_int1,
@@ -798,6 +800,8 @@ port map(
 	fclk	=>clk21m,
 	rstn	=>CPUrstn
 );
+	FDC_READY<=		FD_USEL(1);
+	FDC_TWOSIDE<=	not FDC_READYn;
 
 	DSKE	:diskemu_mister generic map(
 		fclkfreq		=>sysclk,

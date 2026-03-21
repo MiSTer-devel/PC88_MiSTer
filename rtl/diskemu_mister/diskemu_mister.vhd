@@ -411,6 +411,7 @@ port(
 	wrote		:out std_logic_vector(3 downto 0);
 	wprot		:in std_logic_vector(3 downto 0);
 	tracklen	:out std_logic_vector(13 downto 0);
+	fdenable	:in std_logic_vector(3 downto 0);
 	
 	USEL	:in std_logic_vector(1 downto 0);
 	MOTOR	:in std_logic;
@@ -1331,6 +1332,9 @@ begin
 								trackwrdat<=x"0000";
 							end if;
 							fdstate<=fs_syncd;
+							if(sectlen=x"0000")then
+								sectlen<=x"0080";
+							end if;
 						end if;
 						trackwr<='1';
 						swait:=1;
@@ -2069,6 +2073,7 @@ begin
 		-- wrote			=>fde_wrote,
 		wprot			=>"00" & wrprot,
 		tracklen		=>fde_tracklen,
+		fdenable		=>"00" & fdc_indiskb,
 		
 		USEL			=>fdc_usel,
 		MOTOR			=>fdc_motoren,
@@ -2090,11 +2095,11 @@ begin
 	fdc_track0n<=	fde_track0n when fdc_useln="10" else
 						fde_track0n when fdc_useln="01" else
 						'1';
-	fdc_indexn<=	fde_indexn	when fdc_motorn(0)='0' and fdc_indiskb(0)='1' and fdc_useln="10" else
-						fde_indexn	when  fdc_motorn(1)='0' and fdc_indiskb(1)='1' and fdc_useln="01" else
+	fdc_indexn<=	fde_indexn	when fdc_useln="10" else
+						fde_indexn	when fdc_useln="01" else
 						'1';
-	fdc_rdbitn<=	fde_rdbitn	when fdc_motorn(0)='0' and fdc_indiskb(0)='1' and fdc_useln="10" else
-						fde_rdbitn	when  fdc_motorn(1)='0' and fdc_indiskb(1)='1' and fdc_useln="01" else
+	fdc_rdbitn<=	fde_rdbitn	when fdc_useln="10" else
+						fde_rdbitn	when fdc_useln="01" else
 						'1';
 	
 	fdc_readyn<=fdc_motorn(0) when fdc_indiskb(0)='1' and fdc_useln(0)='0' else
