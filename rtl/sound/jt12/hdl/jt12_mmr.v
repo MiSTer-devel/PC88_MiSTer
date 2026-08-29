@@ -188,6 +188,7 @@ localparam  REG_TESTYM  =   8'h21,
             REG_ADPCMA_TEST = 8'h02;
 
 reg csm, effect;
+reg sch;
 
 reg [ 2:0] block_ch3op2,  block_ch3op3,  block_ch3op1;
 reg [10:0] fnum_ch3op2, fnum_ch3op3, fnum_ch3op1;
@@ -310,6 +311,7 @@ always @(posedge clk) begin : memory_mapped_registers
         latch_fnum <= 0;
         op_din     <= 0;
         part       <= 0;
+        sch        <= 0;
     end else begin
         up_chreg   <= 0;
         // WRITE IN REGISTERS
@@ -332,7 +334,11 @@ always @(posedge clk) begin : memory_mapped_registers
                 ch_din <= din;
                 if( selected_register == REG_KON && !part && !addr[1] ) begin
                     up_keyon <= 1;
-                    op_din   <= din;
+                    if( use_adpcm==2 ) begin
+                        op_din   <= {din[7:3],(din[2]&sch),din[1:0]};
+                    end else begin
+                        op_din   <= din;
+                    end
                 end else begin
                     up_keyon <= 0;
                 end
@@ -356,8 +362,11 @@ always @(posedge clk) begin : memory_mapped_registers
                               enable_irq_B, enable_irq_A,
                               load_B, load_A } <= din[5:0];
                             end
-                        // IRQMASK[7] SCH is ignored
-                        REG_IRQMASK: {irq_mask} <= {din[4:0]};
+                        REG_IRQMASK: begin
+                            if ( use_adpcm==2 ) begin
+                                {sch, irq_mask} <= {din[7],din[4:0]};
+                            end
+                        end
                         `ifndef NOLFO                   
                         REG_LFO:    { lfo_en, lfo_freq } <= din[3:0];
                         `endif
