@@ -40,6 +40,7 @@ module jt08_adpcm_drvB(
     input    [ 7:0] aeg_b,      // Envelope Generator Control
     input    [15:0] alimit_b,   // Limit address
     output reg [ 3:0] flag,
+    input      [ 2:0] mask,
     input      [ 3:0] clr_flag,
     // memory
     output reg [23:0] addr,
@@ -262,9 +263,9 @@ always @(posedge clk) begin
         end
     end
     // flags
-    flag[F_BRDY] <= clr_flag[F_BRDY] ? 1'b0 : (flag[F_BRDY] | ( ~ram_busy ));
-    flag[F_EOS]  <= clr_flag[F_EOS]  ? 1'b0 : (flag[F_EOS] | (~acmd_on_b & ram_eos) | (acmd_on_b & pcm_eos));
-    flag[F_ZERO] <= 1'b0; //clr_flag[F_ZERO] ? 1'b0 : adc_zero;
+    flag[F_BRDY] <= (clr_flag[F_BRDY] | ~mask[F_BRDY]) ? 1'b0 : (flag[F_BRDY] | ( ~ram_busy ));
+    flag[F_EOS]  <= (clr_flag[F_EOS]  | ~mask[F_EOS] ) ? 1'b0 : (flag[F_EOS] | (~acmd_on_b & ram_eos) | (acmd_on_b & pcm_eos));
+    flag[F_ZERO] <= 1'b0; //(clr_flag[F_ZERO] | ~mask[F_ZERO]) ? 1'b0 : (flag[F_ZERO] | adc_zero);
     flag[F_BUSY] <= clr_flag[F_BUSY] ? 1'b0 : chon;
     // clear internal flag
     if (clr_flag[F_EOS]) begin

@@ -350,6 +350,7 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .alimit_b   ( alimit_b      ),  // Limit address
         // Flag
         .flag       ( adpcmb_flag2  ),
+        .mask       ( flag_mask[4:2] ),
         .clr_flag   ( flag_ctl[5:2] ),
         // memory
         .addr       ( adpcmb_addr   ),
@@ -424,7 +425,7 @@ jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid)) u_d
     .sel_chipid     ( sel_chipid    ),
     .adpcma_flags   ( adpcma_flags & flag_mask[5:0] ),
     .adpcmb_flag    ( adpcmb_flag & flag_mask[6]    ),
-    .adpcmb_flag2   ( adpcmb_flag2 & { 2'b1, flag_mask[4:2] } ),
+    .adpcmb_flag2   ( adpcmb_flag2  ),
     .psg_dout       ( psg_dout      ),
     .dout_b         ( dout_b        ),
     .addr           ( addr          ),
@@ -564,8 +565,8 @@ generate
             .value_B    ( value_B       ),
             .load_A     ( load_A        ),
             .load_B     ( load_B        ),
-            .enable_irq_A( enable_irq_A ),
-            .enable_irq_B( enable_irq_B ),
+            .enable_irq_A( opna_enable_A ),
+            .enable_irq_B( opna_enable_B ),
             .clr_flag_A ( clr_flag_A    ),
             .clr_flag_B ( clr_flag_B    ),
             .flag_A     ( flag_A        ),
@@ -573,7 +574,9 @@ generate
             .overflow_A ( overflow_A    ),
             .irq_n      (               )
         );
-        assign irq_n = ~( (flag_A&enable_irq_A&flag_mask[0]&irq_mask[0]) | (flag_B&enable_irq_B&flag_mask[1]&irq_mask[1]) | (|(adpcmb_flag2[2:0]&flag_mask[4:2]&irq_mask[4:2])) );
+        wire opna_enable_A = enable_irq_A & flag_mask[0];
+        wire opna_enable_B = enable_irq_B & flag_mask[1];
+        assign irq_n = ~( (flag_A&irq_mask[0]) | (flag_B&irq_mask[1]) | (|(adpcmb_flag2[2:0]&irq_mask[4:2])) );
 
     end else begin
         jt12_timers #(.num_ch(num_ch)) u_timers (
