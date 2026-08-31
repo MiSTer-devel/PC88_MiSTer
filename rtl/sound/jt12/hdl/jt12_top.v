@@ -167,6 +167,7 @@ wire        acmd_on_b;     // Control - Process start, Key On
 wire        acmd_rep_b;    // Control - Repeat
 wire        acmd_rst_b;    // Control - Reset
 wire        acmd_up_b;     // Control - New cmd received
+wire        acmd_ad_b;     // Control - Address set
 wire        acmd_rec_b;    // Control - YM2608 Recording
 wire        acmd_mem_b;    // Control - YM2608 Select external memory
 wire        acmd_x8_b;     // Control - YM2608 RAM 8bit granularity
@@ -342,6 +343,7 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .acmd_rep_b ( acmd_rep_b    ),  // Control - Repeat
         .acmd_rst_b ( acmd_rst_b    ),  // Control - Reset
         .acmd_up_b  ( acmd_up_b     ),  // Control - New command received
+        .acmd_ad_b  ( acmd_ad_b     ),  // Control - Address set
         .alr_b      ( alr_b         ),  // Left / Right
         .astart_b   ( astart_b      ),  // Start address
         .aend_b     ( aend_b        ),  // End   address
@@ -485,6 +487,7 @@ jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_a
     .acmd_rep_b ( acmd_rep_b    ),  // Control - Repeat
     .acmd_rst_b ( acmd_rst_b    ),  // Control - Reset
     .acmd_up_b  ( acmd_up_b     ),  // Control - New command received
+    .acmd_ad_b  ( acmd_ad_b     ),
     .acmd_rec_b ( acmd_rec_b    ),
     .acmd_mem_b ( acmd_mem_b    ),
     .acmd_x8_b  ( acmd_x8_b     ),
