@@ -332,10 +332,10 @@ always @(posedge clk) begin : memory_mapped_registers
                     REG_CLK_N2: div_setting    <= 2'b0; // 2F
                     default:;
                 endcase
-            end else begin
+            end else if( part == addr[1] ) begin
                 // Global registers
                 ch_din <= din;
-                if( selected_register == REG_KON && !part && !addr[1] ) begin
+                if( selected_register == REG_KON && !part ) begin
                     up_keyon <= 1;
                     if( use_adpcm==2 ) begin
                         op_din   <= {din[7:3],(din[2]&sch),din[1:0]};
@@ -346,7 +346,7 @@ always @(posedge clk) begin : memory_mapped_registers
                     up_keyon <= 0;
                 end
                 // General control (<0x20 registers and A0==0)
-                if(!addr[1] && !part) begin
+                if(!part) begin
                     casez( selected_register)
                         //REG_TEST: lfo_rst <= 1'b1; // regardless of din
                         8'h0?: psg_wr_n <= 1'b0;
@@ -408,7 +408,7 @@ always @(posedge clk) begin : memory_mapped_registers
                 end
                 if( use_adpcm==1 ) begin
                     // YM2610 ADPCM-A support, A1=1, regs 0-2D
-                    if(addr[1] && part && selected_register[7:6]==2'b0) begin
+                    if(part && selected_register[7:6]==2'b0) begin
                         casez( selected_register[5:0] )
                             6'h0: begin
                                 aon_a  <= din;
@@ -437,7 +437,7 @@ always @(posedge clk) begin : memory_mapped_registers
                             default:;
                         endcase
                     end
-                    if( !addr[1] && !part && selected_register[7:4]==4'h1 ) begin
+                    if( !part && selected_register[7:4]==4'h1 ) begin
                         // YM2610 ADPCM-B support, A1=0, regs 1x
                         case(selected_register[3:0])
                             4'd0: {acmd_up_b, acmd_on_b, acmd_rep_b,acmd_rst_b} <= {1'd1,din[7],din[4],din[0]};
@@ -459,7 +459,7 @@ always @(posedge clk) begin : memory_mapped_registers
                 end
                 if( use_adpcm==2 ) begin
                     // YM2608 ADPCM-A support, A1=0, regs 10-1F
-                    if( !addr[1] && !part && selected_register[7:4]==4'h1 ) begin
+                    if( !part && selected_register[7:4]==4'h1 ) begin
                         case( selected_register[3:0] )
                             4'h0: begin
                                 aon_a  <= din;
@@ -474,7 +474,7 @@ always @(posedge clk) begin : memory_mapped_registers
                             default:;
                         endcase
                     end
-                    if( addr[1] && part && selected_register[7:5]==3'b0 ) begin
+                    if( part && selected_register[7:5]==3'b0 ) begin
                         // YM2608 ADPCM-B support, A1=1, regs 00-10
                         case(selected_register[4:0])
                             5'h0: {acmd_up_b, acmd_on_b,acmd_rec_b,acmd_mem_b,acmd_rep_b,acmd_spk_b, acmd_rst_b} <= {1'd1, din[7:3], din[0]};
