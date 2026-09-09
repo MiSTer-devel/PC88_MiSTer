@@ -1224,6 +1224,9 @@ signal	IDAT_INTC	:std_logic_vector(7 downto 0);
 signal	INTC_OE		:std_logic;
 signal	HRTC		:std_logic;
 signal	VRTC		:std_logic;
+--Retrace signals resampled in the rclk domain (see below).
+signal	HRTCr		:std_logic;
+signal	VRTCr		:std_logic;
 signal	CDI			:std_logic;
 signal	CCK			:std_logic;
 signal	CSTB		:std_logic;
@@ -1565,7 +1568,35 @@ begin
 	
 
 
-	VRTCi<=not VRTC;
+	--HRTC/VRTC are combinational compares of VCOUNT/HUCOUNT (synccont2.vhd:70-71) and
+	--are not registered. TRAMCONV reads them directly from the clk21m (20MHz) domain
+	--while they are produced in the rclk (75MHz) domain, so it can latch a decoding
+	--glitch of the compare, which shows up as flickering character attributes. It is
+	--visible in the modes that read the characters and attributes from main memory
+	--(SDRAM), that is wherever TMODE is asserted - see the TMODE connection below, which
+	--covers N as well as V1S. It was observed in V1S.
+	--One register stage removes the flicker on hardware. On the author's build it also
+	--moved the worst case slack of the paths into TRAMCONV from -4.208 ns to -1.677 ns
+	--(same Quartus version, same fitter seed, this register being the only difference);
+	--those figures are one measurement of one placement, not a property of the design.
+	--What makes the residual negative slack tolerable is that TRAMCONV registers VRET
+	--and HRET again on its own clk21m side.
+	--The added latency is one rclk period, against a scan line of HWIDTH dots of CPD
+	--clocks (VIDEO_TIMING_pkg), so it cannot change behaviour.
+	--In the same synccont2 block HSYNC/VSYNC/VISIBLE/VIDEN are already pipelined (an
+	--eight deep shift register plus the output register); only the retrace outputs were
+	--left unregistered.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			HRTCr<=HRTC;
+			VRTCr<=VRTC;
+		end if;
+	end process;
+	--Only the paths that were glitching are moved to the registered copy: this one
+	--(the vertical retrace interrupt) and the two into TRAMCONV. The status bit read
+	--through port 40h below deliberately keeps the raw VRTC, so what software sees
+	--there is unchanged.
+	VRTCi<=not VRTCr;
 
 	INT0n<=not INT_COMRX;
 	INT1n<=VRTCi;
@@ -1857,8 +1888,8 @@ port map(
 	TVRAM_WDAT	=>TCNV_WDAT,
 	TVRAM_WR	=>TCNV_WE,
 	
-	VRET		=>VRTC,
-	HRET		=>HRTC,
+	VRET		=>VRTCr,
+	HRET		=>HRTCr,
 	-- DONE		=>TCNVDONE,
 	
 	clk			=>clk21m,
