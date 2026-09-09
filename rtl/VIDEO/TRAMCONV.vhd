@@ -87,6 +87,81 @@ signal	LINESKIP	:std_logic;
 signal	fATTR		:std_logic_vector(79 downto 0);
 signal	LINES		:integer range 0 to MAXLINES;
 
+--Upstream this FSM has four waits with no way out: ST_GETBUS waits for BUSACKn, and
+--ST_RDTXT1/ST_RDATR1/ST_RDATR3 wait for MRAM_WAIT. All of them hold BUSREQn while
+--waiting, so missing one handshake means the Z80 never gets the bus back and the
+--machine stays hung until power off (black screen).
+--Both signals are driven from the rclk (75MHz) domain (see below), so whether a
+--handshake is missed depends on placement, i.e. on the fitter seed. Registering them
+--(below) is what removes the hang: it stops STATE from latching a value that no
+--transition produces.
+--The counter below adds a bounded escape on top of that, but only for ST_GETBUS.
+--The three MRAM_WAIT waits are deliberately left unbounded: by then an SDRAM read has
+--already been issued on the shared CPU port, and the controller cannot cancel one - it
+--takes a request on an edge, and its wait flag is cleared by whichever transfer
+--finishes, without checking who asked for it. Handing the bus back there would let the
+--Z80 start a read whose wait could be cleared by the abandoned transfer, which is a
+--worse failure than the one being fixed. In ST_GETBUS no request is outstanding
+--(BUS_USE is still '0'), so releasing the bus is safe.
+--Note that the resulting disturbance is not limited to a single scan line: the escape
+--skips ST_SETATR2, so the end-of-line address updates
+--(STXTADR<=STXTADR+LINEADD / SDSTADR<=SDSTADR+x"0a0") do not happen and the
+--following lines are read from shifted addresses. It heals at a falling edge of VRET
+--that arrives while the FSM is in ST_IDLE, where STXTADR is reloaded with TADR_TOP.
+--That edge is only acted on in ST_IDLE, so one that arrives mid-line is missed and
+--the shift lasts into the following frame.
+--Sizing: stuckcnt runs 0 to STUCKMAX, so the escape is taken after STUCKMAX+1 cycles
+--of clk21m and BUSREQn is dropped one cycle later, in ST_RELBUS. That is under one
+--scan line but not by much - a line is HWIDTH dots of CPD clocks of rclk
+--(VIDEO_TIMING_pkg, VTIMING), so work both out from those constants rather than
+--trusting a figure quoted here. The margin that matters is a different one: measured
+--on hardware by lowering STUCKMAX until the escape starts firing, the bus grant comes
+--back within 2 to 4 cycles of clk21m, so the bound above is about two orders of
+--magnitude away from a normal wait.
+--Should the escape ever fire while nothing is actually stuck, the effect is bounded
+--the same way as above: it heals at the next falling edge of VRET.
+constant STUCKMAX	:integer	:=511;
+signal	stuckcnt	:integer range 0 to STUCKMAX;
+
+--The two signals that decide whether this FSM stalls both cross from rclk (75MHz)
+--into clk21m (20MHz) unsynchronised:
+--    MRAM_WAIT <- SDRAM controller (PC88MiSTer.vhd, memclk=>rclk)
+--    BUSACKn   <- Z80 (CPU_clk is derived from rclk in sdramcde0cvDEMU2.vhd)
+--These paths do not meet timing in this project, so a sample can be missed.
+--Used directly in the next state logic, such a signal can make the bits of STATE
+--latch different values, leaving STATE on a value that no transition produces and
+--whose only exit is "when others".
+--Registering them once makes every bit see the same single value. clk21m has a
+--50ns period, so one stage leaves ample settling time.
+signal	MRAM_WAITr	:std_logic;
+signal	BUSACKnr	:std_logic;
+
+--Three further inputs cross into STATE in the same way: HRET and VRET (retrace; the
+--other commit registers them on the rclk side, but the crossing itself remains) and
+--TEXTEN (CPU_clk domain). All of them can change while the FSM is waiting, so they
+--are registered as well.
+--MRAM_DAT is held data - stable by the time it is sampled - and is left alone.
+--The one cycle of delay is negligible against a scan line, let alone a frame.
+signal	VRETr,HRETr	:std_logic;
+signal	TEXTENr		:std_logic;
+
+--These five are the samples the FSM actually looks at, so each has to stay a single
+--register. This project enables PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION and
+--PHYSICAL_SYNTHESIS_REGISTER_RETIMING globally (PC88.qsf), and a duplicated copy of an
+--asynchronous sample can capture a different value from its twin - which would put
+--STATE back to seeing a mixture, the very thing these registers exist to prevent.
+--One attribute per optimisation, because they do not overlap: preserve keeps the
+--register from being minimised away, dont_replicate keeps it from being duplicated
+--(preserve on its own does not), and dont_retime keeps it from being moved.
+--Check the fitter report to confirm they were accepted; an attribute the tool does not
+--recognise is ignored silently.
+attribute preserve : boolean;
+attribute dont_replicate : boolean;
+attribute dont_retime : boolean;
+attribute preserve of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr : signal is true;
+attribute dont_replicate of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr : signal is true;
+attribute dont_retime of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr : signal is true;
+
 begin
 
 	RDDAT<=MRAM_DAT when rTMODE='1' else TRAM_DAT;
@@ -127,15 +202,39 @@ begin
 			DONE<='0';
 			waitcount<=0;
 			LINESKIP<='0';
+			stuckcnt<=0;
+			MRAM_WAITr<='0';
+			BUSACKnr<='1';
+			VRETr<='1';
+			HRETr<='1';
+			TEXTENr<='0';
 		elsif(clk' event and clk='1')then
+			MRAM_WAITr<=MRAM_WAIT;	--sample the domain crossings once, here
+			BUSACKnr<=BUSACKn;
+			VRETr<=VRET;
+			HRETr<=HRET;
+			TEXTENr<=TEXTEN;
 			TVRAM_WR<='0';
 			DONE<='0';
 			if(waitcount>0)then
 				waitcount<=waitcount-1;
 			else
+				--Bounded escape for ST_GETBUS only (see the note at STUCKMAX). This can
+				--only become true in cycles where ST_GETBUS below does nothing, so the
+				--two assignments to STATE can never collide.
+				if(STATE=ST_GETBUS and BUSACKnr='1')then
+					if(stuckcnt=STUCKMAX)then
+						stuckcnt<=0;
+						STATE<=ST_RELBUS;	--the release itself happens in ST_RELBUS
+					else
+						stuckcnt<=stuckcnt+1;
+					end if;
+				else
+					stuckcnt<=0;
+				end if;
 				case STATE is
 				when ST_IDLE =>
-					if(lVRET='1' and VRET='0')then
+					if(lVRET='1' and VRETr='0')then
 						STXTADR<=TADR_TOP;
 						SATRADR<=TADR_TOP+x"0050";
 						SDSTADR<=(others=>'0');
@@ -150,7 +249,7 @@ begin
 						LINECNT<=0;
 						CURATR<="00000111";
 						LINESKIP<='0';
-					elsif(lHRET='1' and HRET='0' and TEXTEN='1')then
+					elsif(lHRET='1' and HRETr='0' and TEXTENr='1')then
 						CHARCNT<=0;
 						ATRCNT<=0;
 						if(LINECNT<MAXLINES)then
@@ -176,7 +275,7 @@ begin
 						end if;
 					end if;
 				when ST_GETBUS =>
-					if(BUSACKn='0')then
+					if(BUSACKnr='0')then
 						STATE<=ST_RDTXT;
 						BUS_USE<='1';
 					end if;
@@ -185,10 +284,13 @@ begin
 					RDADR<=CTXTADR;
 					STATE<=ST_RDTXT1;
 					if(rTMODE='1')then
-						waitcount<=2;
+						--waitcount 2 -> 3 (3 -> 4 cycles) adds back the one clk21m cycle
+						--spent registering MRAM_WAIT, so it is examined at the same point
+						--after the request as before.
+						waitcount<=3;
 					end if;
 				when ST_RDTXT1 =>
-					if(rTMODE='0' or MRAM_WAIT='0')then
+					if(rTMODE='0' or MRAM_WAITr='0')then
 						MRAM_RDn<='1';
 						TVRAM_ADR<=CDSTADR;
 						if (LINESKIP='1')then
@@ -227,10 +329,13 @@ begin
 					RDADR<=CATRADR;
 					STATE<=ST_RDATR1;
 					if(rTMODE='1')then
-						waitcount<=2;
+						--waitcount 2 -> 3 (3 -> 4 cycles) adds back the one clk21m cycle
+						--spent registering MRAM_WAIT, so it is examined at the same point
+						--after the request as before.
+						waitcount<=3;
 					end if;
 				when ST_RDATR1 =>
-					if(rTMODE='0' or MRAM_WAIT='0')then
+					if(rTMODE='0' or MRAM_WAITr='0')then
 						case(RDDAT(6 downto 4))is
 							when o"0"|o"1"|o"2"|o"3"|o"4" =>
 								iATTRCUL:=conv_integer(RDDAT);
@@ -258,10 +363,13 @@ begin
 					MRAM_RDn<='0';
 					STATE<=ST_RDATR3;
 					if(rTMODE='1')then
-						waitcount<=2;
+						--waitcount 2 -> 3 (3 -> 4 cycles) adds back the one clk21m cycle
+						--spent registering MRAM_WAIT, so it is examined at the same point
+						--after the request as before.
+						waitcount<=3;
 					end if;
 				when ST_RDATR3 =>
-					if(rTMODE='0' or MRAM_WAIT='0')then
+					if(rTMODE='0' or MRAM_WAITr='0')then
 						if(COLOR='0' or ATTRCOLOR='0')then
 							CURATR(0)<='1';
 							CURATR(1)<='1';
@@ -331,8 +439,8 @@ begin
 				when others=>
 					STATE<=ST_RELBUS;
 				end case;
-				lVRET<=VRET;
-				lHRET<=HRET;
+				lVRET<=VRETr;
+				lHRET<=HRETr;
 			end if;
 		end if;
 	end process;
