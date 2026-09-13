@@ -84,7 +84,9 @@ entity T80a is
 		HALT_n		: out std_logic;
 		BUSAK_n		: out std_logic;
 		A			: out std_logic_vector(15 downto 0);
-		D			: inout std_logic_vector(7 downto 0)
+		D			: inout std_logic_vector(7 downto 0);
+		-- CPU write data before the bidirectional bus.
+		DOUT		: out std_logic_vector(7 downto 0)
 	);
 end T80a;
 
@@ -128,6 +130,7 @@ begin
 	RFSH_n <= RFSH_n_i when BUSAK_n_i = '1' else 'Z';
 	A <= A_i when BUSAK_n_i = '1' else (others => 'Z');
 	D <= DO when Write = '1' and BUSAK_n_i = '1' else (others => 'Z');
+	DOUT <= DO;
 
 	process (RESET_n, CLK_n)
 	begin
