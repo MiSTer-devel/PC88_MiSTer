@@ -152,4 +152,5 @@ set_global_assignment -name VHDL_FILE rtl/FECcont.vhd
 set_global_assignment -name VHDL_FILE rtl/trammaps.vhd
 set_global_assignment -name VERILOG_FILE rtl/ps2mouse.v
 set_global_assignment -name VHDL_FILE rtl/PC88MiSTer.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_demod.sv
 set_global_assignment -name SYSTEMVERILOG_FILE PC8801SR.sv

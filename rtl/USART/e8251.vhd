@@ -26,6 +26,9 @@ port(
 	TxEMP	:out std_logic;
 	RxRDY	:out std_logic;
 	
+	--Baud rate factor from the last mode command (00/01 = x1, 10 = x16, 11 = x64).
+	MODE_BAUD	:out std_logic_vector(1 downto 0);
+	
 	TxCn	:in std_logic;
 	RxCn	:in std_logic;
 	
@@ -221,6 +224,8 @@ begin
 				"000001";
 				
 	prescen<=	'1' when BAUD="11" else '0';
+	
+	MODE_BAUD<=BAUD;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then
