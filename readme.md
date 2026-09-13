@@ -13,6 +13,7 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 * 2 Floppy Drives using D88 format (Disk types supported 2D and 2HD)
 * Sound chip YM2603 by default and ADPCM
 * Mouse support (Changed between Mouse and Joypad on the OSD)
+* Tape (CMT) input from the ADC of the analog I/O board
 
 ## Installation
 Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801** folder on the root/games of the card, and place PC8801 floppies (\*.D88) inside this folder. 
@@ -53,6 +54,15 @@ On the OSD, there is an option to choose between Expansion (Default) or Onboard 
 The D88 format has a status to know if the file is write protected or not. The core checks this status and not write on D88 file if protected.
 You could check and change the write protection of D88 file using this application https://moochos.nobody.jp/en/software/d88edit/index.html.
 
+## Tape (CMT) input
+
+A tape can be loaded by playing it into the ADC input of the analog I/O board. Connect the
+recorder's line or earphone output to that input, start the tape and load as usual, with
+`CLOAD` in N-BASIC or `LOAD"CAS1:"` in N88-BASIC. Both tape speeds (600 and 1200 baud) work.
+
+The motor is not controlled, so the tape has to be started by hand. Saving to tape and tape
+image files are not supported.
+
 ## Known Issues
 - Timing issues
 - Gamma correction doesn't seem to change anything (?)
@@ -62,6 +72,6 @@ You could check and change the write protection of D88 file using this applicati
 - Add choice Sound YM2203 or YM2603 on the OSD
 - Add Audio Mix
 - Add support of multi-resolution
-- Add support of tapes
+- Add support of tape images and saving to tape
 - Add support of other models like PC8801MC
 - ...

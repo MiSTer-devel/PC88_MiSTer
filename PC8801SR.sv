@@ -176,7 +176,6 @@ module emu
 );
 ///////// Default values for ports not used in this core /////////
 
-assign ADC_BUS  = 'Z;
 assign {UART_RTS, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
@@ -392,6 +391,55 @@ wire disk_led;
 wire [7:0] red, green, blue;
 wire HSync, VSync, ce_pix, vid_de;
 
+//////////////////  CASSETTE (CMT) INPUT  ///////////////////
+
+// The tape reaches the 8251 as an asynchronous serial line; only the tone is decoded here.
+localparam CLK_SYS_HZ = 20000000;
+
+wire       cmt_mton;
+wire [1:0] cmt_bs;
+
+// Port 30h is written in the CPU clock domain. Sample the bits twice before they are used.
+reg [2:0] cmt_port30_s1 = 0, cmt_port30_s = 0;
+always @(posedge clk_sys) begin
+	cmt_port30_s1 <= {cmt_mton, cmt_bs};
+	cmt_port30_s  <= cmt_port30_s1;
+end
+
+wire tape_motor = cmt_port30_s[2];      // 30h bit3
+wire tape_sel   = ~cmt_port30_s[1];     // 30h bit5: 0 selects the cassette, 1 RS-232C
+wire tape_1200  = cmt_port30_s[0];      // 30h bit4: 1 = 1200 baud, 0 = 600
+
+wire tape_on  = tape_sel;
+wire tape_run = tape_on & tape_motor;
+
+// The USART clock follows the tape only while the motor is running.
+wire [1:0] cmt_clk_sel = tape_run ? (tape_1200 ? 2'b10 : 2'b01) : 2'b00;
+
+wire tape_level;
+ltc2308_tape #(.CLK_RATE(CLK_SYS_HZ)) tape_adc
+(
+	.reset(1'b0),
+	.clk(clk_sys),
+
+	.ADC_BUS(ADC_BUS),
+
+	.dout(tape_level)
+);
+
+wire tape_rxd;
+cmt_demod #(.CLK_HZ(CLK_SYS_HZ)) tape_demod
+(
+	.clk(clk_sys),
+	.reset(1'b0),
+
+	.level(tape_level),
+	.rxd(tape_rxd)
+);
+
+// Ground the 8251 input unless the motor is running.
+wire cmt_rxd = tape_run ? tape_rxd : 1'b0;
+
 PC88MiSTer PC88_top
 (
 	.clk21m(clk_sys),
@@ -461,6 +509,11 @@ PC88MiSTer PC88_top
 
 	.pSndL(AUDIO_L),
 	.pSndR(AUDIO_R),
+
+	.cmt_mton(cmt_mton),
+	.cmt_bs(cmt_bs),
+	.cmt_clk_sel(cmt_clk_sel),
+	.pCOM_RxD(cmt_rxd),
 
 	.rstn(reset_n & ~reset)
 );

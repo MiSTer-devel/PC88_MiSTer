@@ -70,6 +70,13 @@ port(
 	mist_buffdout	:in std_logic_vector(7 downto 0);
 	mist_buffdin	:out std_logic_vector(7 downto 0);
 	mist_buffwr		:in std_logic;
+
+	--Cassette (CMT) input. Port 30h is decoded in here, so its bits are brought out.
+	cmt_mton		:out std_logic;						--30h bit3: motor on
+	cmt_bs			:out std_logic_vector(1 downto 0);	--30h bit5: 0=CMT, bit4: 1=1200 baud
+	--USART clock: "00" is the RS-232C rate, "01" is 600 baud and "10" is 1200 baud.
+	--Ignored unless the CPU has put the 8251 in its x16 mode.
+	cmt_clk_sel		:in std_logic_vector(1 downto 0);
 	
 
 	-- FDD ports
@@ -755,6 +762,8 @@ port(
 	TxEMP	:out std_logic;
 	RxRDY	:out std_logic;
 	
+	MODE_BAUD	:out std_logic_vector(1 downto 0);
+	
 	TxCn	:in std_logic;
 	RxCn	:in std_logic;
 	
@@ -1426,7 +1435,11 @@ signal	COM_clk		:std_logic;
 signal	BS			:std_logic_vector(1 downto 0);
 constant COM_BAUD	:integer	:=9600;
 constant COM_DIV	:integer	:=(SYSCLK*1000/COM_BAUD/32)-1;
+--Cassette rates. The 8251 is fed a clock 16 times the bit rate, and clkdiv halves it.
+constant CMT_DIV_600	:integer	:=(SYSCLK*1000/600/32)-1;
+constant CMT_DIV_1200	:integer	:=(SYSCLK*1000/1200/32)-1;
 signal	COM_vDIV	:std_logic_vector(10 downto 0);
+signal	COM_MODE_BAUD	:std_logic_vector(1 downto 0);
 signal	MTON		:std_logic;
 signal	CDS			:std_logic;
 
@@ -2005,6 +2018,9 @@ port map(
 	IOW10	:IO_WRS generic map(x"10")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT,open,open,open,open,C_DO,C_RTC(2),C_RTC(1),C_RTC(0),CPU_clk,CPU_rstn);
 	IOR30	:IO_RD generic map(x"30")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR30,IOR30_OE,'0','0','0','0',c20L,c40C,cBT,cN);
 	IOW30	:IO_WRS generic map(x"30")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT,open,open,BS(1),BS(0),MTON,CDS,COLORn,HMODE,CPU_clk,CPU_rstn);
+	--Port 30h bits for the tape path outside.
+	cmt_mton<=MTON;
+	cmt_bs<=BS;
 	IOR31	:IO_RD generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR31,IOR31_OE,cVer,cHS,'1','1','1','0','1','1');
 	IOW31	:IO_WRS generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT,open,open,open,GCOLOR,GRAPHEN,RMODE,MMODE,L200,CPU_clk,CPU_rstn);
 	IO32	:IO_RWS generic map(x"32")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT,IDAT_IOR32,IOR32_OE,SINTM,open,PMODE,TMODE,open,open,EROMSEL1,EROMSEL0,CPU_clk,CPU_rstn);
@@ -2606,7 +2622,10 @@ end process;
 
 	COM_CSn<=IORQ_n when CPUADR(7 downto 1)="0010000" else '1';	--0x20,21
 
-	COM_vDIV<=conv_std_logic_vector(COM_DIV,11);
+	--A tape rate applies only under the x16 factor those rates are worked out for.
+	COM_vDIV<=	conv_std_logic_vector(CMT_DIV_600,11)  when cmt_clk_sel="01" and COM_MODE_BAUD="10" else
+				conv_std_logic_vector(CMT_DIV_1200,11) when cmt_clk_sel="10" and COM_MODE_BAUD="10" else
+				conv_std_logic_vector(COM_DIV,11);
 	COMB	:clkdiv generic map(11) port map(COM_vDIV,COM_clk,clk21m,srstn);
 	
 	USART	:e8251 port map(
@@ -2629,6 +2648,8 @@ end process;
 		TxRDY	=>open,
 		TxEMP	=>open,
 		RxRDY	=>INT_COMRX,
+		
+		MODE_BAUD	=>COM_MODE_BAUD,
 		
 		TxCn	=>COM_clk,
 		RxCn	=>COM_clk,
