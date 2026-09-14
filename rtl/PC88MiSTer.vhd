@@ -1357,6 +1357,10 @@ signal	KANJI2RD	:std_logic;
 signal	cpuclkb,subclkb	:std_logic;
 
 signal	srstn		:std_logic;
+--srstn comes from the rclk domain. Synchronise its deassertion to clk21m;
+--assertion remains asynchronous.
+signal	srstn21m	:std_logic;
+signal	srstn21		:std_logic;
 
 signal	SUB_TXM2S	:std_logic_vector(7 downto 0);
 signal	SUB_TXS2M	:std_logic_vector(7 downto 0);
@@ -1547,6 +1551,16 @@ begin
 			else
 				rstcnt<=rstcnt-1;
 			end if;
+		end if;
+	end process;
+
+	process(clk21m,srstn)begin
+		if(srstn='0')then
+			srstn21m<='0';
+			srstn21<='0';
+		elsif(clk21m' event and clk21m='1')then
+			srstn21m<='1';
+			srstn21<=srstn21m;
 		end if;
 	end process;
 	
@@ -1952,8 +1966,8 @@ port map(
 				IO_WAIT;
 
 	
-	process(clk21m,srstn)begin
-		if(srstn='0')then
+	process(clk21m,srstn21)begin
+		if(srstn21='0')then
 			KBCLKIN<='1';
 			KBDATIN<='1';
 		elsif(clk21m' event and clk21m='1')then
@@ -2210,12 +2224,12 @@ port map(
 		RTCIN	=>sysrtc,
 
 		sclk	=>clk21m,
-		rstn	=>srstn
+		rstn	=>srstn21
 	);
 
 	PCLKG	:unchchata port map(not pjoya(1),pclk,cpu_clk,srstn);
 	
-	TIMP600	:sftclk generic map(sysclk*1000,600,1) port map("0",RTI,clk21m,srstn);
+	TIMP600	:sftclk generic map(sysclk*1000,600,1) port map("0",RTI,clk21m,srstn21);
 	
 	SUBU	:SUBunitsMiSTer generic map(SYSCLK,RAMCLK,RAMAWIDTH) port map(
 		RAMADR			=>SUBADR,
@@ -2278,7 +2292,7 @@ port map(
 		ramclk			=>rclk,
 		pclk			=>emuclk,
 		vclk			=>gclk,
-		srstn			=>srstn,
+		srstn			=>srstn21,
 		rstn			=>CPU_rstn
 	);
 
@@ -2296,7 +2310,7 @@ busmouse	:ps2mouse port map(
 	ps2_mouse	=> ps2_mouse
 );
 
-OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn);	--22.222/2=11.111MHz
+OPNS	:sftgen generic map(2) port map(2,OPNsft,clk21m,srstn21);	--22.222/2=11.111MHz
 
 process(clk21m) begin
 	if (clk21m' event and clk21m='1') then
@@ -2626,7 +2640,7 @@ end process;
 	COM_vDIV<=	conv_std_logic_vector(CMT_DIV_600,11)  when cmt_clk_sel="01" and COM_MODE_BAUD="10" else
 				conv_std_logic_vector(CMT_DIV_1200,11) when cmt_clk_sel="10" and COM_MODE_BAUD="10" else
 				conv_std_logic_vector(COM_DIV,11);
-	COMB	:clkdiv generic map(11) port map(COM_vDIV,COM_clk,clk21m,srstn);
+	COMB	:clkdiv generic map(11) port map(COM_vDIV,COM_clk,clk21m,srstn21);
 	
 	USART	:e8251 port map(
 		WRn		=>WR_n,
@@ -2658,8 +2672,8 @@ end process;
 		rstn	=>CPU_rstn
 	);
 
-	process(clk21m,srstn)begin
-		if(srstn='0')then
+	process(clk21m,srstn21)begin
+		if(srstn21='0')then
 			TXTen<='1';
 			TenSW<='0';
 		elsif(clk21m' event and clk21m='1')then
