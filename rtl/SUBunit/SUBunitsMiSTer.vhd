@@ -247,6 +247,7 @@ port(
 	IORQn	:in std_logic;
 	MREQn	:in std_logic;
 	RDn		:in std_logic;
+	WRn		:in std_logic;
 	M1n		:in std_logic;
 	DATOUT	:out std_logic_vector(7 downto 0);
 	DATOE	:out std_logic;
@@ -725,7 +726,7 @@ begin
 		rstn	=>CPUrstn
 	);
 	
-	INTC	:INTSUB port map(IORQn,MREQn,RDn,M1n,IDAT_INT,INT_OE,CPUCLK,CPUrstn);
+	INTC	:INTSUB port map(IORQn,MREQn,RDn,WRn,M1n,IDAT_INT,INT_OE,CPUCLK,CPUrstn);
 	
 	FDT	:FDtiming generic map(sysclk) port map(
 		drv0sel		=>'0',
