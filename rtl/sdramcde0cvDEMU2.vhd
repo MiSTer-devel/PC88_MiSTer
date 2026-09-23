@@ -1409,7 +1409,8 @@ begin
 					CLKSFT<=CLKSFT(17 downto 0) & CLKSFT(18);
 				end if;
 				if(clkcount=18)then
-					SUBCSFT<="0000011111000011111";
+					-- Sub CPU: one rising edge per round = 75/19 = 3.947 MHz
+					SUBCSFT<="0000011111111100000";
 				else
 					SUBCSFT<=SUBCSFT(17 downto 0) & SUBCSFT(18);
 				end if;
