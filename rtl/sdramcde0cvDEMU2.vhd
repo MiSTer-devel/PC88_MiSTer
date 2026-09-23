@@ -134,7 +134,7 @@ constant clockwtime	:integer	:=50000;	--usec
 --constant clockwtime	:integer	:=2;	--usec
 constant cwaitcnt	:integer	:=clockwtime*86;	--clocks
 signal	CLOCKWAIT	:integer range 0 to cwaitcnt;
-signal	clkcount	:integer range 0 to 20;
+signal	clkcount	:integer range 0 to 18;
 -- signal	pCPUWR		:std_logic;
 -- signal	pCPURD		:std_logic;
 -- signal	pCPUADR			:std_logic_vector(AWIDTH-1 downto 0);
@@ -209,8 +209,8 @@ signal	MEMBA0		:STD_LOGIC;							-- SD-RAM BANK SELECT ADDRESS 0
 signal	MEMADR		:STD_LOGIC_VECTOR( 12 DOWNTO 0 );	-- SD-RAM ADDRESS
 signal	MEMDAT		:STD_LOGIC_VECTOR( 15 DOWNTO 0 );	-- SD-RAM DATA
 signal	MEMDATOE	:STD_LOGIC;
-signal	CLKSFT		:std_logic_vector(20 downto 0);
-signal	SUBCSFT		:std_logic_vector(20 downto 0);
+signal	CLKSFT		:std_logic_vector(18 downto 0);
+signal	SUBCSFT		:std_logic_vector(18 downto 0);
 begin
 	
 	monout<="00000001" when STATE=ST_REFRSH else
@@ -1003,10 +1003,9 @@ begin
 						MEMADR(12 downto 11)	<="11";
 						MEMDATOE		<='0';
 					end case;
-				when 13 =>
-					if(STATE=ST_SUBREAD)then
-						SUBWAITb<='0';
-					end if;
+				when 11 =>
+					-- SUBWAITb is not released here: SUBRDAT1 is captured in slot 12,
+					-- so releasing it in this slot would signal the sub CPU a tick early.
 					if(STATE/=ST_INITREF and STATE/=ST_INITMRS and STATE/=ST_INITPALL)then
 						if(VIDJOB=JOB_RD)then
 							STATE<=ST_VIDREAD;
@@ -1028,7 +1027,12 @@ begin
 					MEMADR(10 downto 0)	<=(others=>'0');
 					MEMADR(12 downto 11)	<="11";
 					MEMDATOE		<='0';
-				when 14 =>
+				when 12 =>
+					-- Release SUBWAITb in the same slot and on the same condition as the
+					-- SUBRDAT1 capture. STATE was already reassigned in slot 11, so use lSTATE.
+					if(lSTATE=ST_SUBREAD)then
+						SUBWAITb<='0';
+					end if;
 					case STATE is
 					when ST_VIDREAD =>
 						MEMCKE		<='1';	--Bank active
@@ -1069,7 +1073,7 @@ begin
 						MEMADR(12 downto 11)	<="11";
 						MEMDATOE		<='0';
 					end case;
-				when 16 =>
+				when 14 =>
 					case STATE is
 					when ST_VIDREAD =>	--Read
 						MEMCKE		<='1';
@@ -1097,7 +1101,7 @@ begin
 						MEMADR(12 downto 11)	<="11";
 						MEMDATOE		<='0';
 					end case;
-				when 17	=>
+				when 15	=>
 					case STATE is
 					when ST_VIDREAD =>
 						MEMCKE		<='1';	--Read(cont.)
@@ -1125,7 +1129,7 @@ begin
 						MEMADR(12 downto 11)	<="11";
 						MEMDATOE		<='0';
 					end case;
-				when 18 =>
+				when 16 =>
 					case STATE is
 					when ST_VIDREAD =>
 						MEMCKE		<='1';	--precharge all banks
@@ -1153,7 +1157,7 @@ begin
 						MEMADR(12 downto 11)	<="11";
 						MEMDATOE		<='0';
 					end case;
-				when 19 =>
+				when 17 =>
 					MEMCKE		<='1';	--nop
 					MEMCS_N		<='1';
 					MEMRAS_N		<='1';
@@ -1166,7 +1170,7 @@ begin
 					MEMADR(10 downto 0)	<=(others=>'0');
 					MEMADR(12 downto 11)	<="11";
 					MEMDATOE		<='0';
-				when 20 =>
+				when 18 =>
 					MEMCKE		<='1';	--nop
 					MEMCS_N		<='1';
 					MEMRAS_N		<='1';
@@ -1255,7 +1259,7 @@ begin
 					MEMADR(12 downto 11)	<="11";
 					MEMDATOE	<='0';
 				end case;
-				if(clkcount=20)then
+				if(clkcount=18)then
 					clkcount<=0;
 				else
 					clkcount<=clkcount+1;
@@ -1347,11 +1351,12 @@ begin
 					MRAMDAT<=PMEMDAT(15 downto 8);
 				end if;
 			when 12 =>
-				if(STATE=ST_SUBREAD)then
+				-- lSTATE: window 3 arbitration in slot 11 has already reassigned STATE.
+				if(lSTATE=ST_SUBREAD)then
 					SUBRDAT1<=PMEMDAT(7 downto 0);
 					SUBRSEL<='1';
 				end if;
-			when 20 =>
+			when 18 =>
 				if(STATE=ST_VIDREAD)then
 					VIDDAT0<=PMEMDAT(7 downto 0);
 					VIDDAT1<=PMEMDAT(15 downto 8);
@@ -1392,28 +1397,30 @@ begin
 				CPURSTn<='0';
 			else
 				CPURSTn<='1';
-				if(clkcount=20)then
+				if(clkcount=18)then
 					-- CLKMb<=CLOCKM;
+					-- 19-tick round: one rising edge = 75/19 = 3.947 MHz, two = 7.895 MHz
 					if(CLOCKM='1')then
-						CLKSFT<="000001111100000111111";
+						CLKSFT<="0000011111000011111";
 					else
-						CLKSFT<="000001111111111000000";
+						CLKSFT<="0000011111111100000";
 					end if;
 				else
-					CLKSFT<=CLKSFT(19 downto 0) & CLKSFT(20);
+					CLKSFT<=CLKSFT(17 downto 0) & CLKSFT(18);
 				end if;
-				if(clkcount=20)then
-					SUBCSFT<="000001111100000111111";
+				if(clkcount=18)then
+					SUBCSFT<="0000011111000011111";
 				else
-					SUBCSFT<=SUBCSFT(19 downto 0) & SUBCSFT(20);
+					SUBCSFT<=SUBCSFT(17 downto 0) & SUBCSFT(18);
 				end if;
 				
 			end if;
 		end if;
 		end if;
 	end process;
-	CPUCLK<=CLKSFT(20);
-	SUBCLKb<=SUBCSFT(20);
+	CPUCLK<=CLKSFT(18);
+	SUBCLKb<=SUBCSFT(18);
+
 	ALUCWD<=CPUWDATb;
 	SUBCLK<=SUBCLKb;
 	
