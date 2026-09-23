@@ -1346,7 +1346,7 @@ begin
 					end if;
 					MRAMDAT<=PMEMDAT(15 downto 8);
 				end if;
-			when 13 =>
+			when 12 =>
 				if(STATE=ST_SUBREAD)then
 					SUBRDAT1<=PMEMDAT(7 downto 0);
 					SUBRSEL<='1';
