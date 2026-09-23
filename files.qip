@@ -45,6 +45,7 @@ set_global_assignment -name VHDL_FILE rtl/sound/FMcommon/muls16xu16.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/FMcommon/MUL16x17.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/FMcommon/FMreg.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/beeposc.vhd
+set_global_assignment -name VHDL_FILE rtl/sound/singspk.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/mult16.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/sintbl.vhd
 set_global_assignment -name MIF_FILE rtl/sound/sinw.mif
