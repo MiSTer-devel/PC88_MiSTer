@@ -30,7 +30,8 @@ port(
 	VCOMP	:in std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end GRAPHSCR;
 
@@ -43,7 +44,8 @@ component graphbuf
 		rdaddress		: IN STD_LOGIC_VECTOR (6 DOWNTO 0);
 		wraddress		: IN STD_LOGIC_VECTOR (6 DOWNTO 0);
 		wren		: IN STD_LOGIC  := '0';
-		q		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0)
+		q		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
+		ce		: IN STD_LOGIC  := '1'
 	);
 END component;
 
@@ -56,7 +58,8 @@ port(
 	q		:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -100,10 +103,10 @@ signal	MONOFL2	:std_logic_vector(7 downto 0);
 signal  BUFWEL : std_logic;
 
 begin
-	buf0    :graphbuf port map(clk,WDAT0,RADR,WADR,BUFWEL,RDAT0);
-	buf1    :graphbuf port map(clk,WDAT1,RADR,WADR,BUFWEL,RDAT1);
-	buf2    :graphbuf port map(clk,WDAT2,RADR,WADR,BUFWEL,RDAT2);
-	bufe    :graphbuf port map(clk,WDATE,RADR,WADR,BUFWEL,RDATE);
+	buf0    :graphbuf port map(clk,WDAT0,RADR,WADR,BUFWEL,RDAT0,ce);
+	buf1    :graphbuf port map(clk,WDAT1,RADR,WADR,BUFWEL,RDAT1,ce);
+	buf2    :graphbuf port map(clk,WDAT2,RADR,WADR,BUFWEL,RDAT2,ce);
+	bufe    :graphbuf port map(clk,WDATE,RADR,WADR,BUFWEL,RDATE,ce);
 
 	BUFWEL <= BUFWE when LINEEN='1' else '0';
 	
@@ -125,6 +128,7 @@ begin
 			DAT1SEL<='0';
 			LINEEN<='1';
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			BUFWE<='0';
 			case BUFSTATE is
 			when BS_IDLE =>
@@ -194,11 +198,12 @@ begin
 			when others =>
 				BUFSTATE<=BS_IDLE;
 			end case;
+		 end if;
 		end if;
 	end process;
 
-	Hdelay	:delayer generic map(2) port map(HCOMP,DHCOMP,clk,rstn);
-	Vdelay	:delayer generic map(4) port map(VCOMP,DVCOMP,clk,rstn);
+	Hdelay	:delayer generic map(2) port map(HCOMP,DHCOMP,clk,rstn,ce);
+	Vdelay	:delayer generic map(4) port map(VCOMP,DVCOMP,clk,rstn,ce);
 	
 	MONOFL0<=(others=>MONOEN(0));
 	MONOFL1<=(others=>MONOEN(1));
@@ -217,6 +222,7 @@ begin
 			NXTDOTE<=(others=>'0');
 			RADR<=(others=>'0');
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 
 -- Data	section
 			if(DHCOMP='1')then
@@ -251,6 +257,7 @@ begin
 					NXTDOTE<=(others=>'0');
 				end if;
 			end if;
+		 end if;
 		end if;
 	end process;
 	
@@ -268,6 +275,7 @@ begin
 			CURDOTM<=(others=>'0');
 			CURDOTE<=(others=>'0');
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(UCOUNT=0)then
 				BITOUT0<=NXTDOT0(7);
 				BITOUT1<=NXTDOT1(7);
@@ -291,6 +299,7 @@ begin
 				CURDOTM<=CURDOTM(6 downto 0) & '0';
 				CURDOTE<=CURDOTE(6 downto 0) & '0';
 			end if;
+		 end if;
 		end if;
 	end process;
 

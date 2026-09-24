@@ -23,6 +23,7 @@ port(
 
 	sclk		:in std_logic;
 	gclk		:in std_logic;
+	gce		:in std_logic := '1';
 	rstn	:in std_logic
 );
 end rampalette;
@@ -87,6 +88,7 @@ begin
 	mode  <=PMODE & GCOLOR & X_BIT & g_bit & CRTCEN;
 	process(gclk)begin
 		if(gclk' event and gclk='1')then
+		 if(gce='1')then
 			case(mode)is
 				when "00000"|"00001" =>
 					-- D-pal, Mono-CG, no T-bit, no G-bit: BG COLOR (Digital)
@@ -118,6 +120,7 @@ begin
 					GOUT<=PAL_G(ipalno);
 					BOUT<=PAL_B(ipalno);
 			end case;
+		 end if;
 		end if;
 	end process;
 	

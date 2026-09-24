@@ -39,7 +39,8 @@ port(
 	VCOMP	:in std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end TEXTSCR2;
 
@@ -78,7 +79,8 @@ port(
 	q		:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -87,8 +89,8 @@ begin
 	iCURL<=conv_integer(CURL);
 	iCURC<=conv_integer(CURC);
 
-	Hdelay	:delayer generic map(1) port map(HCOMP,DHCOMP,clk,rstn);
-	Vdelay	:delayer generic map(2) port map(VCOMP,DVCOMP,clk,rstn);
+	Hdelay	:delayer generic map(1) port map(HCOMP,DHCOMP,clk,rstn,ce);
+	Vdelay	:delayer generic map(2) port map(VCOMP,DVCOMP,clk,rstn,ce);
 
 	C_LIN<=0 when VCOUNT<VIV else (VCOUNT-VIV)mod CHRLINES;
 	C_COL<=0 when HUCOUNT<HIV else HUCOUNT-HIV;
@@ -98,6 +100,7 @@ begin
 			CURF<='1';
 			CICOUNT<=CBLINKINT-1;
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(VCOMP='1')then
 				if(CICOUNT=0)then
 					CURF<=not CURF;
@@ -106,6 +109,7 @@ begin
 					CICOUNT<=CICOUNT-1;
 				end if;
 			end if;
+		 end if;
 		end if;
 	end process;
 
@@ -114,6 +118,7 @@ begin
 			BLKF<='0';
 			BICOUNT<=BLINKINT-1;
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(VCOMP='1')then
 				if(BICOUNT=0)then
 					BLKF<=not BLKF;
@@ -122,6 +127,7 @@ begin
 					BICOUNT<=BICOUNT-1;
 				end if;
 			end if;
+		 end if;
 		end if;
 	end process;
 
@@ -132,10 +138,12 @@ begin
 			HMODEC<='0';
 			VMODEC<='0';
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(VCOMP='1')then
 				HMODEC<=HMODE;
 				VMODEC<=VMODE;
 			end if;
+		 end if;
 		end if;
 	end process;
 
@@ -156,6 +164,7 @@ begin
 			FRAMADR<=(others=>'0');
 			C_LOW<=0;
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 
 -- Data	section
 			if(DHCOMP='1')then
@@ -221,6 +230,7 @@ begin
 					NXTFS<='0';
 				end if;
 			end if;
+		 end if;
 		end if;
 	end process;
 
@@ -235,6 +245,7 @@ begin
 			BLINK<='0';
 			CURDOT<=(others=>'0');
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(HMODEC='1')then
 				if(UCOUNT=0)then
 					if(NXTFS='0')then
@@ -268,6 +279,7 @@ begin
 					CURDOT<=CURDOT(6 downto 0) & '0';
 				end if;
 			end if;
+		 end if;
 		end if;
 	end process;
 

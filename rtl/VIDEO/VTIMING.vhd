@@ -27,7 +27,8 @@ port(
 	clk3	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	CE3		:out std_logic
 );
 end VTIMING;
 architecture MAIN of VTIMING is
@@ -60,16 +61,18 @@ begin
 	end process;
 	clk2<=clk2sft(1);
 	clk3<=clk3sft(2);
-	clk3b<=clk3sft(2);
+	clk3b<=clk3sft(1);
+	CE3<=clk3b;
 
-	process(clk3b,rstn)begin
+	process(clk,rstn)begin
 		if(rstn='0')then
 			vcounter<=VWIDTH-1;
 			hucounter<=0;
 			ucounter<=0;
 			hcompb<='0';
 			vcompb<='0';
-		elsif(clk3b' event and clk3b='1')then
+		elsif(clk' event and clk='1')then
+		 if(clk3b='1')then
 			hcompb<='0';
 			vcompb<='0';
 			if(ucounter=(DOTPU-1))then
@@ -89,6 +92,7 @@ begin
 			else
 				ucounter<=ucounter+1;
 			end if;
+		 end if;
 		end if;
 	end process;
 	
