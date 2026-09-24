@@ -57,7 +57,7 @@ signal	CURATR	:std_logic_vector(7 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to MAXLINES;
-type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_SKIPATR,ST_NOATTR);
+type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR);
 signal	STATE	:STATE_T;
 --signal	STATE	:integer range 0 to 12;
 --	constant ST_IDLE	:integer	:=0;
@@ -92,6 +92,11 @@ signal	LINES		:integer range 0 to MAXLINES;
 --cancelled.
 constant STUCKMAX	:integer	:=511;
 signal	stuckcnt	:integer range 0 to STUCKMAX;
+
+--After a release, BUSACKn must stay high this many cycles before the next request
+--(about four cycles of the 3.95 MHz CPU clock).
+constant RELQUIET	:integer	:=20;
+signal	relcnt		:integer range 0 to RELQUIET;
 
 --BUSACKn and MRAM_WAIT cross from the rclk domain into clk21m.
 --Sample the asynchronous inputs once before the FSM uses them.
@@ -151,6 +156,7 @@ begin
 			waitcount<=0;
 			LINESKIP<='0';
 			stuckcnt<=0;
+			relcnt<=0;
 			MRAM_WAITr<='0';
 			BUSACKnr<='1';
 			VRETr<='1';
@@ -376,12 +382,30 @@ begin
 				when ST_RELBUS =>
 					BUSREQn<='1';
 					BUS_USE<='0';
-					STATE<=ST_IDLE;
+					relcnt<=0;
+					if(rTMODE='1')then
+						STATE<=ST_WAITREL;
+					else
+						STATE<=ST_IDLE;
+					end if;
+				when ST_WAITREL =>
+					--Wait until the CPU has taken the bus back and can no longer grant
+					--the request just withdrawn.
+					if(BUSACKnr='0')then
+						relcnt<=0;
+					elsif(relcnt=RELQUIET)then
+						STATE<=ST_IDLE;
+					else
+						relcnt<=relcnt+1;
+					end if;
 				when others=>
 					STATE<=ST_RELBUS;
 				end case;
-				lVRET<=VRETr;
-				lHRET<=HRETr;
+				--Keep VRET/HRET edges that arrive while the bus is being released.
+				if(STATE/=ST_WAITREL and (STATE/=ST_RELBUS or rTMODE='0'))then
+					lVRET<=VRETr;
+					lHRET<=HRETr;
+				end if;
 			end if;
 		end if;
 	end process;
