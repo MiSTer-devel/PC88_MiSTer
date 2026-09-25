@@ -45,7 +45,8 @@ port(
 	mon4	:out std_logic_vector(7 downto 0);
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic		-- the cycle where the old CPU clock fell
 );
 end CRTCREGS;
 
@@ -76,7 +77,8 @@ begin
 			mon2<=x"00";
 			mon3<=x"00";
 			mon4<=x"00";
-		elsif(clk' event and clk='0')then
+		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(IOWRn='0' and lWRn='1')then
 				case ADR is
 				when CMDADR =>
@@ -168,6 +170,7 @@ begin
 				end case;
 			end if;
 			lWRn<=IOWRn;
+		 end if;
 		end if;
 	end process;
 	

@@ -44,6 +44,9 @@ ENTITY SDRAMCde0cvDEMU2 IS
 		-- High for one memclk cycle on the cycles where SUBCLK rises / falls
 		SUBCE_R			:out std_logic;
 		SUBCE_F			:out std_logic;
+		-- The same for CPUCLK
+		CPUCE_R			:out std_logic;
+		CPUCE_F			:out std_logic;
 
 		ALURD0			:out std_logic_vector(7 downto 0);
 		ALURD1			:out std_logic_vector(7 downto 0);
@@ -215,6 +218,7 @@ signal	MEMDATOE	:STD_LOGIC;
 signal	CLKSFT		:std_logic_vector(18 downto 0);
 signal	SUBCSFT		:std_logic_vector(18 downto 0);
 signal	nextsubc	:std_logic_vector(18 downto 0);
+signal	nextcpuc	:std_logic_vector(18 downto 0);
 begin
 	
 	monout<="00000001" when STATE=ST_REFRSH else
@@ -1434,6 +1438,16 @@ begin
 				SUBCSFT(17 downto 0) & SUBCSFT(18);
 	SUBCE_R<='1' when SUBCSFT(18)='0' and nextsubc(18)='1' else '0';
 	SUBCE_F<='1' when SUBCSFT(18)='1' and nextsubc(18)='0' else '0';
+
+	-- Next value of CLKSFT, following the same process (cleared in reset, held
+	-- during SDRAM init, reloaded by CLOCKM at clkcount=18, rotated otherwise).
+	nextcpuc<=	(others=>'0')				when rstn='0' else
+				CLKSFT						when (STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL) else
+				"0000011111000011111"		when clkcount=18 and CLOCKM='1' else
+				"0000011111111100000"		when clkcount=18 else
+				CLKSFT(17 downto 0) & CLKSFT(18);
+	CPUCE_R<='1' when CLKSFT(18)='0' and nextcpuc(18)='1' else '0';
+	CPUCE_F<='1' when CLKSFT(18)='1' and nextcpuc(18)='0' else '0';
 
 	ALUCWD<=CPUWDATb;
 	SUBCLK<=SUBCLKb;

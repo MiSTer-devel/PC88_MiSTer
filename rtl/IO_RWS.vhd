@@ -25,7 +25,8 @@ port(
 	bit0	:out std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end IO_RWS;
 
@@ -49,6 +50,7 @@ begin
 			bit0<='0';
 			DATOUT<=(others=>'0');
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(ADR=IOADR and IOWRn='0' and lWRn='1')then
 				bit7<=DATIN(7);
 				bit6<=DATIN(6);
@@ -61,6 +63,7 @@ begin
 				DATOUT<=DATIN;
 			end if;
 		lWRn<=IOWRn;
+		 end if;
 		end if;
 	end process;
 

@@ -40,7 +40,9 @@ port(
 	clk		:in std_logic;
 	cpuclk	:in std_logic;
 	sft		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	cpuce	:in std_logic := '1';
+	rstnc	:in std_logic		-- reset for the cpuclk side, released on cpuclk
 );
 end OPNA;
 
@@ -332,8 +334,8 @@ begin
 		end if;
 	end process;
 
-	process(cpuclk,rstn)begin
-		if(rstn='0')then
+	process(cpuclk,rstnc)begin
+		if(rstnc='0')then
 			CPU_RADR0<=x"30";
 			CPU_RADR1<=x"30";
 			BUSY<='1';
@@ -387,6 +389,7 @@ begin
 			STATEMSK<="11100";
 			FLAGRES<='0';
 		elsif(cpuclk' event and cpuclk='1')then
+		 if(cpuce='1')then
 			CPU_RWR0<='0';
 			CPU_RWR1<='0';
 			TARST<='0';
@@ -563,6 +566,7 @@ begin
 					end case;
 				end if;
 			end if;
+		 end if;
 		end if;
 	end process;
 	

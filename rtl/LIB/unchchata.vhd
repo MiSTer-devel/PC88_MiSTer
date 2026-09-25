@@ -13,7 +13,8 @@ entity UNCHCHATA is
 		DST		:out std_logic;
 		
 		clk		:in std_logic;
-		rstn	:in std_logic
+		rstn	:in std_logic;
+		ce		:in std_logic := '1'
 	);
 end UNCHCHATA;
 
@@ -26,6 +27,7 @@ begin
 			TIMER<=(MASKTIME*SYS_CLK);
 			LAST<='0';
 		elsif(clk='1' and clk' event)then
+		 if(ce='1')then
 			if(LAST='0' and SRC='1')then
 				if(TIMER=0)then
 					DST<='1';
@@ -42,6 +44,7 @@ begin
 			if(SRC='1')then
 				TIMER<=(MASKTIME*SYS_CLK);
 			end if;
+		 end if;
 		end if;
 	end process;
 end MAIN;

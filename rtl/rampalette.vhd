@@ -22,6 +22,7 @@ port(
 	X_BIT	:in std_logic;
 
 	sclk		:in std_logic;
+	sce		:in std_logic := '1';
 	gclk		:in std_logic;
 	gce		:in std_logic := '1';
 	rstn	:in std_logic
@@ -54,6 +55,7 @@ begin
 			PAL_B(9)<="000";
 			PAL_G(9)<="000";
 		elsif(sclk' event and sclk='1')then
+		 if(sce='1')then
 			if(IOWRn='0')then
 				if(ADR>=x"54" and ADR<=x"5b")then
 					vnum:=ADR-x"54";
@@ -79,6 +81,7 @@ begin
 					PAL_G(9)<=(others=>WDAT(6));
 				end if;
 			end if;
+		 end if;
 		end if;
 	end process;
 	

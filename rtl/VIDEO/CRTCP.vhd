@@ -58,6 +58,7 @@ port(
 	gclk		:out std_logic;
 	CE3			:out std_logic;
 	cpuclk		:in std_logic;
+	cpuce		:in std_logic := '1';
 	clk			:in std_logic;
 	rstn		:in std_logic
 );
@@ -245,6 +246,7 @@ port(
 	X_BIT	:in std_logic;
 
 	sclk		:in std_logic;
+	sce		:in std_logic := '1';
 	gclk		:in std_logic;
 	gce		:in std_logic := '1';
 	rstn	:in std_logic
@@ -374,6 +376,7 @@ begin
 		X_BIT	=>X_BIT,
 
 		sclk		=>cpuclk,
+		sce			=>cpuce,
 		gclk		=>clk,
 		gce			=>ce3b,
 		rstn	=>rstn
