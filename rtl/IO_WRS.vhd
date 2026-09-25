@@ -22,7 +22,8 @@ port(
 	bit0	:out std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end IO_WRS;
 
@@ -44,17 +45,19 @@ begin
 			bit1<='0';
 			bit0<='0';
 		elsif(clk' event and clk='1')then
-			if(ADR=IOADR and IOWRn='0' and lWRn='1')then
-				bit7<=DAT(7);
-				bit6<=DAT(6);
-				bit5<=DAT(5);
-				bit4<=DAT(4);
-				bit3<=DAT(3);
-				bit2<=DAT(2);
-				bit1<=DAT(1);
-				bit0<=DAT(0);
+			if(ce='1')then
+				if(ADR=IOADR and IOWRn='0' and lWRn='1')then
+					bit7<=DAT(7);
+					bit6<=DAT(6);
+					bit5<=DAT(5);
+					bit4<=DAT(4);
+					bit3<=DAT(3);
+					bit2<=DAT(2);
+					bit1<=DAT(1);
+					bit0<=DAT(0);
+				end if;
+				lWRn<=IOWRn;
 			end if;
-		lWRn<=IOWRn;
 		end if;
 	end process;
 end MAIN;

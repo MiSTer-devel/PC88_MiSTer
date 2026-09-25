@@ -11,7 +11,8 @@ entity DIGIFILTER is
 		Q	:out std_logic;
 
 		clk	:in std_logic;
-		rstn :in std_logic
+		rstn :in std_logic;
+		ce	:in std_logic := '1'
 	);
 end DIGIFILTER;
 
@@ -25,6 +26,7 @@ begin
 			LAST<=(others=>DEF);
 			Q<=DEF;
 		elsif(clk='1' and clk' event)then
+		 if(ce='1')then
 			TMPA:=LAST(0);
 			TMPO:=LAST(0);
 			for i in 0 to TIME-1 loop
@@ -40,6 +42,7 @@ begin
                 LAST(0)<=LAST(1);
             end if;
 			LAST(TIME-1)<=D;
+		 end if;
 		end if;
 	end process;
 end MAIN;

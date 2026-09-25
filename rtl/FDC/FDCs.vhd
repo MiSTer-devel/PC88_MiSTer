@@ -59,7 +59,9 @@ port(
 	
 	sclk	:in std_logic;
 	fclk	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	sce		:in std_logic := '1';	-- enable for the sclk side
+	rstns	:in std_logic			-- reset for the sclk side, released on sclk
 );
 end FDCs;
 
@@ -642,7 +644,8 @@ component DIGIFILTER
 		Q	:out std_logic;
 
 		clk	:in std_logic;
-		rstn :in std_logic
+		rstn :in std_logic;
+		ce	:in std_logic := '1'
 	);
 end component;
 
@@ -653,7 +656,9 @@ port(
 	
 	fclk	:in std_logic;
 	sclk	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1';
+	rstns	:in std_logic
 );
 end component;
 begin
@@ -666,7 +671,7 @@ begin
 	
 	ixflt	:DIGIFILTER generic map(1,'1') port map(index,indexb,fclk,rstn);
 	t0flt	:DIGIFILTER generic map(1,'1') port map(track0,track0b,fclk,rstn);
-	t0flts:DIGIFILTER generic map(1,'1') port map(track0,track0s,sclk,rstn);
+	t0flts:DIGIFILTER generic map(1,'1') port map(track0,track0s,sclk,rstns,sce);
 --	process(clk,rstn)begin
 --		if(rstn='0')then
 --			indexb<='0';
@@ -675,11 +680,11 @@ begin
 --		end if;
 --	end process;
 	
-	DMARQtx	:clktx port map(DMARQ,DMARQs,fclk,sclk,rstn);
+	DMARQtx	:clktx port map(DMARQ,DMARQs,fclk,sclk,rstn,sce,rstns);
 
-	process(sclk,rstn)
+	process(sclk,rstns)
 	begin
-		if(rstn='0')then
+		if(rstns='0')then
 			lIOWR_DAT<='0';
 			lIORD_DAT<='0';
 			-- lIORD_STA<='0';
@@ -690,6 +695,7 @@ begin
 			-- CPURD_STA<='0';
 			DRQ<='0';
 		elsif(sclk' event and sclk='1')then
+		 if(sce='1')then
 			CPUWR_DAT<='0';
 			CPURD_DAT<='0';
 			-- CPURD_STA<='0';
@@ -725,25 +731,26 @@ begin
 			lDMAWR<=DMAWR;
 			lDMARD<=DMARD;
 --			lWDAT<=WDAT;
+		 end if;
 		end if;
 	end process;
 	
 	DATOE<='1' when IORD_DAT='1' or IORD_STA='1' or DMARD='1' else '0';
 	
-	setCtx	:clktx port map(setC,setCs,fclk,sclk,rstn);
-	incCtx	:clktx port map(incC,incCs,fclk,sclk,rstn);
-	resHtx	:clktx port map(resH,resHs,fclk,sclk,rstn);
-	setHtx	:clktx port map(setH,setHs,fclk,sclk,rstn);
-	setRtx	:clktx port map(setR,setRs,fclk,sclk,rstn);
-	incRtx	:clktx port map(incR,incRs,fclk,sclk,rstn);
-	resRtx	:clktx port map(resR,resRs,fclk,sclk,rstn);
-	setNtx	:clktx port map(setN,setNs,fclk,sclk,rstn);
-	setHDtx	:clktx port map(setHD,setHDs,fclk,sclk,rstn);
-	resHDtx	:clktx port map(resHD,resHDs,fclk,sclk,rstn);
-	endEXECtx	:clktx port map(end_EXEC,end_EXECs,fclk,sclk,rstn);
+	setCtx	:clktx port map(setC,setCs,fclk,sclk,rstn,sce,rstns);
+	incCtx	:clktx port map(incC,incCs,fclk,sclk,rstn,sce,rstns);
+	resHtx	:clktx port map(resH,resHs,fclk,sclk,rstn,sce,rstns);
+	setHtx	:clktx port map(setH,setHs,fclk,sclk,rstn,sce,rstns);
+	setRtx	:clktx port map(setR,setRs,fclk,sclk,rstn,sce,rstns);
+	incRtx	:clktx port map(incR,incRs,fclk,sclk,rstn,sce,rstns);
+	resRtx	:clktx port map(resR,resRs,fclk,sclk,rstn,sce,rstns);
+	setNtx	:clktx port map(setN,setNs,fclk,sclk,rstn,sce,rstns);
+	setHDtx	:clktx port map(setHD,setHDs,fclk,sclk,rstn,sce,rstns);
+	resHDtx	:clktx port map(resHD,resHDs,fclk,sclk,rstn,sce,rstns);
+	endEXECtx	:clktx port map(end_EXEC,end_EXECs,fclk,sclk,rstn,sce,rstns);
 	
-	process(sclk,rstn)begin
-		if(rstn='0')then
+	process(sclk,rstns)begin
+		if(rstns='0')then
 			command	<=(others=>'0');
 			C		<=(others=>'0');
 			D		<=(others=>'0');
@@ -775,6 +782,7 @@ begin
 			SEclr	<='0';
 			SISclr	<='0';
 		elsif(sclk' event and sclk='1')then 
+		 if(sce='1')then
 			EXEC<='0';
 			DxBclr	<='0';
 			SEclr	<='0';
@@ -1232,6 +1240,7 @@ begin
 					end case;
 				end case;
 			end if;
+		 end if;
 		end if;
 	end process;
 	
@@ -4464,14 +4473,15 @@ begin
 		end if;
 	end process;
 	
-	inttx	:clktx port map(INT,sINT,fclk,sclk,rstn);
-	intstx:clktx port map(INTs,sINTs,fclk,sclk,rstn);
+	inttx	:clktx port map(INT,sINT,fclk,sclk,rstn,sce,rstns);
+	intstx:clktx port map(INTs,sINTs,fclk,sclk,rstn,sce,rstns);
 	
-	process(sclk,rstn)begin
-		if(rstn='0')then
+	process(sclk,rstns)begin
+		if(rstns='0')then
 			INTn<='1';
 			SISen<='0';
 		elsif(sclk' event and sclk='1')then
+		 if(sce='1')then
 			if(sINTs='1')then
 				INTn<='0';
 				SISen<='1';
@@ -4486,6 +4496,7 @@ begin
 			if(SISclr='1')then
 				SISen<='0';
 			end if;
+		 end if;
 		end if;
 	end process;
 	
@@ -4509,17 +4520,19 @@ begin
 	usel<=uselb when seekbusy='0' else seekusel;
 	
 	
-	process(sclk,rstn)
+	process(sclk,rstns)
 	variable	ext	:std_logic_vector(3 downto 0);
 	begin
-		if(rstn='0')then
+		if(rstns='0')then
 			sTC<='0';
 		elsif(sclk' event and sclk='1')then
+		 if(sce='1')then
 			if(TC='1')then
 				sTC<='1';
 			elsif(TCen='1')then
 				sTC<='0';
 			end if;
+		 end if;
 		end if;
 	end process;
 	

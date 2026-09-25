@@ -90,6 +90,7 @@ set_global_assignment -name VHDL_FILE rtl/CPU/T80/T80_MCode.vhd
 set_global_assignment -name VHDL_FILE rtl/CPU/T80/T80_Pack.vhd
 set_global_assignment -name VHDL_FILE rtl/CPU/T80/T80_Reg.vhd
 set_global_assignment -name VHDL_FILE rtl/CPU/T80/T80a.vhd
+set_global_assignment -name VHDL_FILE rtl/CPU/T80/T80a_ce.vhd
 set_global_assignment -name VHDL_FILE rtl/FDC/FDCs.vhd
 set_global_assignment -name VHDL_FILE rtl/FDC/crctest.vhd
 set_global_assignment -name VHDL_FILE rtl/FDC/FDC_sectinfo.vhd

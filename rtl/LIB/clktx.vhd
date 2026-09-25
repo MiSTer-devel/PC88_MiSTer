@@ -9,7 +9,9 @@ port(
 	
 	fclk	:in std_logic;
 	sclk	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1';	-- enable for the sclk side
+	rstns	:in std_logic			-- reset for the sclk side, released on sclk
 );
 end clktx;
 
@@ -30,12 +32,13 @@ begin
 		end if;
 	end process;
 	
-	process(sclk,rstn)begin
-		if(rstn='0')then
+	process(sclk,rstns)begin
+		if(rstns='0')then
 			txdone<='0';
 			txout<='0';
 --			stxpend<='0';
 		elsif(sclk' event and sclk='1')then
+		 if(ce='1')then
 			txout<='0';
 --			stxpend<=txpend;
 --			if(stxpend='1')then
@@ -46,6 +49,7 @@ begin
 			elsif(txpend='0')then
 				txdone<='0';
 			end if;
+		 end if;
 		end if;
 	end process;
 end rtl;				

@@ -149,6 +149,8 @@ component SDRAMCde0cvDEMU2
 		SUBRD			:in std_logic;
 		SUBWAIT			:out std_logic;
 		SUBCLK			:out std_logic;
+		SUBCE_R			:out std_logic;
+		SUBCE_F			:out std_logic;
 
 		ALURD0			:out std_logic_vector(7 downto 0);
 		ALURD1			:out std_logic_vector(7 downto 0);
@@ -899,6 +901,8 @@ port(
 	EMUBUSY			:out std_logic;
 	FDCBUSY			:out std_logic;
 	CPUCLK			:in std_logic;
+	CE_R			:in std_logic;
+	CE_F			:in std_logic;
 	clk21m			:in std_logic;
 	ramclk			:in std_logic;
 	pclk			:in std_logic;
@@ -1361,6 +1365,7 @@ signal	KANJI2ADR	:std_logic_vector(16 downto 0);
 signal	KANJI2RD	:std_logic;
 
 signal	cpuclkb,subclkb	:std_logic;
+signal	subce_r,subce_f	:std_logic;
 
 signal	srstn		:std_logic;
 --srstn comes from the rclk domain. Synchronise its deassertion to clk21m;
@@ -1792,6 +1797,8 @@ port map(
 		SUBRD			=>SUBRD,
 		SUBWAIT			=>SUBWAIT,
 		SUBCLK			=>subclkb,
+		SUBCE_R			=>subce_r,
+		SUBCE_F			=>subce_f,
 
 		ALURD0			=>GRDAT0,
 		ALURD1			=>GRDAT1,
@@ -2300,6 +2307,8 @@ port map(
 		EMUBUSY			=>open,
 		FDCBUSY			=>pLed,
 		CPUCLK			=>SUBCLK,
+		CE_R			=>subce_r,
+		CE_F			=>subce_f,
 		clk21m			=>clk21m,
 		ramclk			=>rclk,
 		pclk			=>emuclk,
