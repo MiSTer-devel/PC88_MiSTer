@@ -298,7 +298,8 @@ component TEXTRAM
 		wren_a		: IN STD_LOGIC  := '0';
 		wren_b		: IN STD_LOGIC  := '0';
 		q_a		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
-		q_b		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0)
+		q_b		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
+		ce		: IN STD_LOGIC  := '1'
 	);
 END component;
 
@@ -356,6 +357,7 @@ port(
 	FRAMWR	:in std_logic;
 
 	gclk		:out std_logic;
+	CE3			:out std_logic;
 	cpuclk		:in std_logic;
 	clk			:in std_logic;
 	rstn		:in std_logic
@@ -1181,6 +1183,7 @@ signal	CLR_WR		:std_logic;
 signal	CLR_OE		:std_logic;
 -- signal	CLR_rstn	:std_logic;
 signal	gclk		:std_logic;
+signal	vid_ce3		:std_logic;
 signal	clkcount	:integer range 0 to 5000000;
 signal	slowclk		:std_logic;
 signal	MAP_RADR	:std_logic_vector(RAMAWIDTH-1 downto 0);
@@ -1859,7 +1862,8 @@ port map(
 	TRAM	:TEXTRAM port map(
 		address_a		=>TRAM_ADR,
 		address_b		=>TCNV_TADR,
-		clock			=>gclk,
+		clock			=>rclk,
+		ce				=>vid_ce3,
 		data_a			=>CPUDAT_W,
 		data_b			=>(others=>'0'),
 		wren_a			=>TRAM_CE and (not WR_n),
@@ -1921,7 +1925,8 @@ tmap	:trammaps generic map(RAMAWIDTH) port map(
 	TVRAM	:TEXTRAM port map(
 		address_a		=>TVRAM_ADR,
 		address_b		=>CRTC_TADR,
-		clock			=>gclk,
+		clock			=>rclk,
+		ce				=>vid_ce3,
 		data_a			=>TVRAM_WDAT,
 		data_b			=>(others=>'0'),
 		wren_a			=>TVRAM_WE,
@@ -2187,6 +2192,7 @@ port map(
 	FRAMWR	=>FRAMWR,
 	
 	gclk		=>gclk,
+	CE3			=>vid_ce3,
 	cpuclk		=>CPU_clk,
 	clk			=>rclk,
 	rstn		=>CPU_rstn
@@ -2196,11 +2202,13 @@ port map(
 	vidG8<=vidG3 & vidG3 & vidG3(2 downto 1);
 	vidB8<=vidB3 & vidB3 & vidB3(2 downto 1);
 	
-	process(gclk,srstn)begin
+	process(rclk,srstn)begin
 		if(srstn='0')then
 			hdmiclk<='0';
-		elsif(gclk' event and gclk='1')then
+		elsif(rclk' event and rclk='1')then
+		 if(vid_ce3='1')then
 			hdmiclk<=not hdmiclk;
+		 end if;
 		end if;
 	end process;
 	

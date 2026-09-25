@@ -32,7 +32,8 @@ port(
 	VRTC	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end synccont2;
 
@@ -81,6 +82,7 @@ begin
 			VISIBLE<='0';
 			VIDEN<='0';
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			HSYNC<=HSYNCB(0);
 			VSYNC<=VSYNCB(0);
 			VISIBLE<=VISIBLEB(0);
@@ -89,6 +91,7 @@ begin
 			HSYNCB(7 downto 0)<=HSYNCN & HSYNCB(7 downto 1);
 			VISIBLEB(7 downto 0)<=VISIBLEN & VISIBLEB(7 downto 1);
 			VIDENB(7 downto 0)<=VIDENEN & VIDENB(7 downto 1);
+		 end if;
 		end if;
 	end process;
 end MAIN;

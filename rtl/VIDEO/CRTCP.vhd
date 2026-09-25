@@ -56,6 +56,7 @@ port(
 	FRAMWR	:in std_logic;
 
 	gclk		:out std_logic;
+	CE3			:out std_logic;
 	cpuclk		:in std_logic;
 	clk			:in std_logic;
 	rstn		:in std_logic
@@ -88,7 +89,8 @@ port(
 	clk3	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	CE3		:out std_logic
 );
 end component;
 
@@ -122,7 +124,8 @@ port(
 	VCOMP	:in std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -152,7 +155,8 @@ port(
 	VCOMP	:in std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -186,7 +190,8 @@ port(
 	VRTC	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -241,6 +246,7 @@ port(
 
 	sclk		:in std_logic;
 	gclk		:in std_logic;
+	gce		:in std_logic := '1';
 	rstn	:in std_logic
 );
 end component;
@@ -253,6 +259,7 @@ signal VCOMP	:std_logic;
 	
 signal clk2		:std_logic;
 signal clk3		:std_logic;
+signal ce3b		:std_logic;
 
 signal T_BIT	:std_logic;
 signal X_BIT	:std_logic;
@@ -306,9 +313,9 @@ begin
 	HSY		=>HSY,
 	VFP		=>VFP,
 	VSY		=>VSY
-) port map(VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn);
-	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,'0','1',HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk3,rstn);
-	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk3,rstn);
+) port map(VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b);
+	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,'0','1',HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b);
+	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b);
 
 	FRAMWEN<=FRAMWR when FRAMWADR(12)='0' else '0';
 	GRAMWEN<=FRAMWR when FRAMWADR(12)='1' else '0';
@@ -328,7 +335,7 @@ begin
 		HSY		=>HSY,
 		VFP		=>VFP,
 		VSY		=>VSY
-	) port map(UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk3,rstn);
+	) port map(UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk,rstn,ce3b);
 	
 	F_REVERSE <= T_BGCOLOR(0) xor REVERSE;
 	A_REVERSE <= (others=>F_REVERSE);
@@ -367,17 +374,20 @@ begin
 		X_BIT	=>X_BIT,
 
 		sclk		=>cpuclk,
-		gclk		=>clk3,
+		gclk		=>clk,
+		gce			=>ce3b,
 		rstn	=>rstn
 	);
 	
-	process(clk3)begin
-		if(clk3' event and clk3='1')then
+	process(clk)begin
+		if(clk' event and clk='1')then
+		 if(ce3b='1')then
 			COLNUMd<=COLNUM;
 			GE_BITd<=GE_BIT;
 			X_BITd<=X_BIT;
 			VIDEN<=VIDENb;
 			VISIBLEd<=VISIBLE;
+		 end if;
 		end if;
 	end process;
 		
@@ -390,6 +400,7 @@ begin
 	BOUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and TXTMODE='0')) else BLE;
 
 	gclk<=clk3;
+	CE3<=ce3b;
 
 end MAIN;
 

@@ -12,7 +12,8 @@ port(
 	q		:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end delayer;
 architecture MAIN of delayer is
@@ -23,8 +24,10 @@ begin
 			fifo<=(others=>'0');
 			q<='0';
 		elsif(clk' event and clk='1')then
-			q<=fifo(0);
-			fifo<=a & fifo(counts-1 downto 1);
+			if(ce='1')then
+				q<=fifo(0);
+				fifo<=a & fifo(counts-1 downto 1);
+			end if;
 		end if;
 	end process;
 end MAIN;
