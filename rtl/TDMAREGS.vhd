@@ -19,7 +19,8 @@ port(
 	TDMAEN	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end TDMAREGS;
 
@@ -38,6 +39,7 @@ begin
 			TRAMLEN<=(others=>'0');
 			TDMAEN<='0';
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(IOWRn='0' and lWRn='1')then
 				if(ADR=ADRCMD)then
 					TH_Ln<='0';
@@ -62,6 +64,7 @@ begin
 				end if;
 			end if;
 			lWRn<=IOWRn;
+		 end if;
 		end if;
 	end process;
 end MAIN;

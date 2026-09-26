@@ -31,8 +31,11 @@ port(
 	INT7n	:in std_logic;
 	
 	cpuclk	:in std_logic;
+	ce_r	:in std_logic;		-- the cycles where the old CPU clock rose / fell
+	ce_f	:in std_logic;
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	rstnc	:in std_logic		-- reset for the cpuclk side, released on cpuclk
 );
 end INTCONTS;
 
@@ -105,12 +108,13 @@ begin
 
 	IOWRn<=IORQn or WRn;
 	
-	process(cpuclk,rstn)begin
-		if(rstn='0')then
+	process(cpuclk,rstnc)begin
+		if(rstnc='0')then
 			INTmsk<=(others=>'1');
 			INTlev<=(others=>'0');
 			INTdisCLR<='0';
 		elsif(cpuclk' event and cpuclk='1')then
+		 if(ce_r='1')then
 			INTdisCLR<='0';
 			if(IOWRn='0')then
 				case ADR is
@@ -124,6 +128,7 @@ begin
 				when others =>
 				end case;
 			end if;
+		 end if;
 		end if;
 	end process;
 	
@@ -202,13 +207,15 @@ begin
 		end if;
 	end process;
 	
-	process(cpuclk,rstn)begin
-		if(rstn='0')then
+	process(cpuclk,rstnc)begin
+		if(rstnc='0')then
 			M1nc<='1';
 			-- VECOEc<='0';
-		elsif(cpuclk' event and cpuclk='0')then
+		elsif(cpuclk' event and cpuclk='1')then
+		 if(ce_f='1')then
 			M1nc<=M1n;
 			-- VECOEc<=VECOE;
+		 end if;
 		end if;
 	end process;
 	

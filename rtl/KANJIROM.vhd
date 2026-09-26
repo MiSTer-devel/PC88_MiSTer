@@ -17,7 +17,8 @@ port(
 	KNJRD	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end KANJIROM;
 architecture MAIN of KANJIROM is
@@ -33,6 +34,7 @@ begin
 		if(rstn='0')then
 			KNJADR(16 downto 1)<=(others=>'0');
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			if(IOWRn='0')then
 				case ADR is
 				when BASEADR =>
@@ -42,6 +44,7 @@ begin
 				when others=>
 				end case;
 			end if;
+		 end if;
 		end if;
 	end process;
 	

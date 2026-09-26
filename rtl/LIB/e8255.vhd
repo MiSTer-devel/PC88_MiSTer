@@ -29,7 +29,8 @@ port(
 	PCLoe	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end e8255;
 
@@ -68,6 +69,7 @@ begin
 			DAT_C<=(others=>deflogic);
 			lWR<='0';
 		elsif(clk' event and clk='1')then
+		 if(ce='1')then
 			lWR<=WR;
 			if(WR='1')then
 				case ADR is
@@ -125,6 +127,7 @@ begin
 				ODAT_B<=DAT_B;
 				ODAT_C<=DAT_C;
 			end if;
+		 end if;
 		end if;
 	end process;
 	

@@ -74,6 +74,10 @@ port(
 	EMUBUSY			:out std_logic;
 	FDCBUSY			:out std_logic;
 	CPUCLK			:in std_logic;
+	-- High for one ramclk cycle where CPUCLK rises / falls. The sub CPU side
+	-- runs on ramclk and advances only on these cycles.
+	CE_R			:in std_logic;
+	CE_F			:in std_logic;
 	clk21m			:in std_logic;
 	ramclk			:in std_logic;
 	pclk			:in std_logic;
@@ -84,7 +88,7 @@ port(
 end SUBunitsMiSTer;
 
 architecture MAIN of SUBunitsMiSTer is
-component T80a
+component T80a_ce
     generic(
         Mode : integer := 0 -- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
     );
@@ -104,7 +108,10 @@ component T80a
         HALT_n      : out std_logic;
         BUSAK_n     : out std_logic;
         A           : out std_logic_vector(15 downto 0);
-        D           : inout std_logic_vector(7 downto 0)
+        D           : inout std_logic_vector(7 downto 0);
+        DOUT        : out std_logic_vector(7 downto 0);
+        CE_R        : in std_logic;
+        CE_F        : in std_logic
     );
 end component;
 
@@ -167,7 +174,8 @@ port(
 	bit0	:out std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -210,7 +218,8 @@ port(
 	det		:out std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -238,7 +247,8 @@ port(
 	PCLoe	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -254,7 +264,8 @@ port(
 
 	
 	cpuclk	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end component;
 
@@ -340,7 +351,9 @@ port(
 	
 	sclk	:in std_logic;
 	fclk	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	sce		:in std_logic := '1';
+	rstns	:in std_logic
 );
 end component;
 
@@ -575,9 +588,13 @@ port(
 end component;
 
 signal	CPUrstn	:std_logic;
+-- CPUrstn with its release synchronised to ramclk, for the logic on ramclk
+signal	CPUrstnrm	:std_logic;
+signal	CPUrstnr	:std_logic;
 signal	EMUINITDONEb	:std_logic;
 signal	IDAT	:std_logic_vector(7 downto 0);
 signal	CPUDAT	:std_logic_vector(7 downto 0);
+signal	CPUDAT_W	:std_logic_vector(7 downto 0);
 -- signal	IDAT_IO12	:std_logic_vector(7 downto 0);
 -- signal	IO12_OE		:std_logic;
 signal	IDAT_PPI	:std_logic_vector(7 downto 0);
@@ -645,10 +662,22 @@ signal	fde_cpyen	:std_logic;
 begin
 
 	CPUrstn<=rstn and EMUINITDONEb;
+
+	-- CPUrstn is released in the clk21m domain. Release it again on ramclk.
+	process(ramclk,CPUrstn)begin
+		if(CPUrstn='0')then
+			CPUrstnrm<='0';
+			CPUrstnr<='0';
+		elsif(ramclk' event and ramclk='1')then
+			CPUrstnrm<='1';
+			CPUrstnr<=CPUrstnrm;
+		end if;
+	end process;
+
 	mondat<=CPUDAT;
-	cpu:T80a generic map(0)port map(
-       RESET_n		=>CPUrstn,
-        CLK_n		=>CPUCLK,
+	cpu:T80a_ce generic map(0)port map(
+       RESET_n		=>CPUrstnr,
+        CLK_n		=>ramclk,
         WAIT_n		=>not RAMWAIT,
         INT_n       =>INTn,
 --        INT_n       =>'1',
@@ -663,7 +692,10 @@ begin
         HALT_n      =>open,
         BUSAK_n     =>open,
         A           =>ADR,
-        D           =>CPUDAT
+        D           =>CPUDAT,
+        DOUT        =>CPUDAT_W,
+        CE_R        =>CE_R,
+        CE_F        =>CE_F
 	);
 
 	mmap	:mmapsub generic map(awidth) port map(
@@ -674,8 +706,8 @@ begin
 		RAM_ADR		=>RAMADR,
 		RAM_CE		=>RAMCE,
 		
-		clk			=>CPUCLK,
-		rstn		=>CPUrstn
+		clk			=>ramclk,
+		rstn		=>CPUrstnr
 	);
 	
 	CPUDAT<=	IDAT_INT	when INT_OE='1'  else
@@ -685,14 +717,14 @@ begin
 				IDAT_FDC	when FDC_OE='1'  else
 				(others=>'Z');
 	
-	RAMWDAT<=CPUDAT;
+	RAMWDAT<=CPUDAT_W;
 	RAMWR<=RAMCE and not WRn;
 	RAMRD<=RAMCE and not RDn;
 	
 --	IO12	:IO_RWS generic map(x"12") port map(ADR(7 downto 0),IORQn,RDn,WRn,CPUDAT,IDAT_IO12,IO12_OE,monout(7),monout(6),monout(5),monout(4),monout(3),monout(2),monout(1),monout(0),CPUCLK,CPUrstn);
-	IOf4	:IO_WRS generic map(x"f4") port map(ADR(7 downto 0),IORQn,WRn,CPUDAT,open,open,open,open,TD1,TD0,RV1,RV0,CPUCLK,CPUrstn);
-	IOf8	:IO_WRS generic map(x"f8") port map(ADR(7 downto 0),IORQn,WRn,CPUDAT,open,open,open,open,PSEN,open,MON1S,MON0S,CPUCLK,CPUrstn);
-	IOf8r	:IO_DETAC generic map(x"f8") port map(ADR(7 downto 0),IORQn,RDn,TC,CPUCLK,CPUrstn);
+	IOf4	:IO_WRS generic map(x"f4") port map(ADR(7 downto 0),IORQn,WRn,CPUDAT_W,open,open,open,open,TD1,TD0,RV1,RV0,ramclk,CPUrstnr,CE_R);
+	IOf8	:IO_WRS generic map(x"f8") port map(ADR(7 downto 0),IORQn,WRn,CPUDAT_W,open,open,open,open,PSEN,open,MON1S,MON0S,ramclk,CPUrstnr,CE_R);
+	IOf8r	:IO_DETAC generic map(x"f8") port map(ADR(7 downto 0),IORQn,RDn,TC,ramclk,CPUrstnr,CE_R);
 	
 	TDSEL<=TD0 when FD_USEL="00" else TD1 when FD_USEL="01" else '0';
 	RVSEL<=RV0 when FD_USEL="00" else RV1 when FD_USEL="01" else '0';
@@ -705,7 +737,7 @@ begin
 		RDn		=>RDn,
 		WRn		=>WRn,
 		ADR		=>ADR(1 downto 0),
-		DATIN	=>CPUDAT,
+		DATIN	=>CPUDAT_W,
 		DATOUT	=>IDAT_PPI,
 		DATOE	=>PPI_OE,
 		
@@ -722,11 +754,12 @@ begin
 		PCLo		=>SUBIO_PCLO,
 		PCLoe		=>open,
 		
-		clk		=>CPUCLK,
-		rstn	=>CPUrstn
+		clk		=>ramclk,
+		rstn	=>CPUrstnr,
+		ce		=>CE_R
 	);
 	
-	INTC	:INTSUB port map(IORQn,MREQn,RDn,WRn,M1n,IDAT_INT,INT_OE,CPUCLK,CPUrstn);
+	INTC	:INTSUB port map(IORQn,MREQn,RDn,WRn,M1n,IDAT_INT,INT_OE,ramclk,CPUrstnr,CE_R);
 	
 	FDT	:FDtiming generic map(sysclk) port map(
 		drv0sel		=>'0',
@@ -761,7 +794,7 @@ port map(
 	WRn		=>WRn,
 	CSn		=>FDC_CEn,
 	A0		=>ADR(0),
-	WDAT	=>CPUDAT,
+	WDAT	=>CPUDAT_W,
 	RDAT	=>IDAT_FDC,
 	DATOE	=>FDC_OE,
 	DACKn	=>'1',
@@ -797,9 +830,11 @@ port map(
 	busy	=>FDC_BUSY,
 	mfm		=>FDC_MFM,
 	
-	sclk	=>CPUCLK,
+	sclk	=>ramclk,
 	fclk	=>clk21m,
-	rstn	=>CPUrstn
+	rstn	=>CPUrstn,
+	sce		=>CE_R,
+	rstns	=>CPUrstnr
 );
 	FDC_READY<=		FD_USEL(1);
 	FDC_TWOSIDE<=	not FDC_READYn;

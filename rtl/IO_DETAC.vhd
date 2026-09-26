@@ -14,7 +14,8 @@ port(
 	det		:out std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end IO_DETAC;
 
@@ -29,12 +30,14 @@ begin
 		if(rstn='0')then
 			det<='0';
 		elsif(clk' event and clk='1')then
-			if(ADR=IOADR and IOACn='0' and lACn='1')then
-				det<='1';
-			else
-				det<='0';
+			if(ce='1')then
+				if(ADR=IOADR and IOACn='0' and lACn='1')then
+					det<='1';
+				else
+					det<='0';
+				end if;
+				lACn<=IOACn;
 			end if;
-		lACn<=IOACn;
 		end if;
 	end process;
 end MAIN;

@@ -15,7 +15,8 @@ port(
 
 	
 	cpuclk	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+	ce		:in std_logic := '1'
 );
 end INTSUB;
 
@@ -28,10 +29,12 @@ begin
 		if(rstn='0')then
 			inta<='0';
 		elsif(cpuclk' event and cpuclk='1')then
-			if(IORQn='1')then
-				inta<='0';
-			elsif(M1n='0')then
-				inta<='1';
+			if(ce='1')then
+				if(IORQn='1')then
+					inta<='0';
+				elsif(M1n='0')then
+					inta<='1';
+				end if;
 			end if;
 		end if;
 	end process;
