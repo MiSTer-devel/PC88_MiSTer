@@ -1,3 +1,6 @@
+-- Copyright (C) 2026 Yoshiaki Okuyama
+-- SPDX-License-Identifier: GPL-2.0-or-later
+
 LIBRARY	IEEE;
 USE	IEEE.STD_LOGIC_1164.ALL;
 
