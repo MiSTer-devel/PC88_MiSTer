@@ -219,10 +219,10 @@ begin
 				3 when TXTWINENb='1' and TXW_SELV='1' else	--TXTWINDOW
 				G_RAMSELb;
 	
-	IO5c<=	"00000001" when G_RAMSELb=0 else
-			"00000010" when G_RAMSELb=1 else
-			"00000100" when G_RAMSELb=2 else
-			"00000000";
+	IO5c<=	"11111001" when G_RAMSELb=0 else
+			"11111010" when G_RAMSELb=1 else
+			"11111100" when G_RAMSELb=2 else
+			"11111000";
 	
 	IO71<=	"1111111" & IEROMn;
 	
