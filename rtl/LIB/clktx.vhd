@@ -3,6 +3,9 @@ USE	IEEE.STD_LOGIC_1164.ALL;
 USE	IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity clktx is
+generic(
+	same	:boolean	:=false		-- fclk and sclk are the same clock and ce is '1'
+);
 port(
 	txin	:in std_logic;
 	txout	:out std_logic;
@@ -20,6 +23,7 @@ signal	txpend	:std_logic;
 signal	txdone	:std_logic;
 --signal	stxpend	:std_logic;
 begin
+	two :if not same generate
 	process(fclk,rstn)begin
 		if(rstn='0')then
 			txpend<='0';
@@ -52,5 +56,18 @@ begin
 		 end if;
 		end if;
 	end process;
+	end generate;
+
+	--On one clock txin is already a one-clock pulse. Pass it on a clock later;
+	--the form above would stretch it to two clocks. fclk and rstn are not used.
+	one :if same generate
+	process(sclk,rstns)begin
+		if(rstns='0')then
+			txout<='0';
+		elsif(sclk' event and sclk='1')then
+			txout<=txin;
+		end if;
+	end process;
+	end generate;
 end rtl;				
 			
