@@ -50,6 +50,7 @@ set_global_assignment -name VHDL_FILE rtl/sound/cosnrom.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/sinnrom.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/sinwrom.vhd
 set_global_assignment -name VHDL_FILE rtl/sound/noisegen.vhd
+set_global_assignment -name VHDL_FILE rtl/sound/fmwrsync.vhd
 set_global_assignment -name QIP_FILE rtl/sound/jt03.qip
 set_global_assignment -name QIP_FILE rtl/sound/jt49.qip
 set_global_assignment -name QIP_FILE rtl/sound/jt08.qip

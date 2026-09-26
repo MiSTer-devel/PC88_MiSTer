@@ -1002,6 +1002,17 @@ port(
 );
 end component;
 
+component fmwrsync
+port(
+	CSn		:in std_logic;
+	WRn		:in std_logic;
+	WROn	:out std_logic;
+
+	clk		:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component JT03 
 	port(
 		rst		:in std_logic;
@@ -1291,6 +1302,7 @@ signal	VRTCi		:std_logic;
 signal	PPIFD_CSn	:std_logic;
 signal	PSG_CEn		:std_logic;
 signal	SB1_CEn		:std_logic;
+signal	SB1_WRn		:std_logic;
 signal	SB2_CEn		:std_logic;
 signal	FM1_CEn		:std_logic;
 signal	FM2_CEn		:std_logic;
@@ -2622,14 +2634,24 @@ end process;
 		end process;
 		cen_opn <= cen_opna and cen_4m;
 
+		--The OPN runs on clk21m but its write strobe comes from the CPU clock
+		FMSB1W: fmwrsync port map(
+			CSn		=>SB1_CEn,
+			WRn		=>WR_n,
+			WROn	=>SB1_WRn,
+
+			clk		=>clk21m,
+			rstn	=>CPU_rstn
+		);
+
 		FMSB1: JT03 port map (
 			rst		=>not CPU_rstn,
 			clk		=>clk21m,
 			cen		=>cen_opn,
 			din		=>CPUDAT_W,
 			addr	=>CPUADR(0),
-			cs_n	=>SB1_CEn,
-			wr_n	=>WR_n,
+			cs_n	=>SB1_WRn,
+			wr_n	=>SB1_WRn,
 
 			dout	=>IDAT_SB1,
 			irq_n	=>INTn_SB1,
