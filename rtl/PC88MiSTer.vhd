@@ -2605,8 +2605,9 @@ end process;
 		FM2_CEn<=IORQ_n when CPUADR(7 downto 3)&CPUADR(1) ="101010" else '1';		--0xA8,A9,AC,AD
 		FM2_OE<='1'		when CPUADR(7 downto 3)&CPUADR(1) ="101010" and IORQ_n='0' and RD_n='0' else '0';
 		
-		SB1_CEn <= FM1_CEn	when (cSB2='0') else '1';
-		SB1_OE	<= FM1_OE	when (cSB2='0') else '0';
+		--The onboard OPN is only at 0x44,45 (as with USE_OPN=3); 0x46,47 read 0xFF
+		SB1_CEn <= FM1_CEn	when (cSB2='0' and CPUADR(1)='0') else '1';
+		SB1_OE	<= FM1_OE	when (cSB2='0' and CPUADR(1)='0') else '0';
 		SB2_CEn <= FM2_CEn	when (cSB2='0') else FM1_CEn;
 		SB2_OE	<= FM2_OE	when (cSB2='0') else FM1_OE;
 		SB2_ADR <= CPUADR(2)&CPUADR(0) when (cSB2='0') else CPUADR(1 downto 0);
