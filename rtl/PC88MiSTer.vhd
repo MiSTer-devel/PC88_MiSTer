@@ -539,6 +539,24 @@ port(
 );
 end component;
 
+component IORDWAIT
+generic(
+	PORT_NO	:std_logic_vector(7 downto 0)
+);
+port(
+	ADR		:in std_logic_vector(7 downto 0);
+	IORQn	:in std_logic;
+	RDn		:in std_logic;
+	en		:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component IOWAIT
 port(
 	IORQn	:in std_logic;
@@ -2187,7 +2205,8 @@ port map(
 
 
 --	IOWA	:IOWAIT port map(IORQ_n,RD_n,WR_n,IO_WAIT,cpu_clk,srstn);
-	IO_WAIT	<='1';
+	-- One wait state on IN from 44h at 8MHz, as measured on a real FH.
+	IOW44	:IORDWAIT generic map(x"44") port map(CPUADR(7 downto 0),IORQ_n,RD_n,CPUMD,IO_WAIT,rclk,cpuce_f,CPU_rstnr);
 	
 	process(rclk,srstn)begin
 		if(srstn='0')then
