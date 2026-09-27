@@ -101,6 +101,7 @@ architecture MAIN of SDRAMCde0cvDEMU2 is
 type state_t is (
 	ST_REFRSH,
 	ST_READ,
+	ST_READ2,
 	ST_WRITE,
 	ST_VREAD,
 	ST_VWRITE,
@@ -222,7 +223,7 @@ signal	nextcpuc	:std_logic_vector(18 downto 0);
 begin
 	
 	monout<="00000001" when STATE=ST_REFRSH else
-			"00000010" when STATE=ST_READ else
+			"00000010" when STATE=ST_READ or STATE=ST_READ2 else
 			"00000100" when STATE=ST_WRITE else
 			"00001000" when STATE=ST_VREAD else
 			"00010000" when STATE=ST_VWRITE else
@@ -779,7 +780,24 @@ begin
 						MEMADR(12 downto 11)	<="11";
 						MEMDAT		<=ALUWD1 & ALUWD0;
 						MEMDATOE	<='1';
-					elsif(STATE=ST_REFRSH or STATE=ST_INITREF or STATE=ST_INITPALL or STATE=ST_SUBREAD or STATE=ST_SUBWRITE)then	-- refresh
+					elsif(STATE=ST_REFRSH and SUBJOB=JOB_NOP and CPUJOB=JOB_RD and CPUADRb(AWIDTH-1 downto 15)/=ADDR_GVRAM(AWIDTH-1 downto 15))then
+						-- Window 1 was idle: serve a main CPU read that arrived after the slot 18 arbitration.
+						STATE<=ST_READ2;
+						MEMCKE		<='1';	--Bank active
+						MEMCS_N		<='0';
+						MEMRAS_N		<='0';
+						MEMCAS_N		<='1';
+						MEMWE_N		<='1';
+						MEMUDQ		<='1';
+						MEMLDQ		<='1';
+						MEMBA1		<=CPUADRb(AWIDTH-1);
+						MEMBA0		<=CPUADRb(AWIDTH-2);
+						MEMADR		<=CPUADRb(AWIDTH-3 downto CAWIDTH);
+						MEMDATOE		<='0';
+						CPUJOB		<=JOB_NOP;
+					-- A waiting sub CPU access takes window 2 even when window 1 was idle.
+					-- Window 1 is idle more often now that main CPU reads can use window 2.
+					elsif((STATE=ST_REFRSH and SUBJOB=JOB_NOP) or STATE=ST_INITREF or STATE=ST_INITPALL or STATE=ST_SUBREAD or STATE=ST_SUBWRITE)then	-- refresh
 --					if(((STATE=ST_VREAD or STATE=ST_READ or STATE=ST_WRITE)) or STATE=ST_REFRSH or STATE=ST_INITREF or STATE=ST_INITPALL)then	-- refresh
 						MEMCKE		<='1';	--Auto refresh
 						MEMCS_N		<='0';
@@ -825,6 +843,21 @@ begin
 						MEMADR		<=SUBADRb(AWIDTH-3 downto CAWIDTH);
 						MEMDATOE		<='0';
 						SUBJOB		<=JOB_NOP;
+					elsif((STATE=ST_FDEREAD or STATE=ST_FDEWRITE or STATE=ST_FECREAD or STATE=ST_FECWRITE or STATE=ST_SNDREAD or STATE=ST_SNDWRITE) and CPUJOB=JOB_RD and CPUADRb(AWIDTH-1 downto 15)/=ADDR_GVRAM(AWIDTH-1 downto 15))then
+						-- Window 1 went to FDC/FDC-EC/sound: serve the waiting main CPU read here.
+						STATE<=ST_READ2;
+						MEMCKE		<='1';	--Bank active
+						MEMCS_N		<='0';
+						MEMRAS_N		<='0';
+						MEMCAS_N		<='1';
+						MEMWE_N		<='1';
+						MEMUDQ		<='1';
+						MEMLDQ		<='1';
+						MEMBA1		<=CPUADRb(AWIDTH-1);
+						MEMBA0		<=CPUADRb(AWIDTH-2);
+						MEMADR		<=CPUADRb(AWIDTH-3 downto CAWIDTH);
+						MEMDATOE		<='0';
+						CPUJOB		<=JOB_NOP;
 					elsif(STATE=ST_WRITE or STATE=ST_READ or STATE=ST_FDEREAD or STATE=ST_FDEWRITE or STATE=ST_FECREAD or STATE=ST_FECWRITE or STATE=ST_SNDREAD or STATE=ST_SNDWRITE)then
 						STATE<=ST_REFRSH;
 						REFCNT<=REFINT-1;
@@ -928,6 +961,18 @@ begin
 						MEMADR		<="100" & SUBADRb(9 downto 0);
 						MEMDAT		<=x"00" & SUBWDATb;
 						MEMDATOE		<='1';
+					when ST_READ2 =>
+						MEMCKE		<='1';	--Read
+						MEMCS_N		<='0';
+						MEMRAS_N		<='1';
+						MEMCAS_N		<='0';
+						MEMWE_N		<='1';
+						MEMUDQ		<='1';
+						MEMLDQ		<='0';
+						MEMBA1		<=CPUADRb(AWIDTH-1);
+						MEMBA0		<=CPUADRb(AWIDTH-2);
+						MEMADR		<="100" & CPUADRb(9 downto 0);
+						MEMDATOE		<='0';
 					when others =>
 						MEMCKE		<='1';	--nop
 						MEMCS_N		<='1';
@@ -985,7 +1030,7 @@ begin
 					end case;
 				when 10 =>
 					case STATE is
-					when ST_SUBREAD =>
+					when ST_SUBREAD | ST_READ2 =>
 						MEMCKE		<='1';	--precharge all banks
 						MEMCS_N		<='0';
 						MEMRAS_N		<='0';
@@ -1040,6 +1085,9 @@ begin
 					-- SUBRDAT1 capture. STATE was already reassigned in slot 11, so use lSTATE.
 					if(lSTATE=ST_SUBREAD)then
 						SUBWAITb<='0';
+					end if;
+					if(lSTATE=ST_READ2)then
+						CPUWAITb<='0';
 					end if;
 					case STATE is
 					when ST_VIDREAD =>
@@ -1363,6 +1411,10 @@ begin
 				if(lSTATE=ST_SUBREAD)then
 					SUBRDAT1<=PMEMDAT(7 downto 0);
 					SUBRSEL<='1';
+				end if;
+				if(lSTATE=ST_READ2)then
+					CPURDAT<=PMEMDAT(7 downto 0);
+					MRAMDAT<=PMEMDAT(7 downto 0);
 				end if;
 			when 18 =>
 				if(STATE=ST_VIDREAD)then
