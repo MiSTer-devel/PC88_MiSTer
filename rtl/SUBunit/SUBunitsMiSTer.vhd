@@ -303,7 +303,8 @@ generic(
 	maxbwidth	:integer	:=88;
 	rdytout		:integer	:=800;
 	preseek		:std_logic	:='0';
-	sysclk		:integer	:=20
+	sysclk		:integer	:=20;
+	oneclk		:boolean	:=false
 );
 port(
 	RDn		:in std_logic;
@@ -317,6 +318,7 @@ port(
 	DRQ		:out std_logic;
 	TC		:in std_logic;
 	INTn	:out std_logic;
+	INTEV	:out std_logic;
 	WAITIN	:in std_logic	:='0';
 
 	WREN	:out std_logic;		--pin24
@@ -354,6 +356,46 @@ port(
 	rstn	:in std_logic;
 	sce		:in std_logic := '1';
 	rstns	:in std_logic
+);
+end component;
+
+component cdc_sync2
+port(
+	d		:in std_logic;
+	q		:out std_logic;
+
+	clk		:in std_logic
+);
+end component;
+
+component fdcport
+port(
+	CSn		:in std_logic;
+	RDn		:in std_logic;
+	WRn		:in std_logic;
+	A0		:in std_logic;
+	WDAT	:in std_logic_vector(7 downto 0);
+	RDAT	:out std_logic_vector(7 downto 0);
+	DATOE	:out std_logic;
+	WAITn	:out std_logic;
+	INTn	:out std_logic;
+	TC		:in std_logic;
+
+	cclk	:in std_logic;
+	ce		:in std_logic;
+	crstn	:in std_logic;
+
+	fCSn	:out std_logic;
+	fRDn	:out std_logic;
+	fWRn	:out std_logic;
+	fA0		:out std_logic;
+	fWDAT	:out std_logic_vector(7 downto 0);
+	fRDAT	:in std_logic_vector(7 downto 0);
+	fTC		:out std_logic;
+	fINTEV	:in std_logic;
+
+	fclk	:in std_logic;
+	frstn	:in std_logic
 );
 end component;
 
@@ -611,6 +653,15 @@ signal	RDn			:std_logic;
 signal	WRn			:std_logic;
 signal	RAMCE		:std_logic;
 signal	INTn		:std_logic;
+signal	FDC_WAITn	:std_logic;
+signal	fFDC_CSn	:std_logic;
+signal	fFDC_RDn	:std_logic;
+signal	fFDC_WRn	:std_logic;
+signal	fFDC_A0		:std_logic;
+signal	fFDC_WDAT	:std_logic_vector(7 downto 0);
+signal	fFDC_RDAT	:std_logic_vector(7 downto 0);
+signal	fFDC_TC		:std_logic;
+signal	fFDC_INTEV	:std_logic;
 signal	TD1,TD0		:std_logic;
 signal	RV1,RV0		:std_logic;
 signal	MON1,MON0	:std_logic;
@@ -629,6 +680,7 @@ signal	MONEN		:std_logic;
 -- signal	FDDEN		:std_logic;
 signal	EN1,EN0		:std_logic;
 signal	MON1S,MON0S	:std_logic;
+signal	MON1Sf,MON0Sf	:std_logic;
 
 signal	FDC_USELn	:std_logic_vector(3 downto 0);
 signal	FDC_MOTORn	:std_logic_vector(3 downto 0);
@@ -678,7 +730,7 @@ begin
 	cpu:T80a_ce generic map(0)port map(
        RESET_n		=>CPUrstnr,
         CLK_n		=>ramclk,
-        WAIT_n		=>not RAMWAIT,
+        WAIT_n		=>not RAMWAIT and FDC_WAITn,
         INT_n       =>INTn,
 --        INT_n       =>'1',
         NMI_n       =>'1',
@@ -784,23 +836,55 @@ begin
 		rstn		=>CPUrstn
 	);
 	
+	--The FDC runs on clk21m only; fdcport carries the CPU's accesses over.
+	FDP	:fdcport port map(
+		CSn		=>FDC_CEn,
+		RDn		=>RDn,
+		WRn		=>WRn,
+		A0		=>ADR(0),
+		WDAT	=>CPUDAT_W,
+		RDAT	=>IDAT_FDC,
+		DATOE	=>FDC_OE,
+		WAITn	=>FDC_WAITn,
+		INTn	=>INTn,
+		TC		=>TC,
+
+		cclk	=>ramclk,
+		ce		=>CE_R,
+		crstn	=>CPUrstnr,
+
+		fCSn	=>fFDC_CSn,
+		fRDn	=>fFDC_RDn,
+		fWRn	=>fFDC_WRn,
+		fA0		=>fFDC_A0,
+		fWDAT	=>fFDC_WDAT,
+		fRDAT	=>fFDC_RDAT,
+		fTC		=>fFDC_TC,
+		fINTEV	=>fFDC_INTEV,
+
+		fclk	=>clk21m,
+		frstn	=>CPUrstn
+	);
+
 	FD	:FDCs generic map(
 	maxtrack	=>85,
 	maxbwidth	=>(BR_300_D*sysclk/1000000),
-	sysclk		=>sysclk/1000
+	sysclk		=>sysclk/1000,
+	oneclk		=>true
 )
 port map(
-	RDn		=>RDn,
-	WRn		=>WRn,
-	CSn		=>FDC_CEn,
-	A0		=>ADR(0),
-	WDAT	=>CPUDAT_W,
-	RDAT	=>IDAT_FDC,
-	DATOE	=>FDC_OE,
+	RDn		=>fFDC_RDn,
+	WRn		=>fFDC_WRn,
+	CSn		=>fFDC_CSn,
+	A0		=>fFDC_A0,
+	WDAT	=>fFDC_WDAT,
+	RDAT	=>fFDC_RDAT,
+	DATOE	=>open,
 	DACKn	=>'1',
 	DRQ		=>open,
-	TC		=>TC,
-	INTn	=>INTn,
+	TC		=>fFDC_TC,
+	INTn	=>open,
+	INTEV	=>fFDC_INTEV,
 
 	WREN	=>FDC_WRENn,
 	WRBIT	=>FDC_WRBITn,
@@ -830,11 +914,11 @@ port map(
 	busy	=>FDC_BUSY,
 	mfm		=>FDC_MFM,
 	
-	sclk	=>ramclk,
+	sclk	=>clk21m,
 	fclk	=>clk21m,
 	rstn	=>CPUrstn,
-	sce		=>CE_R,
-	rstns	=>CPUrstnr
+	sce		=>'1',
+	rstns	=>CPUrstn
 );
 	FDC_READY<=		FD_USEL(1);
 	FDC_TWOSIDE<=	not FDC_READYn;
@@ -966,8 +1050,11 @@ port map(
 	EN0<='1' when FDC_BUSY='1' and FD_USEL="00" else '0';
 	EN1<='1' when FDC_BUSY='1' and FD_USEL="01" else '0';
 
-	MTS0 :MTsave generic map(sysclk,4000) port map(MON0S,EN0,'1',MON0,MTSAVEON,clk21m,rstn);
-	MTS1 :MTsave generic map(sysclk,4000) port map(MON1S,EN1,'1',MON1,MTSAVEON,clk21m,rstn);
+	--MTsave looks for the rising edge of the motor bits, so bring them to clk21m first.
+	MON0Ss	:cdc_sync2 port map(MON0S,MON0Sf,clk21m);
+	MON1Ss	:cdc_sync2 port map(MON1S,MON1Sf,clk21m);
+	MTS0 :MTsave generic map(sysclk,4000) port map(MON0Sf,EN0,'1',MON0,MTSAVEON,clk21m,rstn);
+	MTS1 :MTsave generic map(sysclk,4000) port map(MON1Sf,EN1,'1',MON1,MTSAVEON,clk21m,rstn);
 
 	process(clk21m)begin
 		if(clk21m' event and clk21m='1')then

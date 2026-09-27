@@ -11,7 +11,8 @@ generic(
 	maxbwidth	:integer	:=88;
 	rdytout		:integer	:=800;
 	preseek		:std_logic	:='0';
-	sysclk		:integer	:=20
+	sysclk		:integer	:=20;
+	oneclk		:boolean	:=false		--sclk is fclk and sce is '1'
 );
 port(
 	RDn		:in std_logic;
@@ -25,6 +26,7 @@ port(
 	DRQ		:out std_logic;
 	TC		:in std_logic;
 	INTn	:out std_logic;
+	INTEV	:out std_logic;		--the events that set INTn, one sclk wide (for fdcport with oneclk)
 	WAITIN	:in std_logic	:='0';
 
 	WREN	:out std_logic;		--pin24
@@ -650,6 +652,9 @@ component DIGIFILTER
 end component;
 
 component clktx is
+generic(
+	same	:boolean	:=false
+);
 port(
 	txin	:in std_logic;
 	txout	:out std_logic;
@@ -680,7 +685,7 @@ begin
 --		end if;
 --	end process;
 	
-	DMARQtx	:clktx port map(DMARQ,DMARQs,fclk,sclk,rstn,sce,rstns);
+	DMARQtx	:clktx generic map(oneclk) port map(DMARQ,DMARQs,fclk,sclk,rstn,sce,rstns);
 
 	process(sclk,rstns)
 	begin
@@ -737,17 +742,17 @@ begin
 	
 	DATOE<='1' when IORD_DAT='1' or IORD_STA='1' or DMARD='1' else '0';
 	
-	setCtx	:clktx port map(setC,setCs,fclk,sclk,rstn,sce,rstns);
-	incCtx	:clktx port map(incC,incCs,fclk,sclk,rstn,sce,rstns);
-	resHtx	:clktx port map(resH,resHs,fclk,sclk,rstn,sce,rstns);
-	setHtx	:clktx port map(setH,setHs,fclk,sclk,rstn,sce,rstns);
-	setRtx	:clktx port map(setR,setRs,fclk,sclk,rstn,sce,rstns);
-	incRtx	:clktx port map(incR,incRs,fclk,sclk,rstn,sce,rstns);
-	resRtx	:clktx port map(resR,resRs,fclk,sclk,rstn,sce,rstns);
-	setNtx	:clktx port map(setN,setNs,fclk,sclk,rstn,sce,rstns);
-	setHDtx	:clktx port map(setHD,setHDs,fclk,sclk,rstn,sce,rstns);
-	resHDtx	:clktx port map(resHD,resHDs,fclk,sclk,rstn,sce,rstns);
-	endEXECtx	:clktx port map(end_EXEC,end_EXECs,fclk,sclk,rstn,sce,rstns);
+	setCtx	:clktx generic map(oneclk) port map(setC,setCs,fclk,sclk,rstn,sce,rstns);
+	incCtx	:clktx generic map(oneclk) port map(incC,incCs,fclk,sclk,rstn,sce,rstns);
+	resHtx	:clktx generic map(oneclk) port map(resH,resHs,fclk,sclk,rstn,sce,rstns);
+	setHtx	:clktx generic map(oneclk) port map(setH,setHs,fclk,sclk,rstn,sce,rstns);
+	setRtx	:clktx generic map(oneclk) port map(setR,setRs,fclk,sclk,rstn,sce,rstns);
+	incRtx	:clktx generic map(oneclk) port map(incR,incRs,fclk,sclk,rstn,sce,rstns);
+	resRtx	:clktx generic map(oneclk) port map(resR,resRs,fclk,sclk,rstn,sce,rstns);
+	setNtx	:clktx generic map(oneclk) port map(setN,setNs,fclk,sclk,rstn,sce,rstns);
+	setHDtx	:clktx generic map(oneclk) port map(setHD,setHDs,fclk,sclk,rstn,sce,rstns);
+	resHDtx	:clktx generic map(oneclk) port map(resHD,resHDs,fclk,sclk,rstn,sce,rstns);
+	endEXECtx	:clktx generic map(oneclk) port map(end_EXEC,end_EXECs,fclk,sclk,rstn,sce,rstns);
 	
 	process(sclk,rstns)begin
 		if(rstns='0')then
@@ -4473,8 +4478,9 @@ begin
 		end if;
 	end process;
 	
-	inttx	:clktx port map(INT,sINT,fclk,sclk,rstn,sce,rstns);
-	intstx:clktx port map(INTs,sINTs,fclk,sclk,rstn,sce,rstns);
+	inttx	:clktx generic map(oneclk) port map(INT,sINT,fclk,sclk,rstn,sce,rstns);
+	intstx:clktx generic map(oneclk) port map(INTs,sINTs,fclk,sclk,rstn,sce,rstns);
+	INTEV<=sINTs or sINT;
 	
 	process(sclk,rstns)begin
 		if(rstns='0')then
