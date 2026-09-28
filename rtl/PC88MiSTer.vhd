@@ -810,6 +810,33 @@ port(
 );
 end component;
 
+component mainport
+port(
+	IORQn	:in std_logic;
+	RDn		:in std_logic;
+	WRn		:in std_logic;
+	M1n		:in std_logic;
+	ADR		:in std_logic_vector(7 downto 0);
+	WDAT	:in std_logic_vector(7 downto 0);
+	RDAT	:out std_logic_vector(7 downto 0);
+	OE		:out std_logic;
+	WAITn	:out std_logic;
+
+	cclk	:in std_logic;
+	crstn	:in std_logic;
+
+	COM_CSn	:out std_logic;
+	COM_RDn	:out std_logic;
+	COM_WRn	:out std_logic;
+	COM_C_Dn:out std_logic;
+	COM_WDAT:out std_logic_vector(7 downto 0);
+	COM_RDAT:in std_logic_vector(7 downto 0);
+
+	fclk	:in std_logic;
+	frstn	:in std_logic
+);
+end component;
+
 component addsat
 generic(
 	datwidth	:integer	:=16
@@ -1285,8 +1312,14 @@ signal	SB2_OE		:std_logic;
 signal	FM1_OE		:std_logic;
 signal	FM2_OE		:std_logic;
 signal	IDAT_COM	:std_logic_vector(7 downto 0);
-signal	COM_OE		:std_logic;
 signal	COM_CSn		:std_logic;
+signal	COM_RDn		:std_logic;
+signal	COM_WRn		:std_logic;
+signal	COM_C_Dn	:std_logic;
+signal	COM_WDAT	:std_logic_vector(7 downto 0);
+signal	IDAT_SLOW	:std_logic_vector(7 downto 0);
+signal	SLOW_OE		:std_logic;
+signal	SLOW_WAITn	:std_logic;
 signal	IO_WAIT		:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
 signal	INTC_OE		:std_logic;
@@ -2054,7 +2087,7 @@ port map(
 	WAIT_n<=	not RAM_WAIT when RAM_CE='1' else
 				not RAM_WAIT when KANJI1RD='1' else
 				not RAM_WAIT when KANJI2RD='1' else
-				IO_WAIT;
+				IO_WAIT and SLOW_WAITn;
 
 	
 	process(clk21m,srstn21)begin
@@ -2113,7 +2146,7 @@ port map(
 				IDAT_RAM	when KANJI1RD='1' else
 				IDAT_RAM	when KANJI2RD='1' else
 				IDAT_PSG	when PSG_OE='1' else
-				IDAT_COM	when COM_OE='1' else
+				IDAT_SLOW	when SLOW_OE='1' else
 				IDAT_INTC	when INTC_OE='1' else
 				(others=>'1') when IORQ_n='0' and RD_n='0' else
 				(others=>'Z');
@@ -2755,7 +2788,30 @@ end process;
 	pSndL<=snddatL;
 	pSndR<=snddatR;
 
-	COM_CSn<=IORQ_n when CPUADR(7 downto 1)="0010000" else '1';	--0x20,21
+	MP	:mainport port map(
+		IORQn	=>IORQ_n,
+		RDn		=>RD_n,
+		WRn		=>WR_n,
+		M1n		=>M1_n,
+		ADR		=>CPUADR(7 downto 0),
+		WDAT	=>CPUDAT_W,
+		RDAT	=>IDAT_SLOW,
+		OE		=>SLOW_OE,
+		WAITn	=>SLOW_WAITn,
+
+		cclk	=>rclk,
+		crstn	=>CPU_rstnr,
+
+		COM_CSn	=>COM_CSn,
+		COM_RDn	=>COM_RDn,
+		COM_WRn	=>COM_WRn,
+		COM_C_Dn=>COM_C_Dn,
+		COM_WDAT=>COM_WDAT,
+		COM_RDAT=>IDAT_COM,
+
+		fclk	=>clk21m,
+		frstn	=>CPU_rstn
+	);
 
 	--A tape rate applies only under the x16 factor those rates are worked out for.
 	COM_vDIV<=	conv_std_logic_vector(CMT_DIV_600,11)  when cmt_clk_sel="01" and COM_MODE_BAUD="10" else
@@ -2764,13 +2820,13 @@ end process;
 	COMB	:clkdiv generic map(11) port map(COM_vDIV,COM_clk,clk21m,srstn21);
 	
 	USART	:e8251 port map(
-		WRn		=>WR_n,
-		RDn		=>RD_n,
-		C_Dn	=>CPUADR(0),
+		WRn		=>COM_WRn,
+		RDn		=>COM_RDn,
+		C_Dn	=>COM_C_Dn,
 		CSn		=>COM_CSn,
-		DATIN	=>CPUDAT_W,
+		DATIN	=>COM_WDAT,
 		DATOUT	=>IDAT_COM,
-		DATOE	=>COM_OE,
+		DATOE	=>open,
 		
 		TXD		=>pCOM_TxD,
 		RxD		=>pCOM_RxD,
