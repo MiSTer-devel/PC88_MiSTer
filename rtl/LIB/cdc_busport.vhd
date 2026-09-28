@@ -192,8 +192,9 @@ begin
 	rdat<=rdatb;
 
 	--Wait on an own read until the answer, and on any access that has not
-	--been taken yet because the previous handshake is still going.
-	waitn<=	'0' when FAST and acc_rd='1' and tkn='1' and rdy='0' and arise='0' else
+	--been taken yet because the previous handshake is still going. A read that
+	--waited for the port keeps waiting on the cclk where it is taken.
+	waitn<=	'0' when FAST and acc_rd='1' and rdy='0' and (tkn='0' or arise='0') else
 			'0' when not FAST and acc_rd='1' and rdy='0' else
 			'0' when acc='1' and tkn='0' and busy='1' else
 			'1';
