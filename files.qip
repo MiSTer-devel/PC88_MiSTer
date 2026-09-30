@@ -16,6 +16,7 @@ set_global_assignment -name VHDL_FILE rtl/LIB/cdc_sync2.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/cdc_hs.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/cdc_busport.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/iordwait.vhd
+set_global_assignment -name VHDL_FILE rtl/LIB/m1wait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/DDS_OPN.vhd
 set_global_assignment -name QIP_FILE rtl/sound/OPN/RHYTHM/ROM_20RIM.qip
 set_global_assignment -name QIP_FILE rtl/sound/OPN/RHYTHM/ROM_10TOM.qip
