@@ -8,7 +8,8 @@ use IEEE.std_logic_1164.all;
 --A real FH waits 1.5 states on average at 4MHz and 3.72 at 8MHz, so the
 --count follows 1,2 at 4MHz and 4,4,4,3 at 8MHz, one step per access.
 --Only ce_f samples where no other wait holds the CPU are counted, so these
---waits add to the others.
+--waits add to the others. Once the CPU has seen WAIT_n high in an access, the
+--wait stays off until the access ends, even if FAST or en changes.
 entity GVWAIT is
 port(
 	SEL		:in std_logic;	-- GVRAM read or write strobe is out
@@ -29,6 +30,7 @@ signal	k		:integer range 0 to 3;	-- access number, mod 4
 signal	cnt		:integer range 0 to 7;	-- waits taken in this access
 signal	target	:integer range 0 to 7;
 signal	lsel	:std_logic;
+signal	done	:std_logic;	-- the CPU has passed the wait in this access
 begin
 	target<=	3 when FAST='1' and k=3 else
 				4 when FAST='1' else
@@ -40,10 +42,12 @@ begin
 			k<=0;
 			cnt<=0;
 			lsel<='0';
+			done<='0';
 		elsif(clk' event and clk='1')then
 			lsel<=SEL;
 			if(SEL='0')then
 				cnt<=0;
+				done<='0';
 				if(lsel='1' and en='1')then
 					if(k=3)then
 						k<=0;
@@ -51,12 +55,16 @@ begin
 						k<=k+1;
 					end if;
 				end if;
-			elsif(ce_f='1' and OTHERWAIT='0' and en='1' and cnt<target)then
-				cnt<=cnt+1;
+			elsif(ce_f='1' and OTHERWAIT='0')then
+				if(en='1' and cnt<target and done='0')then
+					cnt<=cnt+1;
+				else
+					done<='1';
+				end if;
 			end if;
 		end if;
 	end process;
 
-	WAITn<='0' when SEL='1' and en='1' and OTHERWAIT='0' and cnt<target else '1';
+	WAITn<='0' when SEL='1' and en='1' and OTHERWAIT='0' and cnt<target and done='0' else '1';
 
 end rtl;
