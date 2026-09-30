@@ -40,7 +40,9 @@ port(
 
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	ce		:in std_logic := '1'
+	ce		:in std_logic := '1';
+
+	CURVMODE	:out std_logic	-- VMODE taken at VCOMP: the row height being drawn
 );
 end TEXTSCR2;
 
@@ -148,6 +150,7 @@ begin
 	end process;
 
 	CHRLINES<=16 when VMODEC='1' else 20;
+	CURVMODE<=VMODEC;
 
 	process (clk,rstn)
 	variable BNXTDOT0	:std_logic_vector(7 downto 0);

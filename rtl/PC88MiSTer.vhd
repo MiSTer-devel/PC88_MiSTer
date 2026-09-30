@@ -358,6 +358,7 @@ port(
 
 	VRTC		:out std_logic;
 	HRTC		:out std_logic;
+	CURVMODE	:out std_logic;
 
 	FRAMWADR	:in std_logic_Vector(12 downto 0);
 	FRAMWDAT	:in std_logic_vector(7 downto 0);
@@ -618,6 +619,10 @@ port(
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
 	TXTLINES	:in std_logic_vector(5 downto 0);
+
+	V1S			:in std_logic;
+	VMODE		:in std_logic;
+	CPUMD		:in std_logic;
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -1358,6 +1363,7 @@ signal	HRTC		:std_logic;
 signal	VRTC		:std_logic;
 signal	HRTCr		:std_logic;
 signal	VRTCr		:std_logic;
+signal	CRTC_VMODE	:std_logic;
 signal	cV1S		:std_logic;
 signal	CDI			:std_logic;
 signal	CCK			:std_logic;
@@ -2035,6 +2041,10 @@ port map(
 	TEXTEN		=>CRTCen and TDMAEN,
 	ATTRLEN		=>ATTRLEN,
 	TXTLINES	=>TXTLINES,
+
+	V1S			=>cV1S,
+	VMODE		=>CRTC_VMODE,
+	CPUMD		=>CPUMD,
 	
 	TADR_TOP	=>TRAMTOP,
 
@@ -2349,6 +2359,7 @@ port map(
 	--VRTC		=>VID_VRTC,
 	HRTC		=>HRTC,
 	VRTC		=>VRTC,
+	CURVMODE	=>CRTC_VMODE,
 	
 	FRAMWADR	=>FRAMADDR,
 	FRAMWDAT	=>FRAMWDAT,
