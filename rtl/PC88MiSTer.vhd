@@ -555,6 +555,21 @@ port(
 );
 end component;
 
+component GVWAIT
+port(
+	SEL		:in std_logic;
+	OTHERWAIT	:in std_logic;
+	FAST	:in std_logic;
+	en		:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component IORDWAIT
 generic(
 	PORT_NO	:std_logic_vector(7 downto 0)
@@ -1357,6 +1372,10 @@ signal	M1_WAITn	:std_logic;
 signal	V1S4M		:std_logic;
 signal	WAIT_nb		:std_logic;
 signal	WAIT_other	:std_logic;
+signal	GV_WAITn	:std_logic;
+signal	GVSEL		:std_logic;
+signal	GVEN		:std_logic;
+signal	GV_other	:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
 signal	INTC_OE		:std_logic;
 signal	HRTC		:std_logic;
@@ -2135,7 +2154,7 @@ port map(
 				not RAM_WAIT when KANJI1RD='1' else
 				not RAM_WAIT when KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
-	WAIT_n<=WAIT_nb and M1_WAITn;
+	WAIT_n<=WAIT_nb and M1_WAITn and GV_WAITn;
 
 	
 	process(clk21m,srstn21)begin
@@ -2292,6 +2311,14 @@ port map(
 	V1S4M<='1' when cV1S='1' and CPUMD='0' else '0';
 	WAIT_other<=not WAIT_nb;
 	M1W		:M1WAIT port map(M1_n,MREQ_n,WAIT_other,V1S4M,M1_WAITn,rclk,cpuce_f,CPU_rstnr);
+	-- Wait states on graphic VRAM reads and writes, as measured on a real FH:
+	-- V1H and V2, and V1S when the ALU is in use.
+	GVSEL<='1' when RAM_CE='1' and CPUADR(15 downto 14)="11" and GWME='0' and (RD_n='0' or WR_n='0') else '0';
+	GVEN<='1' when cHS='1' else
+		'1' when MODE=MOD_V1S and GVAM='1' else
+		'0';
+	GV_other<=not (WAIT_nb and M1_WAITn);
+	GVW		:GVWAIT port map(GVSEL,GV_other,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr);
 	
 	process(rclk,srstn)begin
 		if(srstn='0')then
