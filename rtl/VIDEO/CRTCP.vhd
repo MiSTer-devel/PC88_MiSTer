@@ -50,6 +50,7 @@ port(
 
 	VRTC		:out std_logic;
 	HRTC		:out std_logic;
+	CURVMODE	:out std_logic;		-- VMODE the text screen draws the frame with
 	
 	FRAMWADR	:in std_logic_Vector(12 downto 0);
 	FRAMWDAT	:in std_logic_vector(7 downto 0);
@@ -126,7 +127,9 @@ port(
 
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	ce		:in std_logic := '1'
+	ce		:in std_logic := '1';
+
+	CURVMODE	:out std_logic
 );
 end component;
 
@@ -316,7 +319,7 @@ begin
 	VFP		=>VFP,
 	VSY		=>VSY
 ) port map(VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b);
-	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,'0','1',HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b);
+	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,'0','1',HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE);
 	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b);
 
 	FRAMWEN<=FRAMWR when FRAMWADR(12)='0' else '0';

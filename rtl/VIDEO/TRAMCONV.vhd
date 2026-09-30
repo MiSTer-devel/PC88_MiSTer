@@ -2,8 +2,14 @@ LIBRARY	IEEE;
 USE	IEEE.STD_LOGIC_1164.ALL;
 USE IEEE.STD_LOGIC_ARITH.ALL;
 USE	IEEE.STD_LOGIC_UNSIGNED.ALL;
+use work.VIDEO_TIMING_pkg.all;
 
 entity TRAMCONV is
+generic(
+	--V1S: clk21m cycles the bus is held per text row, at 4MHz and 8MHz
+	V1SHOLD4	:integer	:=3766;
+	V1SHOLD8	:integer	:=3325
+);
 port(
 	TVRMODE		:in std_logic;
 	TMODE		:in std_logic;
@@ -14,6 +20,10 @@ port(
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
 	TXTLINES	:in std_logic_vector(5 downto 0);
+	
+	V1S			:in std_logic	:='0';	-- 1:V1S mode
+	VMODE		:in std_logic	:='1';	-- text row height (rclk) 1:16 rasters 0:20
+	CPUMD		:in std_logic	:='0';	-- 0:4MHz 1:8MHz
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -57,7 +67,7 @@ signal	CURATR	:std_logic_vector(7 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to MAXLINES;
-type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR);
+type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR,ST_HOLD,ST_BLANK,ST_BLANK1,ST_BLANK2);
 signal	STATE	:STATE_T;
 --signal	STATE	:integer range 0 to 12;
 --	constant ST_IDLE	:integer	:=0;
@@ -98,6 +108,37 @@ signal	stuckcnt	:integer range 0 to STUCKMAX;
 constant RELQUIET	:integer	:=20;
 signal	relcnt		:integer range 0 to RELQUIET;
 
+--V1S: each text row is requested one row before it is drawn and the bus is
+--held for a fixed time per row. The settings are taken once per frame, at CAPLINE.
+constant CAPLINE	:integer	:=8;
+constant BLANKEND	:integer	:=LINECHARS*2*MAXLINES-1;
+signal	pVRET,pHRET	:std_logic;
+signal	RASTER		:integer range 0 to VWIDTH-1;
+signal	BNDPEND		:std_logic;
+signal	CAPD		:std_logic;
+signal	BLANKD		:std_logic;
+signal	capV1S		:std_logic;
+signal	capTEXTEN	:std_logic;
+signal	capCPUMD	:std_logic;
+signal	capROWS		:integer range 0 to MAXLINES;
+signal	capCHRL		:integer range 16 to 20;
+signal	REQ			:integer range 0 to MAXLINES;	-- rows requested so far in this frame
+signal	REQLINE		:integer range 0 to 1023;		-- raster of the next request
+signal	VMODEs		:std_logic;
+signal	holdcnt		:integer range 0 to 65535;
+signal	HOLDING		:std_logic;
+signal	SINCEBND	:integer range 0 to 3;
+signal	BLKADR		:integer range 0 to BLANKEND;
+
+component cdc_sync2
+port(
+	d		:in std_logic;
+	q		:out std_logic;
+
+	clk		:in std_logic
+);
+end component;
+
 --BUSACKn and MRAM_WAIT cross from the rclk domain into clk21m.
 --Sample the asynchronous inputs once before the FSM uses them.
 signal	MRAM_WAITr	:std_logic;
@@ -106,14 +147,16 @@ signal	BUSACKnr	:std_logic;
 --Sample the remaining cross-domain inputs before use by the FSM.
 signal	VRETr,HRETr	:std_logic;
 signal	TEXTENr		:std_logic;
+--TXTLINES from the CPU clock, taken when TXLr2 and TXLr3 agree.
+signal	TXLr,TXLr2,TXLr3	:std_logic_vector(5 downto 0);
 
 --Keep the CDC sampling registers from being duplicated or retimed.
 attribute preserve : boolean;
 attribute dont_replicate : boolean;
 attribute dont_retime : boolean;
-attribute preserve of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr : signal is true;
-attribute dont_replicate of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr : signal is true;
-attribute dont_retime of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr : signal is true;
+attribute preserve of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr, TXLr : signal is true;
+attribute dont_replicate of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr, TXLr : signal is true;
+attribute dont_retime of MRAM_WAITr, BUSACKnr, VRETr, HRETr, TEXTENr, TXLr : signal is true;
 
 begin
 
@@ -123,6 +166,8 @@ begin
 	iATTRLEN<=conv_integer(ATTRLEN);
 	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
 	LINES<=conv_integer(TXTLINES);
+
+	VMS	:cdc_sync2 port map(VMODE,VMODEs,clk);
 	
 	process(clk,rstn)
 	variable iNXTATR	:integer range 0 to 255;
@@ -162,12 +207,35 @@ begin
 			VRETr<='1';
 			HRETr<='1';
 			TEXTENr<='0';
+			TXLr<=(others=>'0');
+			TXLr2<=(others=>'0');
+			TXLr3<=(others=>'0');
+			pVRET<='1';
+			pHRET<='1';
+			RASTER<=0;
+			BNDPEND<='0';
+			CAPD<='0';
+			BLANKD<='0';
+			capV1S<='0';
+			capTEXTEN<='0';
+			capCPUMD<='0';
+			capROWS<=MAXLINES;
+			capCHRL<=16;
+			REQ<=0;
+			REQLINE<=0;
+			holdcnt<=0;
+			HOLDING<='0';
+			BLKADR<=0;
+			SINCEBND<=3;
 		elsif(clk' event and clk='1')then
 			MRAM_WAITr<=MRAM_WAIT;
 			BUSACKnr<=BUSACKn;
 			VRETr<=VRET;
 			HRETr<=HRET;
 			TEXTENr<=TEXTEN;
+			TXLr<=TXTLINES;
+			TXLr2<=TXLr;
+			TXLr3<=TXLr2;
 			TVRAM_WR<='0';
 			DONE<='0';
 			if(waitcount>0)then
@@ -179,6 +247,20 @@ begin
 					if(stuckcnt=STUCKMAX)then
 						stuckcnt<=0;
 						STATE<=ST_RELBUS;
+						if(capV1S='1')then
+							--V1S: drop the row, but step to the next one as ST_SETATR2 does.
+							if(SMODE='1' and LINESKIP='0')then
+								LINESKIP<='1';
+							else
+								CTXTADR<=STXTADR+LINEADD;
+								STXTADR<=STXTADR+LINEADD;
+								CATRADR<=SATRADR+LINEADD;
+								SATRADR<=SATRADR+LINEADD;
+								LINESKIP<='0';
+							end if;
+							CDSTADR<=SDSTADR+x"0a0";
+							SDSTADR<=SDSTADR+x"0a0";
+						end if;
 					else
 						stuckcnt<=stuckcnt+1;
 					end if;
@@ -187,7 +269,53 @@ begin
 				end if;
 				case STATE is
 				when ST_IDLE =>
-					if(lVRET='1' and VRETr='0')then
+					if(capV1S='1')then
+						if(BNDPEND='1')then
+							--New frame: the same restart as on VRET below.
+							STXTADR<=TADR_TOP;
+							SATRADR<=TADR_TOP+x"0050";
+							CTXTADR<=TADR_TOP;
+							CATRADR<=TADR_TOP+x"0050";
+							SDSTADR<=(others=>'0');
+							CDSTADR<=(others=>'0');
+							rTVRMODE<=TVRMODE;
+							rTMODE<=TMODE;
+							TVRAM_ADR<=(others=>'0');
+							if(V1S='1')then
+								LINECNT<=0;
+							else
+								--Leaving V1S: no rows until the next VRET.
+								LINECNT<=MAXLINES;
+							end if;
+							CURATR<="00000111";
+							LINESKIP<='0';
+							BNDPEND<='0';
+						elsif(CAPD='1' and BLANKD='0')then
+							--Clear the rows below capROWS without the bus.
+							if(capROWS=MAXLINES)then
+								BLANKD<='1';
+							else
+								BLKADR<=capROWS*LINECHARS*2;
+								STATE<=ST_BLANK;
+							end if;
+						elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ)then
+							--Start of a row: as on HRET below.
+							CHARCNT<=0;
+							ATRCNT<=0;
+							LINECNT<=LINECNT+1;
+							if(rTMODE='1')then
+								STATE<=ST_GETBUS;
+								BUSREQn<='0';
+							elsif(rTVRMODE='1')then
+								STATE<=ST_IDLE;
+							else
+								STATE<=ST_RDTXT;
+							end if;
+							for iCOUNTER in 0 to 79 loop
+								fATTR(iCOUNTER)<='0';
+							end loop;
+						end if;
+					elsif(lVRET='1' and VRETr='0')then
 						STXTADR<=TADR_TOP;
 						SATRADR<=TADR_TOP+x"0050";
 						SDSTADR<=(others=>'0');
@@ -231,6 +359,7 @@ begin
 					if(BUSACKnr='0')then
 						STATE<=ST_RDTXT;
 						BUS_USE<='1';
+						HOLDING<='1';
 					end if;
 				when ST_RDTXT =>
 					MRAM_RDn<='0';
@@ -377,11 +506,40 @@ begin
 						SDSTADR<=SDSTADR+x"0a0";
 						CHARCNT<=0;
 						ATRCNT<=0;
+						if(capV1S='1' and rTMODE='1')then
+							STATE<=ST_HOLD;
+						else
+							STATE<=ST_RELBUS;
+						end if;
+					end if;
+				when ST_HOLD =>
+					--V1S: keep the bus for the hold length.
+					if((capCPUMD='0' and holdcnt>=V1SHOLD4-2) or (capCPUMD='1' and holdcnt>=V1SHOLD8-2))then
 						STATE<=ST_RELBUS;
+					end if;
+				when ST_BLANK =>
+					TVRAM_ADR<=conv_std_logic_vector(BLKADR,12);
+					if(BLKADR mod 2=0)then
+						TVRAM_WDAT<=x"00";
+					else
+						TVRAM_WDAT<=x"80";
+					end if;
+					STATE<=ST_BLANK1;
+				when ST_BLANK1 =>
+					TVRAM_WR<='1';
+					STATE<=ST_BLANK2;
+				when ST_BLANK2 =>
+					if(BLKADR=BLANKEND)then
+						BLANKD<='1';
+						STATE<=ST_IDLE;
+					else
+						BLKADR<=BLKADR+1;
+						STATE<=ST_BLANK;
 					end if;
 				when ST_RELBUS =>
 					BUSREQn<='1';
 					BUS_USE<='0';
+					HOLDING<='0';
 					relcnt<=0;
 					if(rTMODE='1')then
 						STATE<=ST_WAITREL;
@@ -405,6 +563,58 @@ begin
 				if(STATE/=ST_WAITREL and (STATE/=ST_RELBUS or rTMODE='0'))then
 					lVRET<=VRETr;
 					lHRET<=HRETr;
+				end if;
+			end if;
+
+			--V1S: count rasters and row requests.
+			pVRET<=VRETr;
+			pHRET<=HRETr;
+			if(HOLDING='1')then
+				if(holdcnt<65535)then
+					holdcnt<=holdcnt+1;
+				end if;
+			else
+				holdcnt<=0;
+			end if;
+			if(pVRET='0' and VRETr='1')then
+				RASTER<=0;
+				REQ<=0;
+				BNDPEND<='1';
+				CAPD<='0';
+				BLANKD<='0';
+				SINCEBND<=0;
+			else
+				if(SINCEBND<3)then
+					SINCEBND<=SINCEBND+1;
+				end if;
+				--HRET rises with VRET at raster 0; skip that edge.
+				if(pHRET='0' and HRETr='1' and SINCEBND=3)then
+					if(RASTER<VWIDTH-1)then
+						RASTER<=RASTER+1;
+					end if;
+					if(RASTER+1=CAPLINE)then
+						capV1S<=V1S;
+						capTEXTEN<=TEXTENr;
+						capCPUMD<=CPUMD;
+						if(TXLr2=TXLr3)then
+							if(conv_integer(TXLr3)<MAXLINES)then
+								capROWS<=conv_integer(TXLr3)+1;
+							else
+								capROWS<=MAXLINES;
+							end if;
+						end if;
+						if(VMODEs='1')then
+							capCHRL<=16;
+							REQLINE<=VIV-16;
+						else
+							capCHRL<=20;
+							REQLINE<=VIV-20;
+						end if;
+						CAPD<='1';
+					elsif(CAPD='1' and RASTER+1=REQLINE and REQ<capROWS)then
+						REQ<=REQ+1;
+						REQLINE<=REQLINE+capCHRL;
+					end if;
 				end if;
 			end if;
 		end if;

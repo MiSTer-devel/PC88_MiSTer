@@ -358,6 +358,7 @@ port(
 
 	VRTC		:out std_logic;
 	HRTC		:out std_logic;
+	CURVMODE	:out std_logic;
 
 	FRAMWADR	:in std_logic_Vector(12 downto 0);
 	FRAMWDAT	:in std_logic_vector(7 downto 0);
@@ -539,6 +540,21 @@ port(
 );
 end component;
 
+component M1WAIT
+port(
+	M1n		:in std_logic;
+	MREQn	:in std_logic;
+	OTHERWAIT	:in std_logic;
+	en		:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component IORDWAIT
 generic(
 	PORT_NO	:std_logic_vector(7 downto 0)
@@ -603,6 +619,10 @@ port(
 	TEXTEN		:in std_logic;
 	ATTRLEN		:in std_logic_vector(4 downto 0);
 	TXTLINES	:in std_logic_vector(5 downto 0);
+
+	V1S			:in std_logic;
+	VMODE		:in std_logic;
+	CPUMD		:in std_logic;
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -1333,12 +1353,18 @@ signal	IDAT_SLOW	:std_logic_vector(7 downto 0);
 signal	SLOW_OE		:std_logic;
 signal	SLOW_WAITn	:std_logic;
 signal	IO_WAIT		:std_logic;
+signal	M1_WAITn	:std_logic;
+signal	V1S4M		:std_logic;
+signal	WAIT_nb		:std_logic;
+signal	WAIT_other	:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
 signal	INTC_OE		:std_logic;
 signal	HRTC		:std_logic;
 signal	VRTC		:std_logic;
 signal	HRTCr		:std_logic;
 signal	VRTCr		:std_logic;
+signal	CRTC_VMODE	:std_logic;
+signal	cV1S		:std_logic;
 signal	CDI			:std_logic;
 signal	CCK			:std_logic;
 signal	CSTB		:std_logic;
@@ -1633,6 +1659,10 @@ begin
 			'0';
 	cN <=	'0' when MODE=MOD_N else
 			'1';
+	--V1S hardware: V1S, and N (N-BASIC runs on it with NEW ON 1).
+	cV1S <=	'1' when MODE=MOD_V1S else
+			'1' when MODE=MOD_N else
+			'0';
 
 	cBT		<=pDip(2);
 	c40C	<=pDip(4);
@@ -2011,6 +2041,10 @@ port map(
 	TEXTEN		=>CRTCen and TDMAEN,
 	ATTRLEN		=>ATTRLEN,
 	TXTLINES	=>TXTLINES,
+
+	V1S			=>cV1S,
+	VMODE		=>CRTC_VMODE,
+	CPUMD		=>CPUMD,
 	
 	TADR_TOP	=>TRAMTOP,
 
@@ -2097,10 +2131,11 @@ port map(
 );
 
 
-	WAIT_n<=	not RAM_WAIT when RAM_CE='1' else
+	WAIT_nb<=	not RAM_WAIT when RAM_CE='1' else
 				not RAM_WAIT when KANJI1RD='1' else
 				not RAM_WAIT when KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
+	WAIT_n<=WAIT_nb and M1_WAITn;
 
 	
 	process(clk21m,srstn21)begin
@@ -2253,6 +2288,10 @@ port map(
 --	IOWA	:IOWAIT port map(IORQ_n,RD_n,WR_n,IO_WAIT,cpu_clk,srstn);
 	-- One wait state on IN from 44h at 8MHz, as measured on a real FH.
 	IOW44	:IORDWAIT generic map(x"44") port map(CPUADR(7 downto 0),IORQ_n,RD_n,CPUMD,IO_WAIT,rclk,cpuce_f,CPU_rstnr);
+	-- One wait state on every opcode fetch in V1S and N at 4MHz, as measured on a real FH.
+	V1S4M<='1' when cV1S='1' and CPUMD='0' else '0';
+	WAIT_other<=not WAIT_nb;
+	M1W		:M1WAIT port map(M1_n,MREQ_n,WAIT_other,V1S4M,M1_WAITn,rclk,cpuce_f,CPU_rstnr);
 	
 	process(rclk,srstn)begin
 		if(srstn='0')then
@@ -2320,6 +2359,7 @@ port map(
 	--VRTC		=>VID_VRTC,
 	HRTC		=>HRTC,
 	VRTC		=>VRTC,
+	CURVMODE	=>CRTC_VMODE,
 	
 	FRAMWADR	=>FRAMADDR,
 	FRAMWDAT	=>FRAMWDAT,
