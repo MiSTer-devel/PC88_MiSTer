@@ -37,6 +37,7 @@ port(
 	
 	G_EXTMODE	:out std_logic;
 	G_RAMSEL	:out integer range 0 to 3;
+	G_PLANESEL	:out std_logic;	-- a graphic plane is selected (5Ch-5Eh)
 	ALUOE		:out std_logic;
 	ALUME		:out std_logic;
 	ALURE		:out std_logic;
@@ -219,6 +220,8 @@ begin
 				3 when TXTWINENb='1' and TXW_SELV='1' else	--TXTWINDOW
 				G_RAMSELb;
 	
+	G_PLANESEL<='0' when G_RAMSELb=3 else '1';
+
 	IO5c<=	"11111001" when G_RAMSELb=0 else
 			"11111010" when G_RAMSELb=1 else
 			"11111100" when G_RAMSELb=2 else
