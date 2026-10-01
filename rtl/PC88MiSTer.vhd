@@ -237,6 +237,7 @@ port(
 	
 	G_EXTMODE	:out std_logic;
 	G_RAMSEL	:out integer range 0 to 3;
+	G_PLANESEL	:out std_logic;
 	ALUOE		:out std_logic;
 	ALUME		:out std_logic;
 	ALURE		:out std_logic;
@@ -551,6 +552,36 @@ port(
 
 	clk		:in std_logic;
 	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
+component MEMWAIT
+port(
+	SEL		:in std_logic;
+	SDWAIT	:in std_logic;
+	OTHERWAIT	:in std_logic;
+	en		:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
+component GVSTRETCH
+port(
+	ce_r_in	:in std_logic;
+	ce_f_in	:in std_logic;
+	STR		:in std_logic;
+	FAST	:in std_logic;
+
+	ce_r	:out std_logic;
+	ce_f	:out std_logic;
+
+	clk		:in std_logic;
 	rstn	:in std_logic
 );
 end component;
@@ -1376,6 +1407,12 @@ signal	GV_WAITn	:std_logic;
 signal	GVSEL		:std_logic;
 signal	GVEN		:std_logic;
 signal	GV_other	:std_logic;
+signal	MEM_WAITn	:std_logic;
+signal	MEMSEL		:std_logic;
+signal	MEMEN		:std_logic;
+signal	M1_HOLD		:std_logic;
+signal	G_PLANESEL	:std_logic;
+signal	GVSTR		:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
 signal	INTC_OE		:std_logic;
 signal	HRTC		:std_logic;
@@ -1507,6 +1544,7 @@ signal	KANJI2RD	:std_logic;
 signal	cpuclkb,subclkb	:std_logic;
 signal	subce_r,subce_f	:std_logic;
 signal	cpuce_r,cpuce_f	:std_logic;
+signal	cpuce_r0,cpuce_f0	:std_logic;
 -- CPU_rstn with its release synchronised to rclk, for the CPU side on rclk
 signal	CPU_rstnrm,CPU_rstnr	:std_logic;
 
@@ -1838,6 +1876,7 @@ begin
 	
 	G_EXTMODE	=>GVAM,
 	G_RAMSEL	=>NG_RAMSEL,
+	G_PLANESEL	=>G_PLANESEL,
 	ALUOE		=>ALU_OE,
 	ALUME		=>GRAM_M_OE,
 	ALURE		=>ALU_RE,
@@ -1954,8 +1993,8 @@ port map(
 		SUBCLK			=>subclkb,
 		SUBCE_R			=>subce_r,
 		SUBCE_F			=>subce_f,
-		CPUCE_R			=>cpuce_r,
-		CPUCE_F			=>cpuce_f,
+		CPUCE_R			=>cpuce_r0,
+		CPUCE_F			=>cpuce_f0,
 
 		ALURD0			=>GRDAT0,
 		ALURD1			=>GRDAT1,
@@ -2154,7 +2193,7 @@ port map(
 				not RAM_WAIT when KANJI1RD='1' else
 				not RAM_WAIT when KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
-	WAIT_n<=WAIT_nb and M1_WAITn and GV_WAITn;
+	WAIT_n<=WAIT_nb and M1_WAITn and MEM_WAITn and GV_WAITn;
 
 	
 	process(clk21m,srstn21)begin
@@ -2317,8 +2356,19 @@ port map(
 	GVEN<='1' when cHS='1' else
 		'1' when MODE=MOD_V1S and GVAM='1' else
 		'0';
-	GV_other<=not (WAIT_nb and M1_WAITn);
+	GV_other<=not (WAIT_nb and M1_WAITn and MEM_WAITn);
 	GVW		:GVWAIT port map(GVSEL,GV_other,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr);
+	-- V1S and N slow down the whole CPU while graphic VRAM is selected for
+	-- direct access (5Ch-5Eh) and the graphic screen is being displayed,
+	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
+	-- slowed enables.
+	GVSTR<='1' when cV1S='1' and G_PLANESEL='1' and GVAM='0' and GRAPHEN='1' and VRTCr='0' else '0';
+	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr);
+	-- Keeps the 8MHz memory wait of a real FH while slowed down.
+	MEMSEL<='1' when MREQ_n='0' and (RD_n='0' or WR_n='0') else '0';
+	MEMEN<=GVSTR and CPUMD;
+	M1_HOLD<=not M1_WAITn;
+	MEMW	:MEMWAIT port map(MEMSEL,WAIT_other,M1_HOLD,MEMEN,MEM_WAITn,rclk,cpuce_f,CPU_rstnr);
 	
 	process(rclk,srstn)begin
 		if(srstn='0')then
