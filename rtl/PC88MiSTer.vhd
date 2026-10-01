@@ -685,6 +685,7 @@ port(
 	V1S			:in std_logic;
 	VMODE		:in std_logic;
 	CPUMD		:in std_logic;
+	GVSTR		:in std_logic;
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -1429,6 +1430,7 @@ signal	MEMEN		:std_logic;
 signal	M1_HOLD		:std_logic;
 signal	G_PLANESEL	:std_logic;
 signal	GVSTR		:std_logic;
+signal	GVSTRr		:std_logic;
 signal	GVS_WAITn	:std_logic;
 signal	GVSEN		:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
@@ -2121,6 +2123,7 @@ port map(
 	V1S			=>cV1S,
 	VMODE		=>CRTC_VMODE,
 	CPUMD		=>CPUMD,
+	GVSTR		=>GVSTRr,
 	
 	TADR_TOP	=>TRAMTOP,
 
@@ -2382,6 +2385,13 @@ port map(
 	-- slowed enables.
 	GVSTR<='1' when cV1S='1' and G_PLANESEL='1' and GVAM='0' and GRAPHEN='1' and VRTCr='0' else '0';
 	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr);
+	--GVSTR is a combination of rclk registers, so TRAMCONV could latch a decoding
+	--glitch when it reads it from clk21m. Register it here first, as for VRTCr.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			GVSTRr<=GVSTR;
+		end if;
+	end process;
 	-- Keeps the 8MHz memory wait of a real FH while slowed down.
 	MEMSEL<='1' when MREQ_n='0' and (RD_n='0' or WR_n='0') else '0';
 	MEMEN<=GVSTR and CPUMD;

@@ -8,7 +8,10 @@ entity TRAMCONV is
 generic(
 	--V1S: clk21m cycles the bus is held per text row, at 4MHz and 8MHz
 	V1SHOLD4	:integer	:=3766;
-	V1SHOLD8	:integer	:=3325
+	V1SHOLD8	:integer	:=3325;
+	--Same, for rows taken while the CPU is slowed down by GVSTR
+	V1SHOLD4S	:integer	:=2356;
+	V1SHOLD8S	:integer	:=2742
 );
 port(
 	TVRMODE		:in std_logic;
@@ -24,6 +27,7 @@ port(
 	V1S			:in std_logic	:='0';	-- 1:V1S mode
 	VMODE		:in std_logic	:='1';	-- text row height (rclk) 1:16 rasters 0:20
 	CPUMD		:in std_logic	:='0';	-- 0:4MHz 1:8MHz
+	GVSTR		:in std_logic	:='0';	-- 1:the CPU is slowed down (rclk)
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -125,6 +129,8 @@ signal	capCHRL		:integer range 16 to 20;
 signal	REQ			:integer range 0 to MAXLINES;	-- rows requested so far in this frame
 signal	REQLINE		:integer range 0 to 1023;		-- raster of the next request
 signal	VMODEs		:std_logic;
+signal	GVSTRs		:std_logic;
+signal	capSTR		:std_logic;	-- GVSTR when the bus was taken for this row
 signal	holdcnt		:integer range 0 to 65535;
 signal	HOLDING		:std_logic;
 signal	SINCEBND	:integer range 0 to 3;
@@ -168,6 +174,7 @@ begin
 	LINES<=conv_integer(TXTLINES);
 
 	VMS	:cdc_sync2 port map(VMODE,VMODEs,clk);
+	GSS	:cdc_sync2 port map(GVSTR,GVSTRs,clk);
 	
 	process(clk,rstn)
 	variable iNXTATR	:integer range 0 to 255;
@@ -219,6 +226,7 @@ begin
 			capV1S<='0';
 			capTEXTEN<='0';
 			capCPUMD<='0';
+			capSTR<='0';
 			capROWS<=MAXLINES;
 			capCHRL<=16;
 			REQ<=0;
@@ -360,6 +368,7 @@ begin
 						STATE<=ST_RDTXT;
 						BUS_USE<='1';
 						HOLDING<='1';
+						capSTR<=GVSTRs;
 					end if;
 				when ST_RDTXT =>
 					MRAM_RDn<='0';
@@ -513,8 +522,10 @@ begin
 						end if;
 					end if;
 				when ST_HOLD =>
-					--V1S: keep the bus for the hold length.
-					if((capCPUMD='0' and holdcnt>=V1SHOLD4-2) or (capCPUMD='1' and holdcnt>=V1SHOLD8-2))then
+					--V1S: keep the bus for the hold length, shorter for a row taken
+					--while the CPU is slowed down.
+					if((capCPUMD='0' and capSTR='0' and holdcnt>=V1SHOLD4-2) or (capCPUMD='1' and capSTR='0' and holdcnt>=V1SHOLD8-2) or
+					   (capCPUMD='0' and capSTR='1' and holdcnt>=V1SHOLD4S-2) or (capCPUMD='1' and capSTR='1' and holdcnt>=V1SHOLD8S-2))then
 						STATE<=ST_RELBUS;
 					end if;
 				when ST_BLANK =>
