@@ -673,11 +673,9 @@ generic(
 	SFTCYC	:integer	:=400
 );
 port(
-	ADR		:in std_logic_vector(7 downto 0);
-	IORQn	:in std_logic;
-	RDn		:in std_logic;
-	DAT		:out std_logic_vector(7 downto 0);
-	OE		:out std_logic;
+	SCANADR	:in std_logic_vector(3 downto 0);
+	SCANDAT	:out std_logic_vector(7 downto 0);
+	INITDONE:out std_logic;
 
 	KBCLKIN	:in std_logic;
 	KBCLKOUT:out std_logic;
@@ -692,6 +690,26 @@ port(
 
 	clk		:in std_logic;
 	rstn	:in std_logic
+);
+end component;
+
+component kbmirror
+port(
+	ADR		:in std_logic_vector(7 downto 0);
+	IORQn	:in std_logic;
+	RDn		:in std_logic;
+	DAT		:out std_logic_vector(7 downto 0);
+	OE		:out std_logic;
+
+	cclk	:in std_logic;
+	crstn	:in std_logic;
+
+	SCANADR	:out std_logic_vector(3 downto 0);
+	SCANDAT	:in std_logic_vector(7 downto 0);
+	INITDONE:in std_logic;
+
+	fclk	:in std_logic;
+	frstn	:in std_logic
 );
 end component;
 
@@ -1330,6 +1348,9 @@ signal	IDAT_CRTR	:std_logic_vector(7 downto 0);
 signal	CRTR_OE		:std_logic;
 signal	IDAT_KB		:std_logic_vector(7 downto 0);
 signal	KB_OE		:std_logic;
+signal	KB_SCANADR	:std_logic_vector(3 downto 0);
+signal	KB_SCANDAT	:std_logic_vector(7 downto 0);
+signal	KB_INITDONE	:std_logic;
 signal	IDAT_ALU	:std_logic_vector(7 downto 0);
 signal	ALU_OE		:std_logic;
 signal	IDAT_IOR30	:std_logic_vector(7 downto 0);
@@ -2172,11 +2193,9 @@ port map(
 	pPs2Datout<=KBDATOUT;
 
 	KB	:KBMAP generic map(SYSCLK,100) port map(
-	ADR		=>CPUADR(7 downto 0),
-	IORQn	=>IORQ_n,
-	RDn		=>RD_n,
-	DAT		=>IDAT_KB,
-	OE		=>KB_OE,
+	SCANADR	=>KB_SCANADR,
+	SCANDAT	=>KB_SCANDAT,
+	INITDONE=>KB_INITDONE,
 
 	KBCLKIN	=>KBCLKIN,
 	KBCLKOUT=>KBCLKOUT,
@@ -2192,6 +2211,24 @@ port map(
 	clk		=>clk21m,
 	rstn	=>CPU_rstn
 );
+
+	KBM	:kbmirror port map(
+		ADR		=>CPUADR(7 downto 0),
+		IORQn	=>IORQ_n,
+		RDn		=>RD_n,
+		DAT		=>IDAT_KB,
+		OE		=>KB_OE,
+
+		cclk	=>rclk,
+		crstn	=>CPU_rstnr,
+
+		SCANADR	=>KB_SCANADR,
+		SCANDAT	=>KB_SCANDAT,
+		INITDONE=>KB_INITDONE,
+
+		fclk	=>clk21m,
+		frstn	=>CPU_rstn
+	);
 	
 	CPUDAT<=
 				IDAT_RAM	when GRAM_M_OE='1' else

@@ -8,11 +8,9 @@ generic(
 	SFTCYC	:integer	:=400
 );
 port(
-	ADR		:in std_logic_vector(7 downto 0);
-	IORQn	:in std_logic;
-	RDn		:in std_logic;
-	DAT		:out std_logic_vector(7 downto 0);
-	OE		:out std_logic;
+	SCANADR	:in std_logic_vector(3 downto 0);
+	SCANDAT	:out std_logic_vector(7 downto 0);
+	INITDONE:out std_logic;
 
 	KBCLKIN	:in std_logic;
 	KBCLKOUT:out std_logic;
@@ -30,21 +28,6 @@ port(
 );
 end KBMAP;
 architecture MAIN of KBMAP is
-component KBIO
-	PORT
-	(
-		address_a		: IN STD_LOGIC_VECTOR (3 DOWNTO 0);
-		address_b		: IN STD_LOGIC_VECTOR (3 DOWNTO 0);
-		clock		: IN STD_LOGIC  := '1';
-		data_a		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
-		data_b		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
-		wren_a		: IN STD_LOGIC  := '0';
-		wren_b		: IN STD_LOGIC  := '0';
-		q_a		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
-		q_b		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0)
-	);
-END component;
-
 component KBIF
 generic(
 	SFTCYC	:integer	:=400;		--kHz
@@ -116,6 +99,15 @@ signal	TBLADR	:std_logic_vector(7 downto 0);
 signal	TBLDAT	:std_logic_vector(7 downto 0);
 signal	E0TBLDAT:std_logic_vector(7 downto 0);
 signal	BITSEL	:std_logic_vector(2 downto 0);
+signal	INITDONEb	:std_logic;
+
+--The key rows, held in registers so that a row read at any clock is the value
+--before or after that clock's write. Rows 0 to 14 start as KS_CLRRAM leaves
+--them; row 15 is never written.
+type KBROW_T is array(0 to 15) of std_logic_vector(7 downto 0);
+signal	KBROW	:KBROW_T	:=(14=>"01111111",others=>(others=>'1'));
+attribute ramstyle	:string;
+attribute ramstyle of KBROW	:signal is "logic";
 
 
 type KBSTATE_T is (KS_IDLE,KS_CLRRAM,KS_CLRRAM1,KS_RESET,KS_RESET_BAT,KS_IDRD,KS_IDRD_ACK,KS_IDRD_LB,KS_IDRD_HB,KS_LEDS,KS_LEDW,KS_LEDB,KS_LEDS_ACK,KS_RDTBL,KS_RDE0TBL,KS_RDRAM,KS_WRRAM);
@@ -175,22 +167,16 @@ begin
 	monout<=TBLDAT;
 --	monout<=WRDAT;
 	
-		KBRAM	:KBIO port map(
-		address_a		=>ADR(3 downto 0),
-		address_b		=>WRADR,
-		clock			=>clk,
-		data_a			=>(others=>'0'),
-		data_b			=>WRDAT,
-		wren_a			=>'0',
-		wren_b			=>WE,
-		q_a				=>DAT,
-		q_b				=>RDDAT
-	);
-	
-	OE<=	'0' when IORQn='1' or RDn='1' else
-			'0' when ADR(7 downto 4)/=x"0" else
-			'0' when ADR=x"0f" else
-			'1';
+	process(clk)begin
+		if(clk' event and clk='1')then
+			if(WE='1')then
+				KBROW(conv_integer(WRADR))<=WRDAT;
+			end if;
+		end if;
+	end process;
+	RDDAT<=KBROW(conv_integer(WRADR));
+	SCANDAT<=KBROW(conv_integer(SCANADR));
+	INITDONE<=INITDONEb;
 	
 	KBSFT	:sftclk generic map(CLKCYC,SFTCYC,1) port map("1",SFT,clk,rstn);
 	
@@ -237,6 +223,7 @@ begin
 			nCAPS0<='0';
 			BITSEL<=(others=>'0');
 			KB_TXDAT<=(others=>'0');
+			INITDONEb<='0';
 		elsif(clk' event and clk='1')then
 			WE<='0';
 			KB_WRn<='1';
@@ -260,6 +247,7 @@ begin
 					else
 						KBSTATE<=KS_RESET;
 						WAITSFT<=waitscount;
+						INITDONEb<='1';
 					end if;
 				when KS_CLRRAM1 =>
 					WRADR<=WRADR+1;
