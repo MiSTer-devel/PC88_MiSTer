@@ -181,7 +181,8 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 assign VGA_F1 = 0;
-assign VGA_SCALER = 0;
+wire video24k; // 24kHz video timing, taken at reset
+assign VGA_SCALER = video24k; // 24kHz: VGA through the scaler as well
 
 assign LED_POWER = 0;
 assign BUTTONS = 0;
@@ -207,6 +208,7 @@ parameter CONF_STR = {
 	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"OHJ,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"OM,Video timing,31kHz,24kHz;",
 	"-;",
 	"O78,Mode,N88V2,N88V1H,N88V1S,N;",
 	"O9,Speed,4MHz,8MHz;",
@@ -382,6 +384,7 @@ wire	MTSAVE	=1;
 wire [1:0]FDsync=status[16:15];
 wire	cInDev	=status[20];
 wire	cSB2	=status[21];
+wire	c24k	=status[22];
 
 assign CLK_VIDEO = clk_ram;
 assign AUDIO_S = 1;
@@ -496,7 +499,7 @@ PC88MiSTer PC88_top
 
 	.pLed(disk_led),
 	.pDip({clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
-	.pCoreConfig({cSB2,cInDev}),
+	.pCoreConfig({c24k,cSB2,cInDev}),
 	.pPsw(2'b11),
 
 	.pVideoR(red),
@@ -506,6 +509,7 @@ PC88MiSTer PC88_top
 	.pVideoVS(VSync),
 	.pVideoEN(vid_de),
 	.pVideoClk(ce_pix),
+	.pVideo24k(video24k),
 
 	.pSndL(AUDIO_L),
 	.pSndR(AUDIO_R),
@@ -568,7 +572,7 @@ video_freak video_freak
     .VGA_DE_IN(vga_de),
     .ARX((!ar) ? 12'd16 : (ar - 1'd1)),
     .ARY((!ar) ? 12'd10 : 12'd0),
-    .CROP_SIZE(en400p ? 10'd400 : 10'd0),
+    .CROP_SIZE((en400p & ~video24k) ? 10'd400 : 10'd0),
     .CROP_OFF(0),
     .SCALE(status[4:3])
 );

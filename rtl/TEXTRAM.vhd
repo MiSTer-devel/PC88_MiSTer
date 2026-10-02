@@ -1,4 +1,4 @@
--- Text VRAM, 4096 x 8, both ports on one clock with a clock enable. Port B only reads.
+-- Text VRAM, 4096 x 8, both ports on one clock with a clock enable per port. Port B only reads.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -16,7 +16,8 @@ entity TEXTRAM is
 		wren_b		:in std_logic := '0';
 		q_a			:out std_logic_vector(7 downto 0);
 		q_b			:out std_logic_vector(7 downto 0);
-		ce			:in std_logic := '1'
+		ce_a		:in std_logic := '1';
+		ce_b		:in std_logic := '1'
 	);
 end TEXTRAM;
 
@@ -29,11 +30,13 @@ begin
 
 	process(clock)begin
 		if(clock'event and clock='1')then
-			if(ce='1')then
+			if(ce_a='1')then
 				if(wren_a='1')then
 					mem(conv_integer(address_a))<=data_a;
 				end if;
 				ra_a<=conv_integer(address_a);
+			end if;
+			if(ce_b='1')then
 				ra_b<=conv_integer(address_b);
 			end if;
 		end if;

@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
+use work.VIDEO_TIMING_pkg.all;
 
 entity synccont2 is
 generic(
@@ -17,9 +18,12 @@ generic(
 	VSY		:integer	:=2
 );	
 port(
+	VT24	:in std_logic	:='0';		-- 1:24kHz timing
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz timing
+
 	UCOUNT	:in integer range 0 to DOTPU-1;
-	HUCOUNT	:in integer range 0 to (HWIDTH/DOTPU)-1;
-	VCOUNT	:in integer range 0 to VWIDTH-1;
+	HUCOUNT	:in integer range 0 to HUWMAX-1;
+	VCOUNT	:in integer range 0 to VWMAX-1;
 	HCOMP	:in std_logic;
 	VCOMP	:in std_logic;
 
@@ -55,21 +59,32 @@ signal	HSYNCN	:std_logic;
 signal	VSYNCN	:std_logic;
 signal	VISIBLEN:std_logic;
 signal	VIDENEN:std_logic;
+signal	hfps,hsye,hivs	:integer range 0 to HUWMAX;
+signal	vfps,vsye,vivs,viv2s	:integer range 0 to VWMAX;
 begin
-	HSYNCN<=	'0' when (HUCOUNT<HFP) else
-				'1' when (HUCOUNT<(HFP+HSY)) else
+	--24kHz: front porch, sync 2, back porch 38 in the retrace lines
+	hfps<=	HFP24 when VT24='1' else HFP;
+	hsye<=	HFP24+HSY24 when VT24='1' else HFP+HSY;
+	hivs<=	HIV24 when VT24='1' else HIV;
+	vfps<=	VRET24-VRETMIN24 when VT24='1' else VFP;
+	vsye<=	VRET24-VBP24 when VT24='1' else VFP+VSY;
+	vivs<=	VRET24 when VT24='1' else VIV;
+	viv2s<=	VRET24 when VT24='1' else VIV2;
+
+	HSYNCN<=	'0' when (HUCOUNT<hfps) else
+				'1' when (HUCOUNT<hsye) else
 				'0';
-	VSYNCN<=	'0' when (VCOUNT<VFP) else
-				'1' when (VCOUNT<(VFP+VSY)) else
+	VSYNCN<=	'0' when (VCOUNT<vfps) else
+				'1' when (VCOUNT<vsye) else
 				'0';
-	VISIBLEN<=	'0' when VCOUNT<VIV else
-					'0' when HUCOUNT<HIV else
+	VISIBLEN<=	'0' when VCOUNT<vivs else
+					'0' when HUCOUNT<hivs else
 					'1';
-	VIDENEN<=	'0' when VCOUNT<VIV2 else
-					'0' when HUCOUNT<HIV else
+	VIDENEN<=	'0' when VCOUNT<viv2s else
+					'0' when HUCOUNT<hivs else
 					'1';
-	VRTC		<=	'1' when VCOUNT<VIV else '0';
-	HRTC        <=    '1' when HUCOUNT<HIV else '0';
+	VRTC		<=	'1' when VCOUNT<vivs else '0';
+	HRTC        <=    '1' when HUCOUNT<hivs else '0';
 
 	process	(clk,rstn)begin
 		if(rstn='0')then

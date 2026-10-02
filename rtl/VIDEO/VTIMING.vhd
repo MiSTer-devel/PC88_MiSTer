@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
+use work.VIDEO_TIMING_pkg.all;
 
 entity VTIMING is
 generic(
@@ -16,8 +17,11 @@ generic(
 	VSY		:integer	:=2
 );	
 port(
-	VCOUNT	:out integer range 0 to VWIDTH-1;
-	HUCOUNT	:out integer range 0 to (HWIDTH/DOTPU)-1;
+	VT24	:in std_logic	:='0';		-- 1:24kHz timing
+	VEND24	:in integer range 0 to VWMAX-1	:=VWMAX-1;	-- last line in 24kHz timing
+
+	VCOUNT	:out integer range 0 to VWMAX-1;
+	HUCOUNT	:out integer range 0 to HUWMAX-1;
 	UCOUNT	:out integer range 0 to DOTPU-1;
 	
 	HCOMP	:out std_logic;
@@ -39,14 +43,19 @@ constant 	HIV		:integer	:=HFP+HSY+HBP;
 constant 	VBP		:integer	:=VWIDTH-VVIS-VFP-VSY;
 constant	VIV		:integer	:=VFP+VSY+VBP;
 
-signal	vcounter	:integer range 0 to VWIDTH-1;
-signal	hucounter	:integer range 0 to (HWIDTH/DOTPU)-1;
+signal	vcounter	:integer range 0 to VWMAX-1;
+signal	hucounter	:integer range 0 to HUWMAX-1;
+signal	vend	:integer range 0 to VWMAX-1;
+signal	huend	:integer range 0 to HUWMAX-1;
 signal	ucounter	:integer range 0 to DOTPU-1;
 signal	hcompb	:std_logic;
 signal	vcompb	:std_logic;
 signal	clk2sft	:std_logic_vector(1 downto 0);
 signal	clk3sft	:std_logic_vector(2 downto 0);
 signal	clk3b	:std_logic;
+signal	dotacc	:integer range 0 to DOTDEN24-1;
+signal	dotce	:std_logic;
+signal	dotced	:std_logic;
 
 begin
 
@@ -60,9 +69,31 @@ begin
 		end if;
 	end process;
 	clk2<=clk2sft(1);
-	clk3<=clk3sft(2);
-	clk3b<=clk3sft(1);
+
+	--24kHz: dot enable at DOTNUM24/DOTDEN24 of clk (every 3 or 4 clocks)
+	process(clk,rstn)begin
+		if(rstn='0')then
+			dotacc<=0;
+			dotce<='0';
+			dotced<='0';
+		elsif(clk' event and clk='1')then
+			if(dotacc+DOTNUM24>=DOTDEN24)then
+				dotacc<=dotacc+DOTNUM24-DOTDEN24;
+				dotce<='1';
+			else
+				dotacc<=dotacc+DOTNUM24;
+				dotce<='0';
+			end if;
+			dotced<=dotce;
+		end if;
+	end process;
+
+	clk3<=dotced when VT24='1' else clk3sft(2);
+	clk3b<=dotce when VT24='1' else clk3sft(1);
 	CE3<=clk3b;
+
+	vend<=VEND24 when VT24='1' else VWIDTH-1;
+	huend<=HUWIDTH24-1 when VT24='1' else (HWIDTH/DOTPU)-1;
 
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -77,10 +108,10 @@ begin
 			vcompb<='0';
 			if(ucounter=(DOTPU-1))then
 				ucounter<=0;
-				if(hucounter=((HWIDTH/DOTPU)-1))then
+				if(hucounter>=huend)then
 					hucounter<=0;
 					hcompb<='1';
-					if(vcounter=VWIDTH-1)then
+					if(vcounter>=vend)then
 						vcounter<=0;
 						vcompb<='1';
 					else 
