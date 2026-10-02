@@ -15,7 +15,7 @@ set_global_assignment -name VHDL_FILE rtl/LIB/clktx.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/cdc_sync2.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/cdc_hs.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/cdc_busport.vhd
-set_global_assignment -name VHDL_FILE rtl/LIB/iordwait.vhd
+set_global_assignment -name VHDL_FILE rtl/LIB/fmwait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/m1wait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/gvwait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/gvstretch.vhd

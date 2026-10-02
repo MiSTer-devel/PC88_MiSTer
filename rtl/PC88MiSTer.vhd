@@ -617,14 +617,12 @@ port(
 );
 end component;
 
-component IORDWAIT
-generic(
-	PORT_NO	:std_logic_vector(7 downto 0)
-);
+component FMWAIT
 port(
-	ADR		:in std_logic_vector(7 downto 0);
+	SEL		:in std_logic;
 	IORQn	:in std_logic;
 	RDn		:in std_logic;
+	WRn		:in std_logic;
 	en		:in std_logic;
 
 	WAITn	:out std_logic;
@@ -1437,6 +1435,7 @@ signal	IDAT_SLOW	:std_logic_vector(7 downto 0);
 signal	SLOW_OE		:std_logic;
 signal	SLOW_WAITn	:std_logic;
 signal	IO_WAIT		:std_logic;
+signal	FMWSEL		:std_logic;
 signal	M1_WAITn	:std_logic;
 signal	V1S4M		:std_logic;
 signal	WAIT_nb		:std_logic;
@@ -2402,8 +2401,14 @@ port map(
 
 
 --	IOWA	:IOWAIT port map(IORQ_n,RD_n,WR_n,IO_WAIT,cpu_clk,srstn);
-	-- One wait state on IN from 44h at 8MHz, as measured on a real FH.
-	IOW44	:IORDWAIT generic map(x"44") port map(CPUADR(7 downto 0),IORQ_n,RD_n,CPUMD,IO_WAIT,rclk,cpuce_f,CPU_rstnr);
+	-- One wait state on IN and OUT at the sound ports at 8MHz. A real FH and MA wait on IN at
+	-- 44h-47h and on OUT at 44h and 46h, whatever is fitted there. OUT at 45h and 47h is taken
+	-- to be the same, and so are A8h,A9h,ACh,ADh while Sound Board II is an expansion, as the
+	-- onboard OPNA on the MA.
+	FMWSEL<=	'1' when CPUADR(7 downto 2)="010001" else
+				'1' when cSB2='0' and CPUADR(7 downto 3)&CPUADR(1)="101010" else
+				'0';
+	FMW		:FMWAIT port map(FMWSEL,IORQ_n,RD_n,WR_n,CPUMD,IO_WAIT,rclk,cpuce_f,CPU_rstnr);
 	-- One wait state on every opcode fetch in V1S and N at 4MHz, as measured on a real FH.
 	V1S4M<='1' when cV1S='1' and CPUMD='0' else '0';
 	WAIT_other<=not WAIT_nb;
