@@ -631,6 +631,15 @@ port(
 );
 end component;
 
+component cdc_sync2
+port(
+	d		:in std_logic;
+	q		:out std_logic;
+
+	clk		:in std_logic
+);
+end component;
+
 component FMWAIT
 port(
 	SEL		:in std_logic;
@@ -1676,6 +1685,11 @@ signal	INTn_SB1	:std_logic;
 signal	INTn_SB2	:std_logic;
 signal	SINTM		:std_logic;
 signal	S2INTM		:std_logic;
+signal	SINTMf		:std_logic;
+signal	S2INTMf		:std_logic;
+signal	INT4f		:std_logic;
+signal	INTLf		:std_logic_vector(2 downto 0);
+signal	INTLr		:std_logic_vector(2 downto 0);
 
 signal	TXTen		:std_logic;
 signal	TenSw		:std_logic;
@@ -1882,11 +1896,28 @@ begin
 	--Port 40h below keeps the raw VRTC; this path gains one rclk cycle of latency.
 	VRTCi<=not VRTCr;
 
-	INT0n<=not INT_COMRX;
+	-- The interrupt controller runs on rclk with the CPU. The 8251, the 600Hz timer and
+	-- the sound chips run on clk21m, so each of their lines crosses as one bit. The two
+	-- sound lines are combined with their masks on clk21m first: synchronized apart, the
+	-- two could swap on the same clk21m edge and give a false falling edge. The lines
+	-- are registered on clk21m before they cross, as the combined line can glitch.
+	SINTMs	:cdc_sync2 port map(SINTM,SINTMf,clk21m);
+	S2INTMs	:cdc_sync2 port map(S2INTM,S2INTMf,clk21m);
+	INT4f<=(INTn_OPN or SINTMf) and (INTn_FM2 or S2INTMf);
+	process(clk21m)begin
+		if(clk21m' event and clk21m='1')then
+			INTLf<=INT4f & RTI & INT_COMRX;
+		end if;
+	end process;
+	INT0s	:cdc_sync2 port map(INTLf(0),INTLr(0),rclk);
+	INT2s	:cdc_sync2 port map(INTLf(1),INTLr(1),rclk);
+	INT4s	:cdc_sync2 port map(INTLf(2),INTLr(2),rclk);
+
+	INT0n<=not INTLr(0);
 	INT1n<=VRTCi;
-	INT2n<=RTI;
+	INT2n<=INTLr(1);
 	INT3n<='1';
-	INT4n<=(INTn_OPN or SINTM) and (INTn_FM2 or S2INTM);
+	INT4n<=INTLr(2);
 	INT5n<='1';
 	INT6n<='1';
 	INT7n<='1';
@@ -1917,8 +1948,8 @@ begin
 	cpuclk		=>rclk,
 	ce_r		=>cpuce_r,
 	ce_f		=>cpuce_f,
-	clk			=>clk21m,
-	rstn		=>CPU_rstn,
+	clk			=>rclk,
+	rstn		=>CPU_rstnr,
 	rstnc		=>CPU_rstnr
 	);
 	
