@@ -37,6 +37,12 @@ port(
 	AT0		:out std_logic;						--Color
 	SC		:out std_logic;						--??
 	ATTR	:out std_logic_vector(4 downto 0);	--Attribute length
+
+	--L, R and V of the last RESET whose parameters were all written
+	SETL	:out std_logic_vector(5 downto 0);
+	SETR	:out std_logic_vector(4 downto 0);
+	SETV	:out std_logic_vector(2 downto 0);
+	SETOK	:out std_logic;
 	
 	mon0	:out std_logic_vector(7 downto 0);
 	mon1	:out std_logic_vector(7 downto 0);
@@ -57,6 +63,9 @@ signal	IOWRn	:std_logic;
 signal	lWRn	:std_logic;
 signal	INTen	:std_logic;
 signal	DSPen	:std_logic;
+signal	sL		:std_logic_vector(5 downto 0);
+signal	sR		:std_logic_vector(4 downto 0);
+signal	sV		:std_logic_vector(2 downto 0);
 begin
 	IOWRn<=IORQn or WRn;
 	process(clk,rstn)begin
@@ -73,6 +82,7 @@ begin
 			REVERSE<='0';
 			INTen<='0';
 			DSPen<='0';
+			SETOK<='0';
 			mon1<=x"00";
 			mon2<=x"00";
 			mon3<=x"00";
@@ -121,6 +131,7 @@ begin
 						when 1 =>
 							B<=DATIN(7 downto 6);
 							L<=DATIN(5 downto 0);
+							sL<=DATIN(5 downto 0);
 							if(DATIN(5 downto 0)="010011")then	--x"93":20 Lines
 								VMODE<='0';
 							--elsif(DATIN(5 downto 0)="011000")then	--x"98":25 Lines
@@ -132,9 +143,11 @@ begin
 							S<=DATIN(7);
 							C<=DATIN(6 downto 5);
 							R<=DATIN(4 downto 0);
+							sR<=DATIN(4 downto 0);
 							mon2<=DATIN;
 						when 3 =>
 							V<=DATIN(7 downto 5);
+							sV<=DATIN(7 downto 5);
 							Z<=DATIN(4 downto 0);
 							mon3<=DATIN;
 						when 4 =>
@@ -143,6 +156,10 @@ begin
 							SC<=DATIN(5);
 							ATTR<=DATIN(4 downto 0);
 							mon4<=DATIN;
+							SETL<=sL;
+							SETR<=sR;
+							SETV<=sV;
+							SETOK<='1';
 						when others=>
 						end case;
 					when x"80" =>

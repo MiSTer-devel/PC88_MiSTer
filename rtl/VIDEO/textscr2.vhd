@@ -33,8 +33,8 @@ port(
 	VMODE	:in std_logic;
 	
 	UCOUNT	:in integer range 0 to DOTPU-1;
-	HUCOUNT	:in integer range 0 to (HWIDTH/DOTPU)-1;
-	VCOUNT	:in integer range 0 to VWIDTH-1;
+	HUCOUNT	:in integer range 0 to HUWMAX-1;
+	VCOUNT	:in integer range 0 to VWMAX-1;
 	HCOMP	:in std_logic;
 	VCOMP	:in std_logic;
 
@@ -42,7 +42,11 @@ port(
 	rstn	:in std_logic;
 	ce		:in std_logic := '1';
 
-	CURVMODE	:out std_logic	-- VMODE taken at VCOMP: the row height being drawn
+	CURVMODE	:out std_logic;	-- VMODE taken at VCOMP: the row height being drawn
+
+	VT24	:in std_logic	:='0';		-- 1:24kHz timing
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz timing
+	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24	-- character height in 24kHz timing
 );
 end TEXTSCR2;
 
@@ -60,6 +64,12 @@ signal	DHCOMP	:std_logic;
 signal	DVCOMP	:std_logic;
 signal	C_LOW	:integer range 0 to 31;
 signal	C_LIN	:integer range 0 to 19;
+signal	C_LIN31	:integer range 0 to 19;
+signal	C_LIN24	:integer range 0 to 19;
+signal	LBASE	:integer range 0 to VWMAX-1;	-- 24kHz: first line of the row being drawn
+signal	LDIFF	:integer range -VWMAX to VWMAX;
+signal	vivs	:integer range 0 to VWMAX-1;
+signal	hivs	:integer range 0 to HUWMAX-1;
 signal	C_COL	:integer range 0 to 127;
 signal	iCURL	:integer range 0 to 31;
 signal	iCURC	:integer range 0 to 127;
@@ -69,6 +79,7 @@ signal	CICOUNT	:integer range 0 to CBLINKINT-1;
 signal	BLKF	:std_logic;
 signal	BICOUNT	:integer range 0 to BLINKINT-1;
 signal	CHRLINES	:integer range 0 to 20;
+signal	CHRL31	:integer range 16 to 20;
 signal	VMODEC	:std_logic;
 signal	HMODEC	:std_logic;
 
@@ -94,8 +105,34 @@ begin
 	Hdelay	:delayer generic map(1) port map(HCOMP,DHCOMP,clk,rstn,ce);
 	Vdelay	:delayer generic map(2) port map(VCOMP,DVCOMP,clk,rstn,ce);
 
-	C_LIN<=0 when VCOUNT<VIV else (VCOUNT-VIV)mod CHRLINES;
-	C_COL<=0 when HUCOUNT<HIV else HUCOUNT-HIV;
+	vivs<=VRET24 when VT24='1' else VIV;
+	hivs<=HIV24 when VT24='1' else HIV;
+
+	C_LIN31<=0 when VCOUNT<VIV else (VCOUNT-VIV)mod CHRL31;
+	--24kHz: the character height is not fixed, so count from the first line of the row
+	LDIFF<=VCOUNT-LBASE;
+	C_LIN24<=0 when VCOUNT<vivs or LDIFF<0 else
+			LDIFF when LDIFF<CHRLINES else
+			LDIFF-CHRLINES when LDIFF<CHRLINES*2 else
+			0;
+	C_LIN<=C_LIN24 when VT24='1' else C_LIN31;
+	C_COL<=0 when HUCOUNT<hivs else HUCOUNT-hivs;
+
+	process(clk,rstn)begin
+		if(rstn='0')then
+			LBASE<=0;
+		elsif(clk' event and clk='1')then
+		 if(ce='1')then
+			if(VCOUNT<vivs)then
+				LBASE<=vivs;
+			elsif(LDIFF<0 or LDIFF>=CHRLINES*2)then
+				LBASE<=VCOUNT;	-- after reset the count starts inside the display
+			elsif(LDIFF>=CHRLINES)then
+				LBASE<=LBASE+CHRLINES;
+			end if;
+		 end if;
+		end if;
+	end process;
 
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -149,7 +186,8 @@ begin
 		end if;
 	end process;
 
-	CHRLINES<=16 when VMODEC='1' else 20;
+	CHRL31<=16 when VMODEC='1' else 20;
+	CHRLINES<=CHRL24 when VT24='1' else CHRL31;
 	CURVMODE<=VMODEC;
 
 	process (clk,rstn)
@@ -171,7 +209,7 @@ begin
 
 -- Data	section
 			if(DHCOMP='1')then
-				if(VCOUNT>VIV)then
+				if(VCOUNT>vivs)then
 					if(C_LIN/=0)then
 						TRAMADRb<=TRAMADRb-(HUVIS*2);
 					else
@@ -191,11 +229,11 @@ begin
 				else
 					FRAMADR(3 downto 0)<=(others=>'0');
 				end if;
-				if(VCOUNT>=VIV and HUCOUNT>=HIV)then
+				if(VCOUNT>=vivs and HUCOUNT>=hivs)then
 					TRAMADRb<=TRAMADRb+1;
 				end if;
 			elsif(UCOUNT=6)then
-				if(VCOUNT>=VIV and HUCOUNT>=HIV)then
+				if(VCOUNT>=vivs and HUCOUNT>=hivs)then
 					if((TRAMDAT(3)='1' and BLKF='1') or (TRAMDAT(5)='1'))then
 						BNXTDOT0:=(others=>'0');
 						BNXTDOT1:=(others=>'0');

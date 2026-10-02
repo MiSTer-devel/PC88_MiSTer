@@ -84,7 +84,7 @@ port(
 
     -- DIP switch, Lamp ports
 	pDip        : in std_logic_vector(9 downto 0);
-	pCoreConfig	: in std_logic_vector(1 downto 0);
+	pCoreConfig	: in std_logic_vector(2 downto 0);
 	pLed        : out std_logic;
 	pPsw		: in std_logic_vector(1 downto 0);
 	pMonDbus	:out std_logic_vector(7 downto 0);
@@ -97,6 +97,7 @@ port(
 	pVideoVS		: out std_logic;
 	pVideoEn	: out std_logic;
 	pVideoClk	: out std_logic;
+	pVideo24k	: out std_logic;	-- 1:24kHz timing (taken at reset)
 	pSndL			: out std_logic_vector(15 downto 0);
 	pSndR			: out std_logic_vector(15 downto 0);
 	
@@ -307,7 +308,8 @@ component TEXTRAM
 		wren_b		: IN STD_LOGIC  := '0';
 		q_a		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
 		q_b		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
-		ce		: IN STD_LOGIC  := '1'
+		ce_a		: IN STD_LOGIC  := '1';
+		ce_b		: IN STD_LOGIC  := '1'
 	);
 END component;
 
@@ -370,7 +372,14 @@ port(
 	cpuclk		:in std_logic;
 	cpuce		:in std_logic := '1';
 	clk			:in std_logic;
-	rstn		:in std_logic
+	rstn		:in std_logic;
+
+	VT24		:in std_logic	:='0';
+	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
+	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
+	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
+	SETOK		:in std_logic	:='0';
+	TSET		:out std_logic_vector(17 downto 0)
 );
 end component;
 
@@ -409,6 +418,11 @@ port(
 	AT0		:out std_logic;						--Color
 	SC		:out std_logic;						--??
 	ATTR	:out std_logic_vector(4 downto 0);	--Attribute length
+
+	SETL	:out std_logic_vector(5 downto 0);
+	SETR	:out std_logic_vector(4 downto 0);
+	SETV	:out std_logic_vector(2 downto 0);
+	SETOK	:out std_logic;
 	
 	mon0	:out std_logic_vector(7 downto 0);
 	mon1	:out std_logic_vector(7 downto 0);
@@ -684,6 +698,8 @@ port(
 	VMODE		:in std_logic;
 	CPUMD		:in std_logic;
 	GVSTR		:in std_logic;
+	VT24		:in std_logic;
+	TSET		:in std_logic_vector(17 downto 0);
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -1343,6 +1359,13 @@ signal	c40C		:std_logic;
 signal	cDisk		:std_logic;
 signal	cInDev		:std_logic;
 signal	cSB2		:std_logic;
+signal	VT24m,VT24	:std_logic	:='0';	-- 24kHz timing, taken at reset
+signal	CRTC_SETL	:std_logic_vector(5 downto 0);
+signal	CRTC_SETR	:std_logic_vector(4 downto 0);
+signal	CRTC_SETV	:std_logic_vector(2 downto 0);
+signal	CRTC_SETOK	:std_logic;
+signal	CRTC_TSET	:std_logic_vector(17 downto 0);
+signal	TCROSS_ce	:std_logic;
 
 signal	SDI			:std_logic;
 signal	CPUADR		:std_logic_vector(15 downto 0);
@@ -1777,6 +1800,17 @@ begin
 		end if;
 	end process;
 
+	--The video timing changes only at reset.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			VT24m<=pCoreConfig(2);
+			if(CPU_rstnr='0')then
+				VT24<=VT24m;
+			end if;
+		end if;
+	end process;
+	pVideo24k<=VT24;
+
 	srstna<=plllocked;	--LOADER_DONE and 
 	
 	process(rclk,srstna)begin
@@ -2114,11 +2148,16 @@ port map(
 		end if;
 	end process;
 
+	--In 24kHz timing the dot enable is 3 or 4 clocks apart, so the text RAM ports
+	--used by the CPU and by TRAMCONV (clk21m) take every clock instead.
+	TCROSS_ce<='1' when VT24='1' else vid_ce3;
+
 	TRAM	:TEXTRAM port map(
 		address_a		=>TRAM_ADR,
 		address_b		=>TCNV_TADR,
 		clock			=>rclk,
-		ce				=>vid_ce3,
+		ce_a			=>TCROSS_ce,
+		ce_b			=>TCROSS_ce,
 		data_a			=>CPUDAT_W,
 		data_b			=>(others=>'0'),
 		wren_a			=>TRAM_CE and (not WR_n),
@@ -2144,6 +2183,8 @@ port map(
 	VMODE		=>CRTC_VMODE,
 	CPUMD		=>CPUMD,
 	GVSTR		=>GVSTRr,
+	VT24		=>VT24,
+	TSET		=>CRTC_TSET,
 	
 	TADR_TOP	=>TRAMTOP,
 
@@ -2186,7 +2227,8 @@ tmap	:trammaps generic map(RAMAWIDTH) port map(
 		address_a		=>TVRAM_ADR,
 		address_b		=>CRTC_TADR,
 		clock			=>rclk,
-		ce				=>vid_ce3,
+		ce_a			=>TCROSS_ce,
+		ce_b			=>vid_ce3,
 		data_a			=>TVRAM_WDAT,
 		data_b			=>(others=>'0'),
 		wren_a			=>TVRAM_WE,
@@ -2223,6 +2265,11 @@ port map(
 	SC		=>SPCHR,
 	
 	ATTR	=>ATTRLEN,
+
+	SETL	=>CRTC_SETL,
+	SETR	=>CRTC_SETR,
+	SETV	=>CRTC_SETV,
+	SETOK	=>CRTC_SETOK,
 
 	clk		=>rclk,
 	rstn	=>CPU_rstnr,
@@ -2521,7 +2568,14 @@ port map(
 	cpuclk		=>rclk,
 	cpuce		=>cpuce_r,
 	clk			=>rclk,
-	rstn		=>CPU_rstnr
+	rstn		=>CPU_rstnr,
+
+	VT24		=>VT24,
+	SETL		=>CRTC_SETL,
+	SETR		=>CRTC_SETR,
+	SETV		=>CRTC_SETV,
+	SETOK		=>CRTC_SETOK,
+	TSET		=>CRTC_TSET
 	);
 
 	vidR8<=vidR3 & vidR3 & vidR3(2 downto 1);

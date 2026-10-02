@@ -24,14 +24,17 @@ port(
 	MONOEN	:in std_logic_vector(2 downto 0);
 	
 	UCOUNT	:in integer range 0 to DOTPU-1;
-	HUCOUNT	:in integer range 0 to (HWIDTH/DOTPU)-1;
-	VCOUNT	:in integer range 0 to VWIDTH-1;
+	HUCOUNT	:in integer range 0 to HUWMAX-1;
+	VCOUNT	:in integer range 0 to VWMAX-1;
 	HCOMP	:in std_logic;
 	VCOMP	:in std_logic;
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	ce		:in std_logic := '1'
+	ce		:in std_logic := '1';
+
+	VT24	:in std_logic	:='0';		-- 1:24kHz timing
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24	-- retrace lines in 24kHz timing
 );
 end GRAPHSCR;
 
@@ -101,6 +104,8 @@ signal	MONOFL0	:std_logic_vector(7 downto 0);
 signal	MONOFL1	:std_logic_vector(7 downto 0);
 signal	MONOFL2	:std_logic_vector(7 downto 0);
 signal  BUFWEL : std_logic;
+signal	vivs	:integer range 0 to VWMAX-1;
+signal	hivs	:integer range 0 to HUWMAX-1;
 
 begin
 	buf0    :graphbuf port map(clk,WDAT0,RADR,WADR,BUFWEL,RDAT0,ce);
@@ -116,6 +121,9 @@ begin
 	WDATE<=(others=>'1') when LINEEN='1' else (others=>'0');
 	
 	GRAMADR<=GRAMADRb;
+
+	vivs<=VRET24 when VT24='1' else VIV;
+	hivs<=HIV24 when VT24='1' else HIV;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -133,12 +141,12 @@ begin
 			case BUFSTATE is
 			when BS_IDLE =>
 				if(HUCOUNT=0 and UCOUNT=0)then
-					if(VCOUNT=VIV)then
+					if(VCOUNT=vivs)then
 						GRAMADRb<=(others=>'0');
 						DAT1SEL<='0';
 						LOWRESb<=LOWRES;
 						LINEEN<='1';
-					elsif(VCOUNT=(VIV+(VVIS/2)) and LOWRESb='0')then
+					elsif(VCOUNT=(vivs+(VVIS/2)) and LOWRESb='0')then
 						GRAMADRb<=(others=>'0');
 						DAT1SEL<='1';
 						LINEEN<='1';
@@ -237,7 +245,7 @@ begin
 			-- VVISCV:=conv_std_logic_vector(VVISCOUNT,9);
 
 			if(UCOUNT=4)then
-				if(VCOUNT>=VIV and HUCOUNT>=HIV)then
+				if(VCOUNT>=vivs and HUCOUNT>=hivs)then
 					NXTDOT0<=RDAT0;
 					NXTDOT1<=RDAT1;
 					NXTDOT2<=RDAT2;
