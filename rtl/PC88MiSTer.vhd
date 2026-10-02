@@ -936,6 +936,8 @@ port(
 	RDAT	:out std_logic_vector(7 downto 0);
 	OE		:out std_logic;
 	WAITn	:out std_logic;
+	FMSEL	:in std_logic	:='0';
+	SB2C	:in std_logic	:='0';
 
 	cclk	:in std_logic;
 	crstn	:in std_logic;
@@ -946,6 +948,17 @@ port(
 	COM_C_Dn:out std_logic;
 	COM_WDAT:out std_logic_vector(7 downto 0);
 	COM_RDAT:in std_logic_vector(7 downto 0);
+
+	FM_WDAT	:out std_logic_vector(7 downto 0);
+	FM_CEN	:in std_logic	:='0';
+	FM1_WRn	:out std_logic;
+	FM1_ADR	:out std_logic;
+	FM1_RDAT:in std_logic_vector(7 downto 0)	:=(others=>'1');
+	FM2_CSn	:out std_logic;
+	FM2_WRn	:out std_logic;
+	FM2_RDn	:out std_logic;
+	FM2_ADR	:out std_logic_vector(1 downto 0);
+	FM2_RDAT:in std_logic_vector(7 downto 0)	:=(others=>'1');
 
 	fclk	:in std_logic;
 	frstn	:in std_logic
@@ -1159,17 +1172,6 @@ port(
 	rstn	:in std_logic;
 	cpuce	:in std_logic := '1';
 	rstnc	:in std_logic
-);
-end component;
-
-component fmwrsync
-port(
-	CSn		:in std_logic;
-	WRn		:in std_logic;
-	WROn	:out std_logic;
-
-	clk		:in std_logic;
-	rstn	:in std_logic
 );
 end component;
 
@@ -1443,11 +1445,7 @@ signal	PPIFD_OE	:std_logic;
 signal	IDAT_PSG	:std_logic_vector(7 downto 0);
 signal	PSG_OE		:std_logic;
 signal	IDAT_SB1	:std_logic_vector(7 downto 0);
-signal	SB1_OE		:std_logic;
 signal	IDAT_SB2	:std_logic_vector(7 downto 0);
-signal	SB2_OE		:std_logic;
-signal	FM1_OE		:std_logic;
-signal	FM2_OE		:std_logic;
 signal	IDAT_COM	:std_logic_vector(7 downto 0);
 signal	COM_CSn		:std_logic;
 signal	COM_RDn		:std_logic;
@@ -1459,6 +1457,12 @@ signal	SLOW_OE		:std_logic;
 signal	SLOW_WAITn	:std_logic;
 signal	IO_WAIT		:std_logic;
 signal	FMWSEL		:std_logic;
+signal	sb2c		:std_logic;
+signal	MP_FMSEL	:std_logic;
+signal	FM_WDAT		:std_logic_vector(7 downto 0);
+signal	SB1_ADR		:std_logic;
+signal	SB2_WRn		:std_logic;
+signal	SB2_RDn		:std_logic;
 signal	M1_WAITn	:std_logic;
 signal	V1S4M		:std_logic;
 signal	WAIT_nb		:std_logic;
@@ -1509,11 +1513,8 @@ signal	TXTWINEN	:std_logic;
 signal	VRTCi		:std_logic;
 signal	PPIFD_CSn	:std_logic;
 signal	PSG_CEn		:std_logic;
-signal	SB1_CEn		:std_logic;
 signal	SB1_WRn		:std_logic;
 signal	SB2_CEn		:std_logic;
-signal	FM1_CEn		:std_logic;
-signal	FM2_CEn		:std_logic;
 
 signal	TCNV_TDAT	:std_logic_vector(7 downto 0);
 signal	TCNV_TADR	:std_logic_vector(11 downto 0);
@@ -2451,10 +2452,19 @@ port map(
 	-- One wait state on IN and OUT at the sound ports at 8MHz. A real FH and MA wait on IN at
 	-- 44h-47h and on OUT at 44h and 46h, whatever is fitted there. OUT at 45h and 47h is taken
 	-- to be the same, and so are A8h,A9h,ACh,ADh while Sound Board II is an expansion, as the
-	-- onboard OPNA on the MA.
+	-- onboard OPNA on the MA. The setting is the one held for the access (sb2c), as for the
+	-- port (MP) and the chip it reaches.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			if(IORQ_n='1')then
+				sb2c<=cSB2;
+			end if;
+		end if;
+	end process;
 	FMWSEL<=	'1' when CPUADR(7 downto 2)="010001" else
-				'1' when cSB2='0' and CPUADR(7 downto 3)&CPUADR(1)="101010" else
+				'1' when sb2c='0' and CPUADR(7 downto 3)&CPUADR(1)="101010" else
 				'0';
+	MP_FMSEL<=FMWSEL when USE_OPN=5 else '0';
 	FMW		:FMWAIT port map(FMWSEL,IORQ_n,RD_n,WR_n,CPUMD,IO_WAIT,rclk,cpuce_f,CPU_rstnr);
 	-- One wait state on every opcode fetch in V1S and N at 4MHz, as measured on a real FH.
 	V1S4M<='1' when cV1S='1' and CPUMD='0' else '0';
@@ -2911,22 +2921,12 @@ end process;
 			
 	end generate;
 	selDualFM	:if USE_OPN=5 generate
-		FM1_CEn<=IORQ_n	when CPUADR(7 downto 2)="010001" else '1';		--0x44,45,46,47
-		FM1_OE<='1' 	when CPUADR(7 downto 2)="010001" and IORQ_n='0' and RD_n='0' else '0';
-		FM2_CEn<=IORQ_n when CPUADR(7 downto 3)&CPUADR(1) ="101010" else '1';		--0xA8,A9,AC,AD
-		FM2_OE<='1'		when CPUADR(7 downto 3)&CPUADR(1) ="101010" and IORQ_n='0' and RD_n='0' else '0';
-		
-		--The onboard OPN is only at 0x44,45 (as with USE_OPN=3); 0x46,47 read 0xFF
-		SB1_CEn <= FM1_CEn	when (cSB2='0' and CPUADR(1)='0') else '1';
-		SB1_OE	<= FM1_OE	when (cSB2='0' and CPUADR(1)='0') else '0';
-		SB2_CEn <= FM2_CEn	when (cSB2='0') else FM1_CEn;
-		SB2_OE	<= FM2_OE	when (cSB2='0') else FM1_OE;
-		SB2_ADR <= CPUADR(2)&CPUADR(0) when (cSB2='0') else CPUADR(1 downto 0);
+		--The CPU reaches both chips through MP, which picks the chip and holds the address and data.
 		INTn_OPN<= INTn_SB1 when (cSB2='0') else INTn_SB2;
 		INTn_FM2<= INTn_SB2 when (cSB2='0') else '1';
 
-		PSG_OE	<= SB1_OE or SB2_OE;
-		IDAT_PSG<= IDAT_SB1 when SB1_OE='1' else IDAT_SB2;
+		PSG_OE	<= '0';
+		IDAT_PSG<= (others=>'1');
 
 		FMDDS: DDS_OPN generic map(1248,3125) port map (
 			rst		=>not srstna,
@@ -2946,22 +2946,12 @@ end process;
 		end process;
 		cen_opn <= cen_opna and cen_4m;
 
-		--The OPN runs on clk21m but its write strobe comes from the CPU clock
-		FMSB1W: fmwrsync port map(
-			CSn		=>SB1_CEn,
-			WRn		=>WR_n,
-			WROn	=>SB1_WRn,
-
-			clk		=>clk21m,
-			rstn	=>CPU_rstn
-		);
-
 		FMSB1: JT03 port map (
 			rst		=>not CPU_rstn,
 			clk		=>clk21m,
 			cen		=>cen_opn,
-			din		=>CPUDAT_W,
-			addr	=>CPUADR(0),
+			din		=>FM_WDAT,
+			addr	=>SB1_ADR,
 			cs_n	=>SB1_WRn,
 			wr_n	=>SB1_WRn,
 
@@ -2992,11 +2982,11 @@ end process;
 			rst		=>not CPU_rstn,
 			clk		=>clk21m, 
 			cen		=>cen_opna,
-			din		=>CPUDAT_W,
+			din		=>FM_WDAT,
 			addr	=>SB2_ADR,
 			cs_n	=>SB2_CEn,
-			wr_n	=>WR_n,
-			rd_n	=>RD_n,
+			wr_n	=>SB2_WRn,
+			rd_n	=>SB2_RDn,
 
 			dout	=>IDAT_SB2,
 			irq_n	=>INTn_SB2,
@@ -3054,6 +3044,8 @@ end process;
 		RDAT	=>IDAT_SLOW,
 		OE		=>SLOW_OE,
 		WAITn	=>SLOW_WAITn,
+		FMSEL	=>MP_FMSEL,
+		SB2C	=>sb2c,
 
 		cclk	=>rclk,
 		crstn	=>CPU_rstnr,
@@ -3064,6 +3056,17 @@ end process;
 		COM_C_Dn=>COM_C_Dn,
 		COM_WDAT=>COM_WDAT,
 		COM_RDAT=>IDAT_COM,
+
+		FM_WDAT	=>FM_WDAT,
+		FM_CEN	=>cen_opna,
+		FM1_WRn	=>SB1_WRn,
+		FM1_ADR	=>SB1_ADR,
+		FM1_RDAT=>IDAT_SB1,
+		FM2_CSn	=>SB2_CEn,
+		FM2_WRn	=>SB2_WRn,
+		FM2_RDn	=>SB2_RDn,
+		FM2_ADR	=>SB2_ADR,
+		FM2_RDAT=>IDAT_SB2,
 
 		fclk	=>clk21m,
 		frstn	=>CPU_rstn
