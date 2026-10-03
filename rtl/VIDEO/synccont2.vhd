@@ -63,13 +63,13 @@ signal	VIDENEN:std_logic;
 signal	hfps,hsye,hivs	:integer range 0 to HUWMAX;
 signal	vfps,vsye,vivs,viv2s	:integer range 0 to VWMAX;
 begin
-	--24kHz: front porch, sync 2, back porch 38 in the retrace lines
+	--24kHz: front porch 7, sync 2, back porch in the retrace lines
 	--15kHz: front porch 15, sync 3, back porch in the retrace lines
 	hfps<=	HFP15 when VT15='1' else HFP24 when VT24='1' else HFP;
 	hsye<=	HFP15+HSY15 when VT15='1' else HFP24+HSY24 when VT24='1' else HFP+HSY;
 	hivs<=	HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
-	vfps<=	VFP15 when VT15='1' else VRET24-VRETMIN24 when VT24='1' else VFP;
-	vsye<=	VFP15+VSY15 when VT15='1' else VRET24-VBP24 when VT24='1' else VFP+VSY;
+	vfps<=	VFP15 when VT15='1' else VFP24 when VT24='1' else VFP;
+	vsye<=	VFP15+VSY15 when VT15='1' else VFP24+VSY24 when VT24='1' else VFP+VSY;
 	vivs<=	VRET24 when VT24='1' else VIV;
 	viv2s<=	VRET24 when VT24='1' else VIV2;
 
