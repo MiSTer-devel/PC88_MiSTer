@@ -12,11 +12,13 @@ generic(
 );
 port(
 	TRAMADR	:out std_logic_vector(11 downto 0);
-	TRAMDAT	:in std_logic_vector(7 downto 0);
+	TRAMDAT	:in std_logic_vector(8 downto 0);	-- bit 8 of an attribute: over line
 	
 	FRAMADR	:out std_logic_vector(11 downto 0);
 	FRAMDAT0:in std_logic_vector( 7 downto 0);
 	FRAMDAT1:in std_logic_vector( 7 downto 0);
+	FRAMADR8:out std_logic_vector(10 downto 0);	-- 8x8 font, used in 24kHz and 15kHz timing
+	FRAMDAT8:in std_logic_vector( 7 downto 0);
 	
 	BITOUT	:out std_logic;
 	FGCOLOR	:out std_logic_vector(2 downto 0);
@@ -44,9 +46,10 @@ port(
 
 	CURVMODE	:out std_logic;	-- VMODE taken at VCOMP: the row height being drawn
 
-	VT24	:in std_logic	:='0';		-- 1:24kHz timing
-	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz timing
-	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24	-- character height in 24kHz timing
+	VT24	:in std_logic	:='0';		-- 1:24kHz or 15kHz timing (lines from the CRTC)
+	VT15	:in std_logic	:='0';		-- 1:15kHz timing
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz or 15kHz timing
+	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24	-- character height in 24kHz or 15kHz timing
 );
 end TEXTSCR2;
 
@@ -66,6 +69,7 @@ signal	C_LOW	:integer range 0 to 31;
 signal	C_LIN	:integer range 0 to 19;
 signal	C_LIN31	:integer range 0 to 19;
 signal	C_LIN24	:integer range 0 to 19;
+signal	C_LIN2	:integer range 0 to 38;	-- C_LIN in the lines of a 16-line glyph
 signal	LBASE	:integer range 0 to VWMAX-1;	-- 24kHz: first line of the row being drawn
 signal	LDIFF	:integer range -VWMAX to VWMAX;
 signal	vivs	:integer range 0 to VWMAX-1;
@@ -106,7 +110,7 @@ begin
 	Vdelay	:delayer generic map(2) port map(VCOMP,DVCOMP,clk,rstn,ce);
 
 	vivs<=VRET24 when VT24='1' else VIV;
-	hivs<=HIV24 when VT24='1' else HIV;
+	hivs<=HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
 
 	C_LIN31<=0 when VCOUNT<VIV else (VCOUNT-VIV)mod CHRL31;
 	--24kHz: the character height is not fixed, so count from the first line of the row
@@ -116,6 +120,10 @@ begin
 			LDIFF-CHRLINES when LDIFF<CHRLINES*2 else
 			0;
 	C_LIN<=C_LIN24 when VT24='1' else C_LIN31;
+	--15kHz draws a glyph line once, 24kHz and 31kHz twice. The 8x8 font and the
+	--graphic characters (4 lines a cell in 16) are read at C_LIN2, and lines from
+	--16 on (the bottom of a 20-line row) are blank.
+	C_LIN2<=C_LIN*2 when VT15='1' else C_LIN;
 	C_COL<=0 when HUCOUNT<hivs else HUCOUNT-hivs;
 
 	process(clk,rstn)begin
@@ -203,6 +211,7 @@ begin
 			NXTBL<='0';
 			TRAMADRb<=(others=>'0');
 			FRAMADR<=(others=>'0');
+			FRAMADR8<=(others=>'0');
 			C_LOW<=0;
 		elsif(clk' event and clk='1')then
 		 if(ce='1')then
@@ -223,11 +232,14 @@ begin
 			end if;
 			
 			if(UCOUNT=4)then
-					FRAMADR(11 downto 4)<=TRAMDAT;
-				if(C_LIN<16)then
-					FRAMADR(3 downto 0)<=conv_std_logic_vector(C_LIN,4);
+					FRAMADR(11 downto 4)<=TRAMDAT(7 downto 0);
+					FRAMADR8(10 downto 3)<=TRAMDAT(7 downto 0);
+				if(C_LIN2<16)then
+					FRAMADR(3 downto 0)<=conv_std_logic_vector(C_LIN2,4);
+					FRAMADR8(2 downto 0)<=conv_std_logic_vector(C_LIN2/2,3);
 				else
 					FRAMADR(3 downto 0)<=(others=>'0');
+					FRAMADR8(2 downto 0)<=(others=>'0');
 				end if;
 				if(VCOUNT>=vivs and HUCOUNT>=hivs)then
 					TRAMADRb<=TRAMADRb+1;
@@ -238,19 +250,29 @@ begin
 						BNXTDOT0:=(others=>'0');
 						BNXTDOT1:=(others=>'0');
 					else
-						if(C_LIN<16)then
-							BNXTDOT0:=FRAMDAT0;
+						if(C_LIN2<16)then
+							if(VT24='1')then
+								BNXTDOT0:=FRAMDAT8;
+							else
+								BNXTDOT0:=FRAMDAT0;
+							end if;
 							BNXTDOT1:=FRAMDAT1;
 						else
 							BNXTDOT0:=(others=>'0');
 							BNXTDOT1:=(others=>'0');
 						end if;
 					end if;
-					if(TRAMDAT(6)='1' and C_LIN=15)then	-- under line
+					--24kHz, 15kHz: the under line is the last line of the row, the over line
+					--the first, and the cursor the whole row or its last line.
+					if(TRAMDAT(6)='1' and ((VT24='0' and C_LIN=15) or (VT24='1' and C_LIN=CHRLINES-1)))then	-- under line
 						BNXTDOT0:=(others=>'1');
 						BNXTDOT1:=(others=>'1');
 					end if;
-					if(CURV='1' and C_LOW=iCURL and C_COL=iCURC and (CURM='1' or C_LIN>(CHRLINES-CURLINE-1)))then
+					if(VT24='1' and TRAMDAT(8)='1' and C_LIN=0)then	-- over line
+						BNXTDOT0:=(others=>'1');
+						BNXTDOT1:=(others=>'1');
+					end if;
+					if(CURV='1' and C_LOW=iCURL and C_COL=iCURC and (CURM='1' or (VT24='0' and C_LIN>(CHRLINES-CURLINE-1)) or (VT24='1' and C_LIN=CHRLINES-1)))then
 						NXTDOT0<=not BNXTDOT0;
 						NXTDOT1<=not BNXTDOT1;
 					else

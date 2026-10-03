@@ -13,7 +13,7 @@ port(
 	PALEN		:in	std_logic	:='1';
 	
 	TRAM_ADR	:out std_logic_vector(11 downto 0);
-	TRAM_DAT	:in std_logic_vector(7 downto 0);
+	TRAM_DAT	:in std_logic_vector(8 downto 0);
 	
 	GRAMADR		:out std_logic_vector(13 downto 0);
 	GRAMRD		:out std_logic;
@@ -56,6 +56,7 @@ port(
 	FRAMWADR	:in std_logic_Vector(12 downto 0);
 	FRAMWDAT	:in std_logic_vector(7 downto 0);
 	FRAMWR	:in std_logic;
+	FRAM8WR	:in std_logic	:='0';	-- 8x8 font, at FRAMWADR(10 downto 0)
 
 	gclk		:out std_logic;
 	CE3			:out std_logic;
@@ -64,8 +65,10 @@ port(
 	clk			:in std_logic;
 	rstn		:in std_logic;
 
-	--24kHz timing: lines and blanking from the CRTC parameters
+	--24kHz or 15kHz timing: lines and blanking from the CRTC parameters
 	VT24		:in std_logic	:='0';
+	VT15		:in std_logic	:='0';
+	CTYPE		:in std_logic_vector(1 downto 0)	:="11";	-- cursor (24kHz, 15kHz): 1x whole row, x1 blink
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
@@ -90,6 +93,7 @@ generic(
 );	
 port(
 	VT24	:in std_logic	:='0';
+	VT15	:in std_logic	:='0';
 	VEND24	:in integer range 0 to VWMAX-1	:=VWMAX-1;
 
 	VCOUNT	:out integer range 0 to VWMAX-1;
@@ -111,11 +115,13 @@ end component;
 component TEXTSCR2 is
 port(
 	TRAMADR	:out std_logic_vector(11 downto 0);
-	TRAMDAT	:in std_logic_vector(7 downto 0);
+	TRAMDAT	:in std_logic_vector(8 downto 0);
 	
 	FRAMADR	:out std_logic_vector(11 downto 0);
 	FRAMDAT0:in std_logic_vector( 7 downto 0);
 	FRAMDAT1:in std_logic_vector( 7 downto 0);
+	FRAMADR8:out std_logic_vector(10 downto 0);
+	FRAMDAT8:in std_logic_vector( 7 downto 0);
 
 	BITOUT	:out std_logic;
 	FGCOLOR	:out std_logic_vector(2 downto 0);
@@ -144,6 +150,7 @@ port(
 	CURVMODE	:out std_logic;
 
 	VT24	:in std_logic	:='0';
+	VT15	:in std_logic	:='0';
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;
 	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24
 );
@@ -179,6 +186,7 @@ port(
 	ce		:in std_logic := '1';
 
 	VT24	:in std_logic	:='0';
+	VT15	:in std_logic	:='0';
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24
 );
 end component;
@@ -199,6 +207,7 @@ generic(
 );	
 port(
 	VT24	:in std_logic	:='0';
+	VT15	:in std_logic	:='0';
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;
 
 	UCOUNT	:in integer range 0 to DOTPU-1;
@@ -232,6 +241,17 @@ component fontram
 		q		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0)
 	);
 END component;
+
+component font8ram
+	port(
+		clock		:in std_logic := '1';
+		data		:in std_logic_vector(7 downto 0);
+		rdaddress	:in std_logic_vector(10 downto 0);
+		wraddress	:in std_logic_vector(10 downto 0);
+		wren		:in std_logic := '0';
+		q			:out std_logic_vector(7 downto 0)
+	);
+end component;
 
 component palette
 port(
@@ -301,6 +321,10 @@ signal T_BLINK	:std_logic;
 
 signal FRAMADR	:std_logic_vector(11 downto 0);
 signal FRAMDAT	:std_logic_vector(7 downto 0);
+signal FRAMADR8	:std_logic_vector(10 downto 0);
+signal FRAMDAT8	:std_logic_vector(7 downto 0);
+signal T_CURM	:std_logic;
+signal T_CBLINK	:std_logic;
 signal GRAMDAT	:std_logic_vector(7 downto 0);
 signal VISIBLE	:std_logic;
 signal FRAMWEN,GRAMWEN	:std_logic;
@@ -328,7 +352,7 @@ signal	VIDENb	:std_logic;
 signal F_REVERSE :std_logic;
 signal A_REVERSE :std_logic_vector(2 downto 0);
 
---24kHz: the CRTC parameters used for the frame being drawn, taken at the frame boundary
+--24kHz, 15kHz: the CRTC parameters used for the frame being drawn, taken at the frame boundary
 signal	aROWS	:integer range 1 to ROWSMAX24	:=ROWSDEF24;
 signal	aCHRL	:integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24;
 signal	aVRET	:integer range 0 to VWMAX-1	:=VRETDEF24;
@@ -338,6 +362,8 @@ signal	nROWS	:integer range 1 to 64;
 signal	nCHRL	:integer range 1 to 32;
 signal	nVRET	:integer range 0 to 256;
 signal	pVCOMP	:std_logic;
+signal	aDEF	:std_logic;	-- the clock after reset
+signal	vretmin	:integer range 0 to VRETMIN24;
 
 begin
 	TIM	:vtiming generic map(
@@ -351,17 +377,25 @@ begin
 	HSY		=>HSY,
 	VFP		=>VFP,
 	VSY		=>VSY
-) port map(VT24,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b);
-	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,'0','1',HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,aVRET,aCHRL);
-	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,aVRET);
+) port map(VT24,VT15,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b);
+	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL);
+	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET);
 
-	--24kHz: a parameter set is used from the next frame, if it is in range.
-	--Until one is written (power on, reset), the ROM's 25-line set is used.
+	--31kHz: the cursor is the bottom 4 lines, blinking. 24kHz, 15kHz: as set by the
+	--CRTC (C of the RESET command).
+	T_CURM<=CTYPE(1) when VT24='1' else '0';
+	T_CBLINK<=CTYPE(0) when VT24='1' else '1';
+
+	--24kHz, 15kHz: a parameter set is used from the next frame, if it is in range
+	--and its first row can be requested after TRAMCONV takes it (at CAPLINE).
+	--Until one is written (power on, reset), the ROM's 25-line set is used; in 15kHz
+	--it is loaded on the clock after reset.
 	--Taken on the clock after VCOMP rises, before the first dot of the new frame
 	--is sampled (VCOMP comes 1 clock after the wrap, the next dot 3 or 4 after it).
 	nROWS<=conv_integer(SETL)+1;
 	nCHRL<=conv_integer(SETR)+1;
 	nVRET<=(conv_integer(SETV)+1)*(conv_integer(SETR)+1);
+	vretmin<=VRETMIN15 when VT15='1' else VRETMIN24;
 	process(clk,rstn)begin
 		if(rstn='0')then
 			aROWS<=ROWSDEF24;
@@ -370,10 +404,17 @@ begin
 			aVEND<=ROWSDEF24*CHRLDEF24+VRETDEF24-1;
 			aREQ0<=VRETDEF24-CHRLDEF24;
 			pVCOMP<='0';
+			aDEF<='1';
 		elsif(clk' event and clk='1')then
 			pVCOMP<=VCOMP;
-			if(VCOMP='1' and pVCOMP='0' and SETOK='1')then
-				if(nROWS<=ROWSMAX24 and nCHRL>=CHRLMIN24 and nCHRL<=CHRLMAX24 and nVRET>=VRETMIN24)then
+			aDEF<='0';
+			if(aDEF='1' and VT15='1')then
+				aCHRL<=CHRLDEF15;
+				aVRET<=VRETDEF15;
+				aVEND<=ROWSDEF24*CHRLDEF15+VRETDEF15-1;
+				aREQ0<=VRETDEF15-CHRLDEF15;
+			elsif(VCOMP='1' and pVCOMP='0' and SETOK='1')then
+				if(nROWS<=ROWSMAX24 and nCHRL>=CHRLMIN24 and nCHRL<=CHRLMAX24 and nVRET>=vretmin and nVRET-nCHRL>CAPLINE)then
 					aROWS<=nROWS;
 					aCHRL<=nCHRL;
 					aVRET<=nVRET;
@@ -390,6 +431,7 @@ begin
 
 	FNT	:fontram port map(clk,FRAMWDAT,FRAMADR,FRAMWADR(11 downto 0),FRAMWEN,FRAMDAT);
 	GFNT	:fontram port map(clk,FRAMWDAT,FRAMADR,FRAMWADR(11 downto 0),GRAMWEN,GRAMDAT);
+	FNT8	:font8ram port map(clk,FRAMWDAT,FRAMADR8,FRAMWADR(10 downto 0),FRAM8WR,FRAMDAT8);
 
 	sync:synccont2 generic map(
 		DOTPU	=>DOTPU,
@@ -403,7 +445,7 @@ begin
 		HSY		=>HSY,
 		VFP		=>VFP,
 		VSY		=>VSY
-	) port map(VT24,aVRET,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk,rstn,ce3b);
+	) port map(VT24,VT15,aVRET,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk,rstn,ce3b);
 	
 	F_REVERSE <= T_BGCOLOR(0) xor REVERSE;
 	A_REVERSE <= (others=>F_REVERSE);

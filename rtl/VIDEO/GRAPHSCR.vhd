@@ -33,8 +33,9 @@ port(
 	rstn	:in std_logic;
 	ce		:in std_logic := '1';
 
-	VT24	:in std_logic	:='0';		-- 1:24kHz timing
-	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24	-- retrace lines in 24kHz timing
+	VT24	:in std_logic	:='0';		-- 1:24kHz or 15kHz timing (lines from the CRTC)
+	VT15	:in std_logic	:='0';		-- 1:15kHz timing: every line read once
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24	-- retrace lines in 24kHz or 15kHz timing
 );
 end GRAPHSCR;
 
@@ -123,7 +124,7 @@ begin
 	GRAMADR<=GRAMADRb;
 
 	vivs<=VRET24 when VT24='1' else VIV;
-	hivs<=HIV24 when VT24='1' else HIV;
+	hivs<=HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -144,7 +145,7 @@ begin
 					if(VCOUNT=vivs)then
 						GRAMADRb<=(others=>'0');
 						DAT1SEL<='0';
-						LOWRESb<=LOWRES;
+						LOWRESb<=LOWRES or VT15;	-- 15kHz: no 400-line mode
 						LINEEN<='1';
 					elsif(VCOUNT=(vivs+(VVIS/2)) and LOWRESb='0')then
 						GRAMADRb<=(others=>'0');
@@ -192,7 +193,7 @@ begin
 					end if;
 					BUFCNT<=BUFCNT+1;
 				else
-					if(LOWRESb='1')then
+					if(LOWRESb='1' and VT15='0')then
 						if(LINEEN='0')then
 							LINEEN<='1';
 						else

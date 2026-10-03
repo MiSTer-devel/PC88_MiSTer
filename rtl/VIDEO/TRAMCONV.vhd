@@ -28,8 +28,8 @@ port(
 	VMODE		:in std_logic	:='1';	-- text row height (rclk) 1:16 rasters 0:20
 	CPUMD		:in std_logic	:='0';	-- 0:4MHz 1:8MHz
 	GVSTR		:in std_logic	:='0';	-- 1:the CPU is slowed down (rclk)
-	VT24		:in std_logic	:='0';	-- 1:24kHz timing (rclk)
-	TSET		:in std_logic_vector(17 downto 0)	:=(others=>'0');	-- 24kHz: rows, height, first request line (rclk)
+	VT24		:in std_logic	:='0';	-- 1:24kHz or 15kHz timing (rclk)
+	TSET		:in std_logic_vector(17 downto 0)	:=(others=>'0');	-- 24kHz, 15kHz: rows, height, first request line (rclk)
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -47,7 +47,7 @@ port(
 	
 
 	TVRAM_ADR	:out std_logic_vector(11 downto 0);
-	TVRAM_WDAT	:out std_logic_vector(7 downto 0);
+	TVRAM_WDAT	:out std_logic_vector(8 downto 0);	-- bit 8 of an attribute: over line
 	TVRAM_WR	:out std_logic;
 	
 	VRET		:in std_logic;
@@ -69,7 +69,7 @@ signal	CATRADR	:std_logic_vector(15 downto 0);
 signal	SDSTADR	:std_logic_vector(11 downto 0);
 signal	CDSTADR	:std_logic_vector(11 downto 0);
 signal	ATRCNT	:integer range 0 to 19;
-signal	CURATR	:std_logic_vector(7 downto 0);
+signal	CURATR	:std_logic_vector(8 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to MAXLINES;
@@ -105,7 +105,7 @@ signal	LINES		:integer range 0 to MAXLINES;
 
 --Bound the ST_GETBUS wait so BUSREQn cannot remain asserted indefinitely. Not applied
 --to the MRAM_WAIT waits, where an SDRAM read is already outstanding and cannot be
---canceled. A line is 640 clocks (31kHz) or 806 clocks (24kHz).
+--canceled. A line is 640 clocks (31kHz), 806 clocks (24kHz) or 1252 clocks (15kHz).
 constant STUCKMAX	:integer	:=511;
 signal	stuckcnt	:integer range 0 to STUCKMAX;
 
@@ -116,7 +116,6 @@ signal	relcnt		:integer range 0 to RELQUIET;
 
 --V1S: each text row is requested one row before it is drawn and the bus is
 --held for a fixed time per row. The settings are taken once per frame, at CAPLINE.
-constant CAPLINE	:integer	:=8;
 constant BLANKEND	:integer	:=LINECHARS*2*MAXLINES-1;
 signal	pVRET,pHRET	:std_logic;
 signal	RASTER		:integer range 0 to VWMAX-1;
@@ -134,7 +133,8 @@ signal	REQLINE		:integer range 0 to 1023;		-- raster of the next request
 signal	VMODEs		:std_logic;
 signal	GVSTRs		:std_logic;
 signal	VT24s		:std_logic;
---TSET, taken when TSr2 and TSr3 agree. Until then, the 25-line set.
+--TSET, taken when TSr2 and TSr3 agree. Until then (a few clocks after reset, before
+--any CAPLINE), the 24kHz 25-line set.
 constant TSDEF	:std_logic_vector(17 downto 0)	:=conv_std_logic_vector(ROWSDEF24,5) & conv_std_logic_vector(CHRLDEF24,5) & conv_std_logic_vector(VRETDEF24-CHRLDEF24,8);
 signal	TSr,TSr2,TSr3,TSok	:std_logic_vector(17 downto 0);
 signal	capSTR		:std_logic;	-- GVSTR when the bus was taken for this row
@@ -196,7 +196,7 @@ begin
 			CTXTADR<=(others=>'0');
 			CATRADR<=x"0050";
 			ATRCNT<=0;
-			CURATR<="00000111";
+			CURATR<="000000111";
 			CHARCNT<=0;
 			SDSTADR<=(others=>'0');
 			CDSTADR<=(others=>'0');
@@ -314,7 +314,7 @@ begin
 								--Leaving V1S: no rows until the next VRET.
 								LINECNT<=MAXLINES;
 							end if;
-							CURATR<="00000111";
+							CURATR<="000000111";
 							LINESKIP<='0';
 							BNDPEND<='0';
 						elsif(CAPD='1' and BLANKD='0' and VT24s='0')then
@@ -342,7 +342,7 @@ begin
 								fATTR(iCOUNTER)<='0';
 							end loop;
 						elsif(CAPD='1' and BLANKD='0')then
-							--24kHz: a due row request goes first (few rows and a short retrace
+							--24kHz, 15kHz: a due row request goes first (few rows and a short retrace
 							--can leave no time to clear first), then the clearing continues
 							--where it stopped.
 							if(capROWS=MAXLINES)then
@@ -368,7 +368,7 @@ begin
 						-- rCOLOR<=COLOR;
 						TVRAM_ADR<=(others=>'0');
 						LINECNT<=0;
-						CURATR<="00000111";
+						CURATR<="000000111";
 						LINESKIP<='0';
 					elsif(lHRET='1' and HRETr='0' and TEXTENr='1')then
 						CHARCNT<=0;
@@ -415,9 +415,9 @@ begin
 						MRAM_RDn<='1';
 						TVRAM_ADR<=CDSTADR;
 						if (LINESKIP='1')then
-							TVRAM_WDAT<=x"00";
+							TVRAM_WDAT<='0' & x"00";
 						else
-							TVRAM_WDAT<=RDDAT;
+							TVRAM_WDAT<='0' & RDDAT;
 						end if;
 						STATE<=ST_WRTXT;
 					end if;
@@ -440,10 +440,10 @@ begin
 						end if;
 					end if;
 				when ST_NOATTR =>
-					CURATR<=x"07";
+					CURATR<='0' & x"07";
 					STATE<=ST_SETATR;
 				when ST_SKIPATR =>
-					CURATR<=x"80";
+					CURATR<='0' & x"80";
 					STATE<=ST_SETATR;
 				when ST_RDATR =>
 					MRAM_RDn<='0';
@@ -502,11 +502,13 @@ begin
 							CURATR(5)<=RDDAT(0);
 							CURATR(6)<=RDDAT(5);
 							CURATR(7)<=RDDAT(7);
+							CURATR(8)<=RDDAT(4);
 						elsif(RDDAT(3)='0')then
 							CURATR(3)<=RDDAT(1);
 							CURATR(4)<=RDDAT(2);
 							CURATR(5)<=RDDAT(0);
 							CURATR(6)<=RDDAT(5);
+							CURATR(8)<=RDDAT(4);
 						else
 							CURATR(7)<=RDDAT(4);
 						end if;
@@ -563,9 +565,9 @@ begin
 				when ST_BLANK =>
 					TVRAM_ADR<=conv_std_logic_vector(BLKADR,12);
 					if(BLKADR mod 2=0)then
-						TVRAM_WDAT<=x"00";
+						TVRAM_WDAT<='0' & x"00";
 					else
-						TVRAM_WDAT<=x"80";
+						TVRAM_WDAT<='0' & x"80";
 					end if;
 					STATE<=ST_BLANK1;
 				when ST_BLANK1 =>

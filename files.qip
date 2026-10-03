@@ -135,6 +135,7 @@ set_global_assignment -name VHDL_FILE rtl/VIDEO/CRTCREGS.vhd
 set_global_assignment -name QIP_FILE rtl/VIDEO/graphbuf.qip
 set_global_assignment -name VHDL_FILE rtl/VIDEO/textscr2.vhd
 set_global_assignment -name QIP_FILE rtl/Font/fontram.qip
+set_global_assignment -name VHDL_FILE rtl/Font/font8ram.vhd
 set_global_assignment -name VHDL_FILE rtl/USART/e8251.vhd
 set_global_assignment -name VHDL_FILE rtl/USART/rxframe.vhd
 set_global_assignment -name VHDL_FILE rtl/USART/txframe.vhd

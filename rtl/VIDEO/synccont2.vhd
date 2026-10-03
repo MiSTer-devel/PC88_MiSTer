@@ -18,8 +18,9 @@ generic(
 	VSY		:integer	:=2
 );	
 port(
-	VT24	:in std_logic	:='0';		-- 1:24kHz timing
-	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz timing
+	VT24	:in std_logic	:='0';		-- 1:24kHz or 15kHz timing (lines from the CRTC)
+	VT15	:in std_logic	:='0';		-- 1:15kHz timing
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz or 15kHz timing
 
 	UCOUNT	:in integer range 0 to DOTPU-1;
 	HUCOUNT	:in integer range 0 to HUWMAX-1;
@@ -63,11 +64,12 @@ signal	hfps,hsye,hivs	:integer range 0 to HUWMAX;
 signal	vfps,vsye,vivs,viv2s	:integer range 0 to VWMAX;
 begin
 	--24kHz: front porch, sync 2, back porch 38 in the retrace lines
-	hfps<=	HFP24 when VT24='1' else HFP;
-	hsye<=	HFP24+HSY24 when VT24='1' else HFP+HSY;
-	hivs<=	HIV24 when VT24='1' else HIV;
-	vfps<=	VRET24-VRETMIN24 when VT24='1' else VFP;
-	vsye<=	VRET24-VBP24 when VT24='1' else VFP+VSY;
+	--15kHz: front porch 15, sync 3, back porch in the retrace lines
+	hfps<=	HFP15 when VT15='1' else HFP24 when VT24='1' else HFP;
+	hsye<=	HFP15+HSY15 when VT15='1' else HFP24+HSY24 when VT24='1' else HFP+HSY;
+	hivs<=	HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
+	vfps<=	VFP15 when VT15='1' else VRET24-VRETMIN24 when VT24='1' else VFP;
+	vsye<=	VFP15+VSY15 when VT15='1' else VRET24-VBP24 when VT24='1' else VFP+VSY;
 	vivs<=	VRET24 when VT24='1' else VIV;
 	viv2s<=	VRET24 when VT24='1' else VIV2;
 

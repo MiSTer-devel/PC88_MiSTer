@@ -45,8 +45,34 @@ package VIDEO_TIMING_pkg is
 	constant CHRLDEF24	:integer	:=16;
 	constant VRETDEF24	:integer	:=48;
 
-	--counter ranges for both timings
-	constant HUWMAX	:integer	:=HUWIDTH24;
+	--15kHz monitor timing (OSD option). Lines and blanking come from the CRTC
+	--parameters as in 24kHz, and the screen is drawn 200 lines.
+	constant HWIDTH15	:integer	:=896;
+	constant HUWIDTH15	:integer	:=HWIDTH15/DOTPU;
+	--sync positions: the picture sits where the FH's does through an OSSC Pro.
+	--Vertical sync starts 15 lines after the display, and the back porch takes
+	--the rest of the retrace.
+	constant HFP15	:integer	:=8;
+	constant HSY15	:integer	:=8;
+	constant HIV15	:integer	:=HUWIDTH15-HUVIS;
+	constant VFP15	:integer	:=15;
+	constant VSY15	:integer	:=3;
+	--dot clock: 75MHz*21/110 = 14.3182MHz
+	constant DOTNUM15	:integer	:=21;
+	constant DOTDEN15	:integer	:=110;
+	--accepted CRTC parameters: as in 24kHz, but retrace 19 lines or more
+	--(front porch and sync, and at least one line of back porch)
+	constant VRETMIN15	:integer	:=VFP15+VSY15+1;
+	--used until a parameter set is written: the ROM's 25-line set
+	constant CHRLDEF15	:integer	:=8;
+	constant VRETDEF15	:integer	:=56;
+
+	--TRAMCONV takes the parameter set at this line of the retrace
+	constant CAPLINE	:integer	:=8;
+
+	--counter ranges for all timings
+	constant HUWMAX	:integer	:=HUWIDTH15;
+	constant DOTDENMAX	:integer	:=DOTDEN15;
 	constant VWMAX	:integer	:=(ROWSMAX24+8)*CHRLMAX24;
 
 end VIDEO_TIMING_pkg;
