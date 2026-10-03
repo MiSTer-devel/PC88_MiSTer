@@ -36,7 +36,6 @@
 module jt08_acc(
     input               clk,
     input               clk_en /* synthesis direct_enable */,
-    input               cen,
     input signed [13:0] op_result,
     input        [ 1:0] rl,
     input               zero,
@@ -70,96 +69,52 @@ end
 wire left_en = rl[1];
 wire right_en= rl[0];
 wire signed [15:0] opext = { {2{op_result[13]}}, op_result };
-reg  signed [15:0] acc_input_l, acc_input_r;
+reg  signed [15:0] acc_input_l, acc_input_r, pcm_input_l, pcm_input_r;
 reg acc_en_l, acc_en_r;
 
-wire int_clk_en;    // accumlate clk enable
-reg cen_pcm_a, cen_pcm_b, pre_pcm_a, pre_pcm_b;
-
-
 // YM2608 mode:
-// ADPCM-A/B channels accumlate 2 cycle later than FM channels 0/4.
+// Use the ADPCM output as the initial value of the accumulator.
+// Same as YM2608-LLE.
+always @(*) begin
+    // Mix ADPCM-A/B for initial value
+    `ifndef NOMIX
+    pcm_input_l = adpcmA_l + (adpcmB_l >>> 1);  // Operator width is 14 bit, ADPCM-B is 16 bit
+    pcm_input_r = adpcmA_r + (adpcmB_r >>> 1);  // accumulator width per input channel is 14 bit
+    `else
+    pcm_input_l = 16'h0;
+    pcm_input_r = 16'h0;
+    `endif
 
-assign int_clk_en = clk_en | (cen & cen_pcm_a) | (cen & cen_pcm_b) ;
-
-always @(posedge clk) begin
-    if (cen) begin
-        if (clk_en) begin
-            case({cur_op,cur_ch})
-                {2'd0,3'd0}: begin  // ADPCM-A:
-                    pre_pcm_a <= 1'b1;
-                end
-                {2'd0,3'd4}: begin  // ADPCM-B:
-                    pre_pcm_b <= 1'b1;
-                end
-                default: begin
-                    pre_pcm_a <= 1'b0;
-                    pre_pcm_b <= 1'b0;
-                end
-            endcase
-        end else begin
-            pre_pcm_a <= 1'b0;
-            pre_pcm_b <= 1'b0;
-        end
-        cen_pcm_a <= pre_pcm_a;
-        cen_pcm_b <= pre_pcm_b;
-    end
+    // Note by Jose Tejada:
+    // I don't think we should divide down the FM output
+    // but someone was looking at the balance of the different
+    // channels and made this arrangement
+    // I suppose ADPCM-A would saturate if taken up a factor of 8 instead of 4
+    // I'll leave it as it is but I think it is worth revisiting this:
+    acc_input_l = opext >>> 1;
+    acc_input_r = opext >>> 1;
+    acc_en_l    = sum_en & left_en;
+    acc_en_r    = sum_en & right_en;
 end
-
-always @(*)
-    case( {cen_pcm_a,cen_pcm_b} )
-        2'b10: begin // ADPCM-A:
-            acc_input_l = adpcmA_l;
-            acc_input_r = adpcmA_r;
-            `ifndef NOMIX
-            acc_en_l    = 1'b1;
-            acc_en_r    = 1'b1;
-            `else 
-            acc_en_l    = 1'b0;
-            acc_en_r    = 1'b0;
-            `endif
-        end
-        2'b01: begin // ADPCM-B:
-            acc_input_l = adpcmB_l >>> 1; // Operator width is 14 bit, ADPCM-B is 16 bit
-            acc_input_r = adpcmB_r >>> 1; // accumulator width per input channel is 14 bit
-            `ifndef NOMIX
-            acc_en_l    = 1'b1;
-            acc_en_r    = 1'b1;
-            `else 
-            acc_en_l    = 1'b0;
-            acc_en_r    = 1'b0;
-            `endif
-        end
-        default: begin
-            // Note by Jose Tejada:
-            // I don't think we should divide down the FM output
-            // but someone was looking at the balance of the different
-            // channels and made this arrangement
-            // I suppose ADPCM-A would saturate if taken up a factor of 8 instead of 4
-            // I'll leave it as it is but I think it is worth revisiting this:
-            acc_input_l = opext >>> 1;
-            acc_input_r = opext >>> 1;
-            acc_en_l    = sum_en & left_en;
-            acc_en_r    = sum_en & right_en;
-        end
-    endcase
 
 // Continuous output
 
-jt12_single_acc #(.win(16),.wout(16)) u_left(
+jt08_single_acc #(.win(16),.wout(16)) u_left(
     .clk        ( clk            ),
-    .clk_en     ( int_clk_en     ),
+    .clk_en     ( clk_en         ),
     .op_result  ( acc_input_l    ),
     .sum_en     ( acc_en_l       ),
+    .init_val   ( pcm_input_l    ),
     .zero       ( zero           ),
     .snd        ( left           )
 );
 
-jt12_single_acc #(.win(16),.wout(16)) u_right(
+jt08_single_acc #(.win(16),.wout(16)) u_right(
     .clk        ( clk            ),
-    .clk_en     ( int_clk_en     ),
+    .clk_en     ( clk_en         ),
     .op_result  ( acc_input_r    ),
     .sum_en     ( acc_en_r       ),
+    .init_val   ( pcm_input_r    ),
     .zero       ( zero           ),
     .snd        ( right          )
 );

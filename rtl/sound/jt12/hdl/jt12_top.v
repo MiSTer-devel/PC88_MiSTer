@@ -379,7 +379,6 @@ if( use_adpcm==2 ) begin: gen_adpcm
     jt08_acc u_acc(
         .clk        ( clk           ),
         .clk_en     ( clk_en        ),
-        .cen        ( cen           ),
         .op_result  ( op_result_hd  ),
         .rl         ( rl            ),
         .zero       ( zero          ),
