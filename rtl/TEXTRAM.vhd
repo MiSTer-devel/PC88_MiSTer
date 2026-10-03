@@ -1,4 +1,4 @@
--- Text VRAM, 4096 x 8, both ports on one clock with a clock enable per port. Port B only reads.
+-- Text VRAM, 4096 x DWIDTH, both ports on one clock with a clock enable per port. Port B only reads.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -6,23 +6,26 @@ use ieee.std_logic_unsigned.all;
 use ieee.std_logic_arith.all;
 
 entity TEXTRAM is
+	generic(
+		DWIDTH		:integer	:=8
+	);
 	port(
 		address_a	:in std_logic_vector(11 downto 0);
 		address_b	:in std_logic_vector(11 downto 0);
 		clock		:in std_logic := '1';
-		data_a		:in std_logic_vector(7 downto 0);
-		data_b		:in std_logic_vector(7 downto 0);
+		data_a		:in std_logic_vector(DWIDTH-1 downto 0);
+		data_b		:in std_logic_vector(DWIDTH-1 downto 0);
 		wren_a		:in std_logic := '0';
 		wren_b		:in std_logic := '0';
-		q_a			:out std_logic_vector(7 downto 0);
-		q_b			:out std_logic_vector(7 downto 0);
+		q_a			:out std_logic_vector(DWIDTH-1 downto 0);
+		q_b			:out std_logic_vector(DWIDTH-1 downto 0);
 		ce_a		:in std_logic := '1';
 		ce_b		:in std_logic := '1'
 	);
 end TEXTRAM;
 
 architecture RTL of TEXTRAM is
-	type MEM_T is array(0 to 4095) of std_logic_vector(7 downto 0);
+	type MEM_T is array(0 to 4095) of std_logic_vector(DWIDTH-1 downto 0);
 	signal	mem		:MEM_T := (others=>(others=>'0'));
 	signal	ra_a	:integer range 0 to 4095 := 0;
 	signal	ra_b	:integer range 0 to 4095 := 0;

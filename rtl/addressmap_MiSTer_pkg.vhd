@@ -13,6 +13,7 @@ package addressmap_pkg is
 	constant ADDR_GFONT		:std_logic_vector(27 downto 0)	:=x"0019000";
 	constant ADDR_SUBROM		:std_logic_vector(27 downto 0)	:=x"001a000";
 	constant ADDR_KANJI1		:std_logic_vector(27 downto 0)	:=x"0020000";
+	constant ADDR_FONT8		:std_logic_vector(27 downto 0)	:=x"0021000";	-- 8x8 font in KANJI1, 2KB
 	constant ADDR_KANJI2		:std_logic_vector(27 downto 0)	:=x"0040000";
 	constant ADDR_BACKRAM	:std_logic_vector(27 downto 0)	:=x"0400000";
 	constant ADDR_MAINRAM	:std_logic_vector(27 downto 0)	:=x"0408000";

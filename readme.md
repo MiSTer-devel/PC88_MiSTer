@@ -63,6 +63,22 @@ recorder's line or earphone output to that input, start the tape and load as usu
 The motor is not controlled, so the tape has to be started by hand. Saving to tape and tape
 image files are not supported.
 
+## Video timing
+
+The Video timing option on the OSD selects the monitor the core runs with. It takes effect
+at the next reset.
+
+- 31kHz (default): 640x400, the timing the core has always used.
+- 24kHz: 640x400 at 24.8kHz and 55.4Hz, as a PC-8801 with a high-resolution monitor.
+- 15kHz: 640x200 at 15.98kHz and 62.4Hz, as a PC-8801 with a standard monitor. Software that
+  selects the 400-line mode shows the 200-line monochrome screen, as on the real machine.
+
+With 24kHz and 15kHz, port 40h, the frame rate and the text follow the real machine, and the
+text uses the 8x8 font of KANJI1 (21000h in boot.rom). The VGA output is the raw signal unless
+the scaler is enabled in MiSTer.ini (`vga_scaler=1` or `vga_fb=1`), so a VGA monitor that only
+takes 31kHz needs `vga_scaler=1` and a `video_mode` the monitor accepts.
+On HDMI, Scale set to V-Integer keeps the lines the same thickness.
+
 ## Known Issues
 - Timing issues
 - Gamma correction doesn't seem to change anything (?)
@@ -71,7 +87,6 @@ image files are not supported.
 - Update T80 cpu
 - Add choice Sound YM2203 or YM2603 on the OSD
 - Add Audio Mix
-- Add support of multi-resolution
 - Add support of tape images and saving to tape
 - Add support of other models like PC8801MC
 - ...

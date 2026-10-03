@@ -17,8 +17,9 @@ generic(
 	VSY		:integer	:=2
 );	
 port(
-	VT24	:in std_logic	:='0';		-- 1:24kHz timing
-	VEND24	:in integer range 0 to VWMAX-1	:=VWMAX-1;	-- last line in 24kHz timing
+	VT24	:in std_logic	:='0';		-- 1:24kHz or 15kHz timing (lines from the CRTC)
+	VT15	:in std_logic	:='0';		-- 1:15kHz timing
+	VEND24	:in integer range 0 to VWMAX-1	:=VWMAX-1;	-- last line in 24kHz or 15kHz timing
 
 	VCOUNT	:out integer range 0 to VWMAX-1;
 	HUCOUNT	:out integer range 0 to HUWMAX-1;
@@ -53,7 +54,9 @@ signal	vcompb	:std_logic;
 signal	clk2sft	:std_logic_vector(1 downto 0);
 signal	clk3sft	:std_logic_vector(2 downto 0);
 signal	clk3b	:std_logic;
-signal	dotacc	:integer range 0 to DOTDEN24-1;
+signal	dotacc	:integer range 0 to DOTDENMAX-1;
+signal	dotnum	:integer range 0 to DOTDENMAX-1;
+signal	dotden	:integer range 1 to DOTDENMAX;
 signal	dotce	:std_logic;
 signal	dotced	:std_logic;
 
@@ -71,17 +74,20 @@ begin
 	clk2<=clk2sft(1);
 
 	--24kHz: dot enable at DOTNUM24/DOTDEN24 of clk (every 3 or 4 clocks)
+	--15kHz: at DOTNUM15/DOTDEN15 (every 5 or 6 clocks)
+	dotnum<=DOTNUM15 when VT15='1' else DOTNUM24;
+	dotden<=DOTDEN15 when VT15='1' else DOTDEN24;
 	process(clk,rstn)begin
 		if(rstn='0')then
 			dotacc<=0;
 			dotce<='0';
 			dotced<='0';
 		elsif(clk' event and clk='1')then
-			if(dotacc+DOTNUM24>=DOTDEN24)then
-				dotacc<=dotacc+DOTNUM24-DOTDEN24;
+			if(dotacc+dotnum>=dotden)then
+				dotacc<=dotacc+dotnum-dotden;
 				dotce<='1';
 			else
-				dotacc<=dotacc+DOTNUM24;
+				dotacc<=dotacc+dotnum;
 				dotce<='0';
 			end if;
 			dotced<=dotce;
@@ -93,7 +99,7 @@ begin
 	CE3<=clk3b;
 
 	vend<=VEND24 when VT24='1' else VWIDTH-1;
-	huend<=HUWIDTH24-1 when VT24='1' else (HWIDTH/DOTPU)-1;
+	huend<=HUWIDTH15-1 when VT15='1' else HUWIDTH24-1 when VT24='1' else (HWIDTH/DOTPU)-1;
 
 	process(clk,rstn)begin
 		if(rstn='0')then

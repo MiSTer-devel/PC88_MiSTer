@@ -84,7 +84,7 @@ port(
 
     -- DIP switch, Lamp ports
 	pDip        : in std_logic_vector(9 downto 0);
-	pCoreConfig	: in std_logic_vector(2 downto 0);
+	pCoreConfig	: in std_logic_vector(3 downto 0);
 	pLed        : out std_logic;
 	pPsw		: in std_logic_vector(1 downto 0);
 	pMonDbus	:out std_logic_vector(7 downto 0);
@@ -97,7 +97,7 @@ port(
 	pVideoVS		: out std_logic;
 	pVideoEn	: out std_logic;
 	pVideoClk	: out std_logic;
-	pVideo24k	: out std_logic;	-- 1:24kHz timing (taken at reset)
+	pVideo24k	: out std_logic;	-- 1:24kHz or 15kHz timing (taken at reset)
 	pSndL			: out std_logic_vector(15 downto 0);
 	pSndR			: out std_logic_vector(15 downto 0);
 	
@@ -297,17 +297,21 @@ port(
 end component;
 
 component TEXTRAM
+	GENERIC
+	(
+		DWIDTH		: integer := 8
+	);
 	PORT
 	(
 		address_a		: IN STD_LOGIC_VECTOR (11 DOWNTO 0);
 		address_b		: IN STD_LOGIC_VECTOR (11 DOWNTO 0);
 		clock		: IN STD_LOGIC  := '1';
-		data_a		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
-		data_b		: IN STD_LOGIC_VECTOR (7 DOWNTO 0);
+		data_a		: IN STD_LOGIC_VECTOR (DWIDTH-1 DOWNTO 0);
+		data_b		: IN STD_LOGIC_VECTOR (DWIDTH-1 DOWNTO 0);
 		wren_a		: IN STD_LOGIC  := '0';
 		wren_b		: IN STD_LOGIC  := '0';
-		q_a		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
-		q_b		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0);
+		q_a		: OUT STD_LOGIC_VECTOR (DWIDTH-1 DOWNTO 0);
+		q_b		: OUT STD_LOGIC_VECTOR (DWIDTH-1 DOWNTO 0);
 		ce_a		: IN STD_LOGIC  := '1';
 		ce_b		: IN STD_LOGIC  := '1'
 	);
@@ -322,7 +326,7 @@ port(
 	PALEN		:in std_logic	:='1';
 	
 	TRAM_ADR	:out std_logic_vector(11 downto 0);
-	TRAM_DAT	:in std_logic_vector(7 downto 0);
+	TRAM_DAT	:in std_logic_vector(8 downto 0);
 	
 	GRAMADR		:out std_logic_vector(13 downto 0);
 	GRAMRD		:out std_logic;
@@ -366,6 +370,7 @@ port(
 	FRAMWADR	:in std_logic_Vector(12 downto 0);
 	FRAMWDAT	:in std_logic_vector(7 downto 0);
 	FRAMWR	:in std_logic;
+	FRAM8WR	:in std_logic	:='0';
 
 	gclk		:out std_logic;
 	CE3			:out std_logic;
@@ -375,6 +380,8 @@ port(
 	rstn		:in std_logic;
 
 	VT24		:in std_logic	:='0';
+	VT15		:in std_logic	:='0';
+	CTYPE		:in std_logic_vector(1 downto 0)	:="11";
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
@@ -717,7 +724,7 @@ port(
 	
 
 	TVRAM_ADR	:out std_logic_vector(11 downto 0);
-	TVRAM_WDAT	:out std_logic_vector(7 downto 0);
+	TVRAM_WDAT	:out std_logic_vector(8 downto 0);
 	TVRAM_WR	:out std_logic;
 	
 	VRET		:in std_logic;
@@ -1361,7 +1368,10 @@ signal	c40C		:std_logic;
 signal	cDisk		:std_logic;
 signal	cInDev		:std_logic;
 signal	cSB2		:std_logic;
-signal	VT24m,VT24	:std_logic	:='0';	-- 24kHz timing, taken at reset
+signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- pCoreConfig(3 downto 2) sampled on rclk
+signal	VT24		:std_logic	:='0';	-- 24kHz or 15kHz timing, taken at reset
+signal	VT15		:std_logic	:='0';	-- 15kHz timing, taken at reset
+signal	CRTC_C		:std_logic_vector(1 downto 0);
 signal	CRTC_SETL	:std_logic_vector(5 downto 0);
 signal	CRTC_SETR	:std_logic_vector(4 downto 0);
 signal	CRTC_SETV	:std_logic_vector(2 downto 0);
@@ -1413,8 +1423,9 @@ signal	IDAT_TRAM	:std_logic_vector(7 downto 0);
 signal	TVRAM_ADR	:std_logic_vector(11 downto 0);
 signal	TVRAM_CE	:std_logic;
 signal	IDAT_TVRAM	:std_logic_vector(7 downto 0);
+signal	TVRAM_QA	:std_logic_vector(8 downto 0);
 signal	CRTC_TADR	:std_logic_vector(11 downto 0);
-signal	CRTC_TDAT	:std_logic_vector(7 downto 0);
+signal	CRTC_TDAT	:std_logic_vector(8 downto 0);
 signal	IDAT_CRTR	:std_logic_vector(7 downto 0);
 signal	CRTR_OE		:std_logic;
 signal	IDAT_KB		:std_logic_vector(7 downto 0);
@@ -1505,7 +1516,7 @@ signal	SPCHR		:std_logic;
 signal	REVERSE		:std_logic;
 signal	TXTLINES	:std_logic_vector(5 downto 0);
 signal	TVRMODE		:std_logic;
-signal	TVRAM_WDAT	:std_logic_vector(7 downto 0);
+signal	TVRAM_WDAT	:std_logic_vector(8 downto 0);
 signal	TVRAM_MADR	:std_logic_vector(11 downto 0);
 signal	TVRAM_WE	:std_logic;
 signal	ATTRLEN		:std_logic_vector(4 downto 0);
@@ -1524,7 +1535,7 @@ signal	TCNV_RDn	:std_logic;
 signal	TCNV_BURQn	:std_logic;
 signal	TCNV_BUSACKn:std_logic;
 signal	TCNV_WADR	:std_logic_vector(11 downto 0);
-signal	TCNV_WDAT	:std_logic_vector(7 downto 0);
+signal	TCNV_WDAT	:std_logic_vector(8 downto 0);
 signal	TCNV_WE		:std_logic;
 signal	TCNV_BUSUSE	:std_logic;
 signal	COLORn		:std_logic;
@@ -1712,7 +1723,7 @@ constant MOD_V1H	:std_logic_vector(1 downto 0)	:="10";
 constant MOD_V2		:std_logic_vector(1 downto 0)	:="11";
 
 signal	MTSAVE		:std_logic;
-signal	TRAM_TDAT	:std_logic_vector(7 downto 0);
+signal	TRAM_TDAT	:std_logic_vector(8 downto 0);
 signal	CRTC_CURL	:std_logic_vector(4 downto 0);
 signal	CRTC_CURC	:std_logic_vector(6 downto 0);
 signal	CRTC_CURE	:std_logic;
@@ -1721,6 +1732,7 @@ signal	CRTC_CURE	:std_logic;
 signal	FRAMADDR		:std_logic_vector(12 downto 0);
 signal	FRAMWDAT		:std_logic_vector(7 downto 0);
 signal	FRAMWR		:std_logic;
+signal	FRAM8WR		:std_logic;
 
 --DISK emulation
 signal	EMUINITDONE	:std_logic;
@@ -1801,12 +1813,15 @@ begin
 		end if;
 	end process;
 
-	--The video timing changes only at reset.
+	--The video timing changes only at reset. Both bits are sampled together and taken
+	--only when two samples agree, so a change of the OSD option is never taken half done.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
-			VT24m<=pCoreConfig(2);
-			if(CPU_rstnr='0')then
-				VT24<=VT24m;
+			VTm<=pCoreConfig(3 downto 2);
+			VTm2<=VTm;
+			if(CPU_rstnr='0' and VTm=VTm2)then
+				VT24<=VTm(1) or VTm(0);
+				VT15<=VTm(1);
 			end if;
 		end if;
 	end process;
@@ -1987,6 +2002,8 @@ begin
 	FRAMADDR<=LOADER_ADR(12 downto 0);
 	FRAMWDAT<=LOADER_WDAT;
 	FRAMWR<=	LOADER_WR when LOADER_OE='1' and LOADER_ADR(18 downto 13)=ADDR_FONT(18 downto 13) else '0';
+	--8x8 font for 24kHz and 15kHz timing, from the kanji ROM. Loaded whatever the timing.
+	FRAM8WR<=	LOADER_WR when LOADER_OE='1' and LOADER_ADR(18 downto 11)=ADDR_FONT8(18 downto 11) else '0';
 
 	GALU	:GraphALU
 port map(
@@ -2149,8 +2166,8 @@ port map(
 		end if;
 	end process;
 
-	--In 24kHz timing the dot enable is 3 or 4 clocks apart, so the text RAM ports
-	--used by the CPU and by TRAMCONV (clk21m) take every clock instead.
+	--In 24kHz and 15kHz timing the dot enable is 3 to 6 clocks apart, so the text RAM
+	--ports used by the CPU and by TRAMCONV (clk21m) take every clock instead.
 	TCROSS_ce<='1' when VT24='1' else vid_ce3;
 
 	TRAM	:TEXTRAM port map(
@@ -2214,7 +2231,7 @@ port map(
 	rstn		=>CPU_rstn
 );
 
-	TVRAM_WDAT	<=CPUDAT_W					when TMODE='0' and TVRMODE='1' else TCNV_WDAT;
+	TVRAM_WDAT	<='0' & CPUDAT_W			when TMODE='0' and TVRMODE='1' else TCNV_WDAT;
 	TVRAM_ADR	<=TVRAM_MADR 				when TMODE='0' and TVRMODE='1' else TCNV_WADR;
 	TVRAM_WE	<=TVRAM_CE and (not WR_n)	when TMODE='0' and TVRMODE='1' else TCNV_WE;
 
@@ -2224,7 +2241,7 @@ tmap	:trammaps generic map(RAMAWIDTH) port map(
 	RAM_ADR		=>VMAP_RADR
 );
 
-	TVRAM	:TEXTRAM port map(
+	TVRAM	:TEXTRAM generic map(9) port map(
 		address_a		=>TVRAM_ADR,
 		address_b		=>CRTC_TADR,
 		clock			=>rclk,
@@ -2234,9 +2251,10 @@ tmap	:trammaps generic map(RAMAWIDTH) port map(
 		data_b			=>(others=>'0'),
 		wren_a			=>TVRAM_WE,
 		wren_b			=>'0',
-		q_a				=>IDAT_TVRAM,
+		q_a				=>TVRAM_QA,
 		q_b				=>TRAM_TDAT
 	);
+	IDAT_TVRAM<=TVRAM_QA(7 downto 0);
 	
 	CREG	:CRTCREGS
 generic map(
@@ -2262,6 +2280,7 @@ port map(
 	REVERSE	=>REVERSE,
 	L		=>TXTLINES,
 	S		=>SMODE,
+	C		=>CRTC_C,
 	AT0		=>ATTRCOLOR,
 	SC		=>SPCHR,
 	
@@ -2377,7 +2396,7 @@ port map(
 	IOW34	:IO_WRS generic map(x"34")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,ALU2(1),ALU1(1),ALU0(1),open,ALU2(0),ALU1(0),ALU0(0),rclk,CPU_rstnr,cpuce_r);
 	IOW35	:IO_WRS generic map(x"35")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,GAM,open,GDM(1),GDM(0),open,PLN(2),PLN(1),PLN(0),rclk,CPU_rstnr,cpuce_r);
 	IO38	:IO_RWS generic map(x"38")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR38,IOR38_OE,open,open,open,open,open,open,open,TVRMODE,rclk,CPU_rstnr,cpuce_r);
-	IOR40	:IO_RD generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR40,IOR40_OE,'0','0',VRTC,CDI,cDisk,'1','0','0');
+	IOR40	:IO_RD generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR40,IOR40_OE,'0','0',VRTC,CDI,cDisk,'1',VT15,'0');
 	IOW40	:IO_WRS generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,sing,pStr,beepen,open,open,CCK,CSTB,open,rclk,CPU_rstnr,cpuce_r);
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'1','1','1','1','1','1','1');
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);
@@ -2572,6 +2591,7 @@ port map(
 	FRAMWADR	=>FRAMADDR,
 	FRAMWDAT	=>FRAMWDAT,
 	FRAMWR	=>FRAMWR,
+	FRAM8WR	=>FRAM8WR,
 	
 	gclk		=>gclk,
 	CE3			=>vid_ce3,
@@ -2581,6 +2601,8 @@ port map(
 	rstn		=>CPU_rstnr,
 
 	VT24		=>VT24,
+	VT15		=>VT15,
+	CTYPE		=>CRTC_C,
 	SETL		=>CRTC_SETL,
 	SETR		=>CRTC_SETR,
 	SETV		=>CRTC_SETV,
