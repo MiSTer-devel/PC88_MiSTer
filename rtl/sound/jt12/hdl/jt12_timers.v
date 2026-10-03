@@ -44,7 +44,7 @@ module jt12_timers(
 
 parameter num_ch = 6;
 
-assign irq_n = ~( (flag_A&enable_irq_A) | (flag_B&enable_irq_B) );
+assign irq_n = ~( flag_A | flag_B );
 
 /*
 reg zero2;
@@ -68,6 +68,7 @@ jt12_timer #(.CW(10)) timer_A(
     .load       ( load_A      ),
     .clr_flag   ( clr_flag_A  ),
     .flag       ( flag_A      ),
+    .enable     ( enable_irq_A),
     .overflow   ( overflow_A  )
 );
 
@@ -80,6 +81,7 @@ jt12_timer #(.CW(8),.FREE_EN(1)) timer_B(
     .load       ( load_B      ),
     .clr_flag   ( clr_flag_B  ),
     .flag       ( flag_B      ),
+    .enable     ( enable_irq_B),
     .overflow   (             )
 );
 
@@ -97,6 +99,7 @@ module jt12_timer #(parameter
     input   [CW-1:0] start_value,
     input   load,
     input   clr_flag,
+    input   enable,
     output reg flag,
     output reg overflow
 );
@@ -112,7 +115,7 @@ always@(posedge clk, posedge rst)
     else /*if(cen)*/ begin
         if( clr_flag )
             flag <= 1'b0;
-        else if( cen && zero && load && overflow ) flag<=1'b1;
+        else if( cen && zero && load && enable && overflow ) flag<=1'b1;
     end
 
 always @(*) begin

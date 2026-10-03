@@ -73,6 +73,7 @@ module jt12_mmr(
     output  reg         acmd_rep_b, // Control - Repeat
     output  reg         acmd_rst_b, // Control - Reset
     output  reg         acmd_up_b,  // Control - New cmd received
+    output  reg         acmd_ad_b,  // Control - Address set
     output  reg         acmd_rec_b, // Control - YM2608 Recording
     output  reg         acmd_mem_b, // Control - YM2608 Select external RAM
     output  reg         acmd_spk_b, // Control - YM2608 Speaker OFF
@@ -188,6 +189,7 @@ localparam  REG_TESTYM  =   8'h21,
             REG_ADPCMA_TEST = 8'h02;
 
 reg csm, effect;
+reg sch;
 
 reg [ 2:0] block_ch3op2,  block_ch3op3,  block_ch3op1;
 reg [10:0] fnum_ch3op2, fnum_ch3op3, fnum_ch3op1;
@@ -277,6 +279,8 @@ always @(posedge clk) begin : memory_mapped_registers
         acmd_on_b   <= 0;
         acmd_rep_b  <= 0;
         acmd_rst_b  <= 0;
+        acmd_up_b   <= 0;
+        acmd_ad_b   <= 0;
         acmd_rec_b  <= 0;
         acmd_mem_b  <= 0;
         acmd_spk_b  <= 0;
@@ -310,6 +314,7 @@ always @(posedge clk) begin : memory_mapped_registers
         latch_fnum <= 0;
         op_din     <= 0;
         part       <= 0;
+        sch        <= 0;
     end else begin
         up_chreg   <= 0;
         // WRITE IN REGISTERS
@@ -327,17 +332,21 @@ always @(posedge clk) begin : memory_mapped_registers
                     REG_CLK_N2: div_setting    <= 2'b0; // 2F
                     default:;
                 endcase
-            end else begin
+            end else if( part == addr[1] ) begin
                 // Global registers
                 ch_din <= din;
-                if( selected_register == REG_KON && !part && !addr[1] ) begin
+                if( selected_register == REG_KON && !part ) begin
                     up_keyon <= 1;
-                    op_din   <= din;
+                    if( use_adpcm==2 ) begin
+                        op_din   <= {din[7:3],(din[2]&sch),din[1:0]};
+                    end else begin
+                        op_din   <= din;
+                    end
                 end else begin
                     up_keyon <= 0;
                 end
                 // General control (<0x20 registers and A0==0)
-                if(!addr[1] && !part) begin
+                if(!part) begin
                     casez( selected_register)
                         //REG_TEST: lfo_rst <= 1'b1; // regardless of din
                         8'h0?: psg_wr_n <= 1'b0;
@@ -356,8 +365,11 @@ always @(posedge clk) begin : memory_mapped_registers
                               enable_irq_B, enable_irq_A,
                               load_B, load_A } <= din[5:0];
                             end
-                        // IRQMASK[7] SCH is ignored
-                        REG_IRQMASK: {irq_mask} <= {din[4:0]};
+                        REG_IRQMASK: begin
+                            if ( use_adpcm==2 ) begin
+                                {sch, irq_mask} <= {din[7],din[4:0]};
+                            end
+                        end
                         `ifndef NOLFO                   
                         REG_LFO:    { lfo_en, lfo_freq } <= din[3:0];
                         `endif
@@ -396,7 +408,7 @@ always @(posedge clk) begin : memory_mapped_registers
                 end
                 if( use_adpcm==1 ) begin
                     // YM2610 ADPCM-A support, A1=1, regs 0-2D
-                    if(addr[1] && part && selected_register[7:6]==2'b0) begin
+                    if(part && selected_register[7:6]==2'b0) begin
                         casez( selected_register[5:0] )
                             6'h0: begin
                                 aon_a  <= din;
@@ -425,7 +437,7 @@ always @(posedge clk) begin : memory_mapped_registers
                             default:;
                         endcase
                     end
-                    if( !addr[1] && !part && selected_register[7:4]==4'h1 ) begin
+                    if( !part && selected_register[7:4]==4'h1 ) begin
                         // YM2610 ADPCM-B support, A1=0, regs 1x
                         case(selected_register[3:0])
                             4'd0: {acmd_up_b, acmd_on_b, acmd_rep_b,acmd_rst_b} <= {1'd1,din[7],din[4],din[0]};
@@ -447,7 +459,7 @@ always @(posedge clk) begin : memory_mapped_registers
                 end
                 if( use_adpcm==2 ) begin
                     // YM2608 ADPCM-A support, A1=0, regs 10-1F
-                    if( !addr[1] && !part && selected_register[7:4]==4'h1 ) begin
+                    if( !part && selected_register[7:4]==4'h1 ) begin
                         case( selected_register[3:0] )
                             4'h0: begin
                                 aon_a  <= din;
@@ -462,13 +474,13 @@ always @(posedge clk) begin : memory_mapped_registers
                             default:;
                         endcase
                     end
-                    if( addr[1] && part && selected_register[7:5]==3'b0 ) begin
+                    if( part && selected_register[7:5]==3'b0 ) begin
                         // YM2608 ADPCM-B support, A1=1, regs 00-10
                         case(selected_register[4:0])
                             5'h0: {acmd_up_b, acmd_on_b,acmd_rec_b,acmd_mem_b,acmd_rep_b,acmd_spk_b, acmd_rst_b} <= {1'd1, din[7:3], din[0]};
                             5'h1: {alr_b, acmd_smp_b,acmd_dac_b,acmd_x8_b,acmd_rom_b}  <= {din[7:6], din[3:0]};
-                            5'h2: astart_b [ 7:0] <= din;
-                            5'h3: astart_b [15:8] <= din;
+                            5'h2: {acmd_ad_b, astart_b[ 7:0]} <= {1'b1, din};
+                            5'h3: {acmd_ad_b, astart_b[15:8]} <= {1'b1, din};
                             5'h4: aend_b   [ 7:0] <= din;
                             5'h5: aend_b   [15:8] <= din;
                             5'h6: pscale_b [ 7:0] <= din;
@@ -537,6 +549,7 @@ always @(posedge clk) begin : memory_mapped_registers
             flag_ctl <= 'd0;
             up_aon   <= 1'b0;
             acmd_up_b <= 1'b0;
+            acmd_ad_b <= 1'b0;
         end
     end
 end
