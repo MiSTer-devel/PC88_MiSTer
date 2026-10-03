@@ -30,8 +30,11 @@ package VIDEO_TIMING_pkg is
 	constant HFP24	:integer	:=8;
 	constant HSY24	:integer	:=8;
 	constant HIV24	:integer	:=HUWIDTH24-HUVIS;
+	--sync positions: the picture sits where the FH's does through an OSSC Pro.
+	--Vertical sync starts 7 lines after the display, and the back porch takes
+	--the rest of the retrace.
+	constant VFP24	:integer	:=7;
 	constant VSY24	:integer	:=2;
-	constant VBP24	:integer	:=38;
 	--dot clock: 75MHz*16/57 = 21.0526MHz
 	constant DOTNUM24	:integer	:=16;
 	constant DOTDEN24	:integer	:=57;
@@ -39,7 +42,8 @@ package VIDEO_TIMING_pkg is
 	constant CHRLMIN24	:integer	:=8;
 	constant CHRLMAX24	:integer	:=20;
 	constant ROWSMAX24	:integer	:=25;
-	constant VRETMIN24	:integer	:=VSY24+VBP24;
+	--the retrace floor stays 40 lines, as before the sync position was moved
+	constant VRETMIN24	:integer	:=40;
 	--used until a parameter set is written: the ROM's 25-line set
 	constant ROWSDEF24	:integer	:=25;
 	constant CHRLDEF24	:integer	:=16;
