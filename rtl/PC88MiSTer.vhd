@@ -1409,6 +1409,7 @@ signal	M1_n		:std_logic;
 signal	CPU_rstn	:std_logic;
 signal	CPU_clk		:std_logic;
 signal	BUSRQ_n		:std_logic;
+signal	BUSRQ_nf	:std_logic;
 signal	BUSACK_n	:std_logic;
 signal	RAM_WAIT	:std_logic;
 -- signal	LOADER_rstn :std_logic;
@@ -1509,6 +1510,8 @@ signal	VRTCr		:std_logic;
 signal	CRTC_VMODE	:std_logic;
 signal	cV1S		:std_logic;
 signal	CDI			:std_logic;
+signal	CDIo		:std_logic;
+signal	CDIf		:std_logic;
 signal	CCK			:std_logic;
 signal	CSTB		:std_logic;
 signal	C_RTC		:std_logic_vector(2 downto 0);
@@ -2246,7 +2249,7 @@ port map(
 	MRAM_WAIT	=>RAM_WAIT,
 	BUS_USE		=>TCNV_BUSUSE,
 	
-	BUSREQn		=>BUSRQ_n,
+	BUSREQn		=>BUSRQ_nf,
 	BUSACKn		=>BUSACK_n,
 	
 
@@ -2261,6 +2264,8 @@ port map(
 	clk			=>clk21m,
 	rstn		=>CPU_rstn
 );
+	-- TRAMCONV asks for the bus on clk21m. Bring the request over to rclk for the CPU.
+	BRQs	:cdc_sync2 port map(BUSRQ_nf,BUSRQ_n,rclk);
 
 	TVRAM_WDAT	<='0' & CPUDAT_W			when TMODE='0' and TVRMODE='1' else TCNV_WDAT;
 	TVRAM_ADR	<=TVRAM_MADR 				when TMODE='0' and TVRMODE='1' else TCNV_WADR;
@@ -2670,7 +2675,7 @@ port map(
 	U_RTC	:rtc4990MiSTer generic map(sysclk*1000,x"00") port map(
 		DCLK	=>CCK,
 		DIN		=>C_DO,
-		DOUT	=>CDI,
+		DOUT	=>CDIo,
 		C		=>C_RTC,
 		CS		=>'1',
 		STB		=>not CSTB,
@@ -2681,6 +2686,14 @@ port map(
 		sclk	=>clk21m,
 		rstn	=>srstn21
 	);
+	-- DOUT selects among clk21m registers and can glitch when the selection changes,
+	-- so register it on clk21m before it crosses to rclk.
+	process(clk21m)begin
+		if(clk21m' event and clk21m='1')then
+			CDIf<=CDIo;
+		end if;
+	end process;
+	CDIs	:cdc_sync2 port map(CDIf,CDI,rclk);
 
 	PCLKG	:unchchata port map(not pjoya(1),pclk,rclk,srstn,cpuce_r);
 	
