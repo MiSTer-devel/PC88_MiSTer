@@ -11,7 +11,7 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 * Modes N, N88V1L, N88V1H, N88V2
 * CPU Speeds (4MHz and 8MHz)
 * 2 Floppy Drives using D88 format (Disk types supported 2D and 2HD)
-* Sound chip YM2603 by default and ADPCM
+* Sound chips YM2203 and YM2608 (Sound Board II) with ADPCM
 * Mouse support (Changed between Mouse and Joypad on the OSD)
 * Tape (CMT) input from the ADC of the analog I/O board
 
@@ -45,9 +45,15 @@ copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.ro
 - COPY -> Print Screen
 - PC -> Scroll Lock
 
-## Sound Board II
+## Sound Board
 
-On the OSD, there is an option to choose between Expansion (Default) or Onboard because some software only supports Onboard or Expansion board. You could find more informations on this issue ticket https://github.com/MiSTer-devel/PC88_MiSTer/issues/11.
+The Sound Board option on the OSD selects the sound chips.
+
+- Normal(SR) (default): the YM2203 at 44h-45h only, as a PC-8801 mkII SR without a sound board.
+- OnBoard(FA/MA+): a YM2608 at 44h-47h, as on the FA, MA and later models.
+- Add-on (SB2): the YM2203 at 44h-45h and Sound Board II (YM2608) at A8h-ADh, as an SR with the board fitted. This was the default before.
+
+Some software only supports one of these. You could find more information on this issue ticket https://github.com/MiSTer-devel/PC88_MiSTer/issues/11.
 
 ## Write-Protection of D88 files
 
@@ -85,7 +91,6 @@ On HDMI, Scale set to V-Integer keeps the lines the same thickness.
 
 ## TODO
 - Update T80 cpu
-- Add choice Sound YM2203 or YM2603 on the OSD
 - Add Audio Mix
 - Add support of tape images and saving to tape
 - Add support of other models like PC8801MC
