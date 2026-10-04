@@ -208,7 +208,7 @@ parameter CONF_STR = {
 	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"OHJ,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
-	"OMN,Video timing,31kHz,24kHz,15kHz;",
+	"OOP,Video timing,31kHz,24kHz,15kHz;",
 	"-;",
 	"O78,Mode,N88V2,N88V1H,N88V1S,N;",
 	"O9,Speed,4MHz,8MHz;",
@@ -224,7 +224,7 @@ parameter CONF_STR = {
 	"OD,Disk boot,Enable,Disable;",
 	"-;",
 	"OK,Input,Joypad,Mouse;",
-	"OL,Sound Board 2,Expansion,Onboard;",
+	"OLM,Sound Board,Normal(SR),OnBoard(FA/MA+),Add-on (SB2);",
 	"-;",
 	"R6,Reset;",
 	"J,Fire 1,Fire 2;",
@@ -383,8 +383,8 @@ wire	cDisk	=status[13];
 wire	MTSAVE	=1;
 wire [1:0]FDsync=status[16:15];
 wire	cInDev	=status[20];
-wire	cSB2	=status[21];
-wire [1:0]cVtiming=status[23:22];
+wire [1:0]cSB	=status[22:21];
+wire [1:0]cVtiming=status[25:24];
 
 assign CLK_VIDEO = clk_ram;
 assign AUDIO_S = 1;
@@ -499,7 +499,7 @@ PC88MiSTer PC88_top
 
 	.pLed(disk_led),
 	.pDip({clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
-	.pCoreConfig({cVtiming,cSB2,cInDev}),
+	.pCoreConfig({cVtiming,cSB,cInDev}),
 	.pPsw(2'b11),
 
 	.pVideoR(red),

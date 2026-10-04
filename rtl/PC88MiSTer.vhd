@@ -84,7 +84,7 @@ port(
 
     -- DIP switch, Lamp ports
 	pDip        : in std_logic_vector(9 downto 0);
-	pCoreConfig	: in std_logic_vector(3 downto 0);
+	pCoreConfig	: in std_logic_vector(4 downto 0);
 	pLed        : out std_logic;
 	pPsw		: in std_logic_vector(1 downto 0);
 	pMonDbus	:out std_logic_vector(7 downto 0);
@@ -1377,7 +1377,8 @@ signal	c40C		:std_logic;
 signal	cDisk		:std_logic;
 signal	cInDev		:std_logic;
 signal	cSB2		:std_logic;
-signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- pCoreConfig(3 downto 2) sampled on rclk
+signal	cSBN		:std_logic;	-- Normal(SR): no YM2608
+signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- pCoreConfig(4 downto 3) sampled on rclk
 signal	VT24		:std_logic	:='0';	-- 24kHz or 15kHz timing, taken at reset
 signal	VT15		:std_logic	:='0';	-- 15kHz timing, taken at reset
 signal	CRTC_C		:std_logic_vector(1 downto 0);
@@ -1479,6 +1480,7 @@ signal	SLOW_WAITn	:std_logic;
 signal	IO_WAIT		:std_logic;
 signal	FMWSEL		:std_logic;
 signal	sb2c		:std_logic;
+signal	sbnc		:std_logic;
 signal	MP_FMSEL	:std_logic;
 signal	FM_WDAT		:std_logic_vector(7 downto 0);
 signal	SB1_ADR		:std_logic;
@@ -1712,6 +1714,7 @@ signal	sndFM	:std_logic_vector(15 downto 0);
 signal	sndFML,sndFMR	:std_logic_vector(15 downto 0);
 signal	sndPSG	:std_logic_vector(15 downto 0);
 signal	sndPSG2	:std_logic_vector(15 downto 0);
+signal	sndFMLb,sndFMRb,sndPSG2b	:std_logic_vector(15 downto 0);	-- the YM2608's output, 0 with Normal(SR)
 signal	monosnd	:std_logic_vector(15 downto 0);
 signal	sndL,sndR	:std_logic_vector(15 downto 0);
 signal	sndLw,sndRw	:std_logic_vector(17 downto 0);
@@ -1827,6 +1830,7 @@ begin
 		if (clk21m' event and clk21m='1') then
 			cInDev	<=pCoreConfig(0);
 			cSB2	<=pCoreConfig(1);
+			cSBN	<=not(pCoreConfig(1) or pCoreConfig(2));
 		end if;
 	end process;
 
@@ -1834,7 +1838,7 @@ begin
 	--only when two samples agree, so a change of the OSD option is never taken half done.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
-			VTm<=pCoreConfig(3 downto 2);
+			VTm<=pCoreConfig(4 downto 3);
 			VTm2<=VTm;
 			if(CPU_rstnr='0' and VTm=VTm2)then
 				VT24<=VTm(1) or VTm(0);
@@ -2506,18 +2510,19 @@ port map(
 --	IOWA	:IOWAIT port map(IORQ_n,RD_n,WR_n,IO_WAIT,cpu_clk,srstn);
 	-- One wait state on IN and OUT at the sound ports at 8MHz. A real FH and MA wait on IN at
 	-- 44h-47h and on OUT at 44h and 46h, whatever is fitted there. OUT at 45h and 47h is taken
-	-- to be the same, and so are A8h,A9h,ACh,ADh while Sound Board II is an expansion, as the
-	-- onboard OPNA on the MA. The setting is the one held for the access (sb2c), as for the
-	-- port (MP) and the chip it reaches.
+	-- to be the same, and so are A8h,A9h,ACh,ADh while Sound Board II is an add-on, as the
+	-- onboard OPNA on the MA. With no board, those ports have no wait. The settings are the
+	-- ones held for the access (sb2c, sbnc), as for the port (MP) and the chip it reaches.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
 			if(IORQ_n='1')then
 				sb2c<=cSB2;
+				sbnc<=cSBN;
 			end if;
 		end if;
 	end process;
 	FMWSEL<=	'1' when CPUADR(7 downto 2)="010001" else
-				'1' when sb2c='0' and CPUADR(7 downto 3)&CPUADR(1)="101010" else
+				'1' when sb2c='0' and sbnc='0' and CPUADR(7 downto 3)&CPUADR(1)="101010" else
 				'0';
 	MP_FMSEL<=FMWSEL when USE_OPN=5 else '0';
 	FMW		:FMWAIT port map(FMWSEL,IORQ_n,RD_n,WR_n,CPUMD,IO_WAIT,rclk,cpuce_f,CPU_rstnr);
@@ -2989,7 +2994,7 @@ end process;
 	selDualFM	:if USE_OPN=5 generate
 		--The CPU reaches both chips through MP, which picks the chip and holds the address and data.
 		INTn_OPN<= INTn_SB1 when (cSB2='0') else INTn_SB2;
-		INTn_FM2<= INTn_SB2 when (cSB2='0') else '1';
+		INTn_FM2<= INTn_SB2 when (cSB2='0' and cSBN='0') else '1';
 
 		PSG_OE	<= '0';
 		IDAT_PSG<= (others=>'1');
@@ -3080,8 +3085,11 @@ end process;
 		sndPSG2(1 downto 0)<="00";
 
 		--Sum in 18 bits and saturate to 16 (the 16-bit sum wrapped around)
-		sndLw <= (sndFM(15)&sndFM(15)&sndFM) + (sndFML(15)&sndFML(15)&sndFML) + ("00"&sndPSG) + ("00"&sndPSG2);
-		sndRw <= (sndFM(15)&sndFM(15)&sndFM) + (sndFMR(15)&sndFMR(15)&sndFMR) + ("00"&sndPSG) + ("00"&sndPSG2);
+		sndFMLb <= (others=>'0') when cSBN='1' else sndFML;
+		sndFMRb <= (others=>'0') when cSBN='1' else sndFMR;
+		sndPSG2b <= (others=>'0') when cSBN='1' else sndPSG2;
+		sndLw <= (sndFM(15)&sndFM(15)&sndFM) + (sndFMLb(15)&sndFMLb(15)&sndFMLb) + ("00"&sndPSG) + ("00"&sndPSG2b);
+		sndRw <= (sndFM(15)&sndFM(15)&sndFM) + (sndFMRb(15)&sndFMRb(15)&sndFMRb) + ("00"&sndPSG) + ("00"&sndPSG2b);
 		sndL <= x"7fff" when sndLw(17)='0' and sndLw(16 downto 15)/="00" else x"8000" when sndLw(17)='1' and sndLw(16 downto 15)/="11" else sndLw(15 downto 0);
 		sndR <= x"7fff" when sndRw(17)='0' and sndRw(16 downto 15)/="00" else x"8000" when sndRw(17)='1' and sndRw(16 downto 15)/="11" else sndRw(15 downto 0);
 
