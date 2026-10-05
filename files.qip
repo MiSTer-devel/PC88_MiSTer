@@ -168,4 +168,10 @@ set_global_assignment -name VHDL_FILE rtl/mainport.vhd
 set_global_assignment -name VERILOG_FILE rtl/ps2mouse.v
 set_global_assignment -name VHDL_FILE rtl/PC88MiSTer.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_demod.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_serial.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_arb.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_file.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_t88.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_fmt.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_play.sv
 set_global_assignment -name SYSTEMVERILOG_FILE PC8801SR.sv

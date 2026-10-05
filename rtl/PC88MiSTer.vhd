@@ -77,6 +77,8 @@ port(
 	--USART clock: "00" is the RS-232C rate, "01" is 600 baud and "10" is 1200 baud.
 	--Ignored unless the CPU has put the 8251 in its x16 mode.
 	cmt_clk_sel		:in std_logic_vector(1 downto 0);
+	--8251 mode set by the CPU: factor(7:6), length(5:4), parity enable(3), even(2), stop(1:0).
+	cmt_mode		:out std_logic_vector(7 downto 0);
 	
 
 	-- FDD ports
@@ -958,6 +960,10 @@ port(
 	RxRDY	:out std_logic;
 	
 	MODE_BAUD	:out std_logic_vector(1 downto 0);
+	MODE_CLEN	:out std_logic_vector(1 downto 0);
+	MODE_PEN	:out std_logic;
+	MODE_PEV	:out std_logic;
+	MODE_STOP	:out std_logic_vector(1 downto 0);
 	
 	TxCn	:in std_logic;
 	RxCn	:in std_logic;
@@ -1767,6 +1773,10 @@ constant CMT_DIV_600	:integer	:=(SYSCLK*1000/600/32)-1;
 constant CMT_DIV_1200	:integer	:=(SYSCLK*1000/1200/32)-1;
 signal	COM_vDIV	:std_logic_vector(10 downto 0);
 signal	COM_MODE_BAUD	:std_logic_vector(1 downto 0);
+signal	COM_MODE_CLEN	:std_logic_vector(1 downto 0);
+signal	COM_MODE_PEN	:std_logic;
+signal	COM_MODE_PEV	:std_logic;
+signal	COM_MODE_STOP	:std_logic_vector(1 downto 0);
 signal	MTON		:std_logic;
 signal	CDS			:std_logic;
 
@@ -3309,6 +3319,7 @@ end process;
 				conv_std_logic_vector(CMT_DIV_1200,11) when cmt_clk_sel="10" and COM_MODE_BAUD="10" else
 				conv_std_logic_vector(COM_DIV,11);
 	COMB	:clkdiv generic map(11) port map(COM_vDIV,COM_clk,clk21m,srstn21);
+	cmt_mode<=COM_MODE_BAUD & COM_MODE_CLEN & COM_MODE_PEN & COM_MODE_PEV & COM_MODE_STOP;
 	
 	USART	:e8251 port map(
 		WRn		=>COM_WRn,
@@ -3332,6 +3343,10 @@ end process;
 		RxRDY	=>INT_COMRX,
 		
 		MODE_BAUD	=>COM_MODE_BAUD,
+		MODE_CLEN	=>COM_MODE_CLEN,
+		MODE_PEN	=>COM_MODE_PEN,
+		MODE_PEV	=>COM_MODE_PEV,
+		MODE_STOP	=>COM_MODE_STOP,
 		
 		TxCn	=>COM_clk,
 		RxCn	=>COM_clk,

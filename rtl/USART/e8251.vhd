@@ -28,6 +28,11 @@ port(
 	
 	--Baud rate factor from the last mode command (00/01 = x1, 10 = x16, 11 = x64).
 	MODE_BAUD	:out std_logic_vector(1 downto 0);
+	--The rest of the last mode command: character length, parity enable/even, stop bits.
+	MODE_CLEN	:out std_logic_vector(1 downto 0);
+	MODE_PEN	:out std_logic;
+	MODE_PEV	:out std_logic;
+	MODE_STOP	:out std_logic_vector(1 downto 0);
 	
 	TxCn	:in std_logic;
 	RxCn	:in std_logic;
@@ -226,6 +231,10 @@ begin
 	prescen<=	'1' when BAUD="11" else '0';
 	
 	MODE_BAUD<=BAUD;
+	MODE_CLEN<=CLEN;
+	MODE_PEN<=PEN;
+	MODE_PEV<=PEV;
+	MODE_STOP<=STOP;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then

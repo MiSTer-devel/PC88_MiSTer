@@ -13,7 +13,7 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 * 2 Floppy Drives using D88 format (Disk types supported 2D and 2HD)
 * Sound chips YM2203 and YM2608 (Sound Board II) with ADPCM
 * Mouse support (Changed between Mouse and Joypad on the OSD)
-* Tape (CMT) input from the ADC of the analog I/O board
+* Tape (CMT) input from .t88 and .cmt images, or from the ADC of the analog I/O board
 
 ## Installation
 Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801** folder on the root/games of the card, and place PC8801 floppies (\*.D88) inside this folder. 
@@ -62,12 +62,19 @@ You could check and change the write protection of D88 file using this applicati
 
 ## Tape (CMT) input
 
-A tape can be loaded by playing it into the ADC input of the analog I/O board. Connect the
-recorder's line or earphone output to that input, start the tape and load as usual, with
-`CLOAD` in N-BASIC or `LOAD"CAS1:"` in N88-BASIC. Both tape speeds (600 and 1200 baud) work.
+A tape image (\*.t88 or \*.cmt) is selected with Tape on the OSD, from the **PC8801** folder.
+Load as usual, with `CLOAD` in N-BASIC or `LOAD"CAS1:"` in N88-BASIC. The image plays while
+the program runs the cassette motor and stops with it, at 600 or 1200 baud as the program sets.
+It goes on from where it stopped; a reset, or selecting the image again, starts it from the
+beginning. A .t88 image keeps the pauses between blocks; a .cmt image has none, so some programs
+need the .t88. Unmounting the image (Backspace in the file list) returns to the ADC input.
 
-The motor is not controlled, so the tape has to be started by hand. Saving to tape and tape
-image files are not supported.
+Without an image, a tape can be loaded by playing it into the ADC input of the analog I/O
+board. Connect the recorder's line or earphone output to that input, start the tape and load
+as usual. Both tape speeds (600 and 1200 baud) work. The motor is not controlled, so the tape
+has to be started by hand.
+
+Saving to tape is not supported.
 
 ## Video timing
 
@@ -92,6 +99,6 @@ On HDMI, Scale set to V-Integer keeps the lines the same thickness.
 ## TODO
 - Update T80 cpu
 - Add Audio Mix
-- Add support of tape images and saving to tape
+- Add support of saving to tape
 - Add support of other models like PC8801MC
 - ...

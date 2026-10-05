@@ -195,7 +195,7 @@ assign VGA_DISABLE = 0;
 assign UART_TXD = 0;
 
 //////////////////////////////////////////////////////////////////
-wire mist_active = |sd_rd[2:0] || |sd_wr[2:0];
+wire mist_active = |dsk_rd[2:0] || |dsk_wr[2:0];   // before the arbiter, so a waiting disk request still lights it
 assign LED_USER  = disk_led;
 assign LED_DISK  = {1'b0, mist_active};
 
@@ -215,6 +215,7 @@ parameter CONF_STR = {
 	"-;",
 	"S0,D88,FDD0;",
 	"S1,D88,FDD1;",
+	"S4,CMTT88,Tape;",
 	"RF,SYNC FD0;",
 	"RG,SYNC FD1;",
 	"-;",
@@ -297,15 +298,23 @@ wire        ps2_mouse_clk_in;
 wire        ps2_mouse_data_in;
 
 wire  [31:0] sd_lba;
-wire   [3:0] sd_rd;
-wire   [3:0] sd_wr;
+wire   [4:0] sd_rd;
+wire   [4:0] sd_wr;
+// The disk requests and acknowledges, on the core side of cmt_arb.
+wire   [3:0] dsk_rd;
+wire   [3:0] dsk_wr;
+wire   [3:0] dsk_ack;
+// The tape image's SD requests (slot 4), before and after cmt_arb.
+wire  [31:0] cmt_lba, cmt_host_lba;
+wire         cmt_rd, cmt_ack;
+wire         own_disk, own_tape;
 
-wire  [3:0] sd_ack;
+wire  [4:0] sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din;
 wire        sd_buff_wr;
-wire  [3:0] img_mounted;
+wire  [4:0] img_mounted;
 wire  [3:0] img_readonly;
 wire [63:0] img_size;
 
@@ -316,7 +325,7 @@ wire [21:0] gamma_bus;
 wire  [7:0] uart1_mode;
 wire [31:0] uart1_speed;
 
-hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(5)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -325,13 +334,13 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 	.status(status),
 	.status_menumask({en400p}),
 
-	.sd_lba('{sd_lba,sd_lba,sd_lba,sd_lba}),
+	.sd_lba('{sd_lba,sd_lba,sd_lba,sd_lba,cmt_host_lba}),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din('{sd_buff_din,sd_buff_din,sd_buff_din,sd_buff_din}),
+	.sd_buff_din('{sd_buff_din,sd_buff_din,sd_buff_din,sd_buff_din,8'h00}),
 	.sd_buff_wr(sd_buff_wr),
  
 	.img_mounted(img_mounted),
@@ -396,11 +405,13 @@ wire HSync, VSync, ce_pix, vid_de;
 
 //////////////////  CASSETTE (CMT) INPUT  ///////////////////
 
-// The tape reaches the 8251 as an asynchronous serial line; only the tone is decoded here.
+// The tape reaches the 8251 as an asynchronous serial line, either from an image in the
+// Tape slot or from the ADC, where only the tone is decoded.
 localparam CLK_SYS_HZ = 20000000;
 
 wire       cmt_mton;
 wire [1:0] cmt_bs;
+wire [7:0] cmt_mode;   // 8251 mode written by the CPU
 
 // Port 30h is written in the CPU clock domain. Sample the bits twice before they are used.
 reg [2:0] cmt_port30_s1 = 0, cmt_port30_s = 0;
@@ -415,9 +426,6 @@ wire tape_1200  = cmt_port30_s[0];      // 30h bit4: 1 = 1200 baud, 0 = 600
 
 wire tape_on  = tape_sel;
 wire tape_run = tape_on & tape_motor;
-
-// The USART clock follows the tape only while the motor is running.
-wire [1:0] cmt_clk_sel = tape_run ? (tape_1200 ? 2'b10 : 2'b01) : 2'b00;
 
 wire tape_level;
 ltc2308_tape #(.CLK_RATE(CLK_SYS_HZ)) tape_adc
@@ -440,8 +448,152 @@ cmt_demod #(.CLK_HZ(CLK_SYS_HZ)) tape_demod
 	.rxd(tape_rxd)
 );
 
-// Ground the 8251 input unless the motor is running.
-wire cmt_rxd = tape_run ? tape_rxd : 1'b0;
+// Tape image playback, SD slot 4 -> 8251 RxD.
+wire cmt_rst_n = reset_n & ~reset;
+
+// The frame shape comes from the mode the CPU wrote, so the image is sent the way the
+// program expects to receive it.
+wire [3:0] cmt_data_bits  = 4'd5 + {2'b0, cmt_mode[5:4]};
+wire       cmt_parity_en  = cmt_mode[3];
+wire       cmt_parity_odd = ~cmt_mode[2];
+// e8251 counts stop bits in halves and its receiver checks only one, so round up.
+wire [1:0] cmt_stop_bits  = cmt_mode[1] ? 2'd2 : 2'd1;
+// Only the x16 factor is supported: x1 cannot reach 1200 baud with an 11-bit divisor,
+// and at x64 the receiver samples at the end of the start bit.
+wire cmt_mode_ok = (cmt_mode[7:6] == 2'b10);
+
+// Must match SYSCLK in PC88MiSTer.vhd; CMT_DIV_9600 is the core's own RS-232C divisor.
+localparam int CMT_SYSCLK_HZ = CLK_SYS_HZ;
+localparam int CMT_OVERSAMP  = 16;
+localparam [10:0] CMT_DIV_9600 = 11'(CMT_SYSCLK_HZ/(2*CMT_OVERSAMP*9600) - 1);
+localparam [10:0] CMT_DIV_1200 = 11'(CMT_SYSCLK_HZ/(2*CMT_OVERSAMP*1200) - 1);
+localparam [10:0] CMT_DIV_600  = 11'(CMT_SYSCLK_HZ/(2*CMT_OVERSAMP*600)  - 1);
+
+// img_mounted can stay high for a while; cmt_file wants a single-clock pulse.
+// MiSTer signals an eject with a size of 0. A reset keeps the image in (cmt_file rewinds it).
+reg cmt_mnt_d   = 1'b0;
+reg cmt_present = 1'b0;
+wire cmt_mnt_pulse = img_mounted[4] & ~cmt_mnt_d;
+always @(posedge clk_sys) begin
+	if (!cmt_rst_n) cmt_mnt_d <= 1'b0;
+	else            cmt_mnt_d <= img_mounted[4];
+	if (cmt_rst_n && cmt_mnt_pulse) cmt_present <= |img_size;
+end
+
+wire cmt_txd, cmt_ser_busy;
+wire cmt_play_run = cmt_present & tape_on & tape_motor;
+
+// The serializer finishes the byte it is sending after the motor stops, so the line, the
+// rate and the frame shape stay with the image until that frame is out.
+wire cmt_line_hold = cmt_play_run | cmt_ser_busy;
+
+// Rate and shape are taken only while no frame is being sent; the CPU may rewrite them at
+// any time. A change while frames follow each other waits until the line is idle, so the
+// image and the 8251's clock change together.
+reg       cmt_baud_hold  = 1'b0;
+reg [3:0] cmt_fmt_bits_h = 4'd8;
+reg       cmt_fmt_pen_h  = 1'b0;
+reg       cmt_fmt_podd_h = 1'b0;
+reg [1:0] cmt_fmt_stop_h = 2'd2;
+always @(posedge clk_sys) begin
+	if (!cmt_rst_n) begin
+		cmt_baud_hold  <= 1'b0;
+		cmt_fmt_bits_h <= 4'd8;
+		cmt_fmt_pen_h  <= 1'b0;
+		cmt_fmt_podd_h <= 1'b0;
+		cmt_fmt_stop_h <= 2'd2;
+	end
+	else if (!cmt_ser_busy) begin
+		cmt_baud_hold  <= tape_1200;
+		cmt_fmt_bits_h <= cmt_data_bits;
+		cmt_fmt_pen_h  <= cmt_parity_en;
+		cmt_fmt_podd_h <= cmt_parity_odd;
+		cmt_fmt_stop_h <= cmt_stop_bits;
+	end
+end
+
+// No frame starts on the clock the held values change.
+wire cmt_cfg_new = (tape_1200 != cmt_baud_hold) | (cmt_data_bits != cmt_fmt_bits_h) |
+                   (cmt_parity_en != cmt_fmt_pen_h) | (cmt_parity_odd != cmt_fmt_podd_h) |
+                   (cmt_stop_bits != cmt_fmt_stop_h);
+wire cmt_run      = cmt_play_run & cmt_mode_ok & ~(~cmt_ser_busy & cmt_cfg_new);
+
+// clocks per bit, minus one: (D+1) x 2 x 16
+wire [10:0] cmt_com_div = (cmt_line_hold & cmt_mode_ok) ? (cmt_baud_hold ? CMT_DIV_1200 : CMT_DIV_600)
+                                                       : CMT_DIV_9600;
+wire [15:0] cmt_div     = ((16'(cmt_com_div) + 16'd1) << 5) - 16'd1;
+
+// The USART clock follows the image while it holds the line, otherwise the ADC tape
+// while its motor runs, otherwise the RS-232C rate as before.
+wire [1:0] cmt_clk_sel = (cmt_line_hold & cmt_mode_ok) ? (cmt_baud_hold ? 2'b10 : 2'b01)
+                       : tape_run                      ? (tape_1200     ? 2'b10 : 2'b01)
+                       : 2'b00;
+
+// With no image mounted this is the ADC path exactly as before. A mounted image idles
+// at mark, and ejecting it hands the line back to the ADC.
+wire cmt_line_mark = cmt_present & tape_on;
+wire cmt_rxd = cmt_line_hold ? cmt_txd : cmt_line_mark ? 1'b1 : tape_run ? tape_rxd : 1'b0;
+
+// diskemu takes the shared sd_buff_wr without looking at its ack, so tape and disk
+// transfers must not overlap. cmt_arb lets one side at a time through to the host.
+cmt_arb cmt_arb_i
+(
+	.clk(clk_sys),
+	.rst_n(cmt_rst_n),
+
+	.dsk_rd(dsk_rd),
+	.dsk_wr(dsk_wr),
+	.dsk_ack(dsk_ack),
+
+	.tap_rd(cmt_rd),
+	.tap_wr(1'b0),
+	.tap_ack(cmt_ack),
+	.tap_lba(cmt_lba),
+	.host_lba(cmt_host_lba),
+
+	.host_rd(sd_rd),
+	.host_wr(sd_wr),
+	.host_ack(sd_ack),
+
+	.own_disk(own_disk),
+	.own_tape(own_tape)
+);
+
+cmt_play #(.TICK_CLK(CMT_SYSCLK_HZ/4800)) cmt_play_i
+(
+	.clk(clk_sys),
+	.rst_n(cmt_rst_n),
+
+	.run(cmt_run),
+
+	.mounted(cmt_mnt_pulse),
+	.img_size(img_size),
+
+	.sd_lba(cmt_lba),
+	.sd_rd(cmt_rd),
+	.sd_ack(cmt_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_wr(sd_buff_wr & own_tape),
+
+	.div(cmt_div),
+	.data_bits(cmt_fmt_bits_h),
+	.parity_en(cmt_fmt_pen_h),
+	.parity_odd(cmt_fmt_podd_h),
+	.stop_bits(cmt_fmt_stop_h),
+
+	.txd(cmt_txd),
+	.ser_busy(cmt_ser_busy),
+	.ser_load(),
+
+	.is_t88(),
+	.eof(),
+	.no_file(),
+	.carrier(),
+	.t88_done(),
+	.t88_bad_tag(),
+	.t88_speed_1200()
+);
 
 PC88MiSTer PC88_top
 (
@@ -481,19 +633,19 @@ PC88MiSTer PC88_top
 	.pJoyA(joyA),
 	.pJoyB(joyB),
 
-	.mist_mounted(img_mounted),
+	.mist_mounted(img_mounted[3:0]),
 	.mist_readonly(img_readonly),
 	.mist_imgsize(img_size),
 
 	.mist_lba(sd_lba),
-	.mist_rd(sd_rd),
-	.mist_wr(sd_wr),
-	.mist_ack({sd_ack[3:2], |sd_ack[1:0], |sd_ack[1:0]}),
+	.mist_rd(dsk_rd),
+	.mist_wr(dsk_wr),
+	.mist_ack({dsk_ack[3:2], |dsk_ack[1:0], |dsk_ack[1:0]}),
 
 	.mist_buffaddr(sd_buff_addr),
 	.mist_buffdout(sd_buff_dout),
 	.mist_buffdin(sd_buff_din),
-	.mist_buffwr(sd_buff_wr),
+	.mist_buffwr(sd_buff_wr & own_disk),
 
 	.pFd_sync(FDsync),
 
@@ -517,6 +669,7 @@ PC88MiSTer PC88_top
 	.cmt_mton(cmt_mton),
 	.cmt_bs(cmt_bs),
 	.cmt_clk_sel(cmt_clk_sel),
+	.cmt_mode(cmt_mode),
 	.pCOM_RxD(cmt_rxd),
 
 	.rstn(reset_n & ~reset)
