@@ -1452,6 +1452,7 @@ begin
 			CPURSTn<='0';
 			-- CLKMb<='0';
 			CLKSFT<=(others=>'0');
+			SUBCSFT<=(others=>'0');
 		else
 			if(STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL)then
 				CPURSTn<='0';
@@ -1482,9 +1483,9 @@ begin
 	CPUCLK<=CLKSFT(18);
 	SUBCLKb<=SUBCSFT(18);
 
-	-- Next value of SUBCSFT, following the process above (held in reset and
+	-- Next value of SUBCSFT, following the process above (cleared in reset,
 	-- during SDRAM init, reloaded at clkcount=18, rotated otherwise).
-	nextsubc<=	SUBCSFT						when rstn='0' else
+	nextsubc<=	(others=>'0')				when rstn='0' else
 				SUBCSFT						when (STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL) else
 				"0000011111111100000"		when clkcount=18 else
 				SUBCSFT(17 downto 0) & SUBCSFT(18);
