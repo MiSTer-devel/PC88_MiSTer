@@ -68,6 +68,9 @@ signal	DVCOMP	:std_logic;
 signal	C_LOW	:integer range 0 to 31;
 signal	C_LIN	:integer range 0 to 19;
 signal	C_LIN31	:integer range 0 to 19;
+signal	LIN31Q	:std_logic_vector(9 downto 0);	-- VCOUNT-VIV, used from VIV on
+type	MOD5_T is array(0 to 30) of integer range 0 to 4;
+constant	MOD5	:MOD5_T:=(0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0);
 signal	C_LIN24	:integer range 0 to 19;
 signal	C_LIN2	:integer range 0 to 38;	-- C_LIN in the lines of a 16-line glyph
 signal	LBASE	:integer range 0 to VWMAX-1;	-- 24kHz: first line of the row being drawn
@@ -112,7 +115,12 @@ begin
 	vivs<=VRET24 when VT24='1' else VIV;
 	hivs<=HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
 
-	C_LIN31<=0 when VCOUNT<VIV else (VCOUNT-VIV)mod CHRL31;
+	--no divider: a divider does not fit in a clock. Mod 20 is 4*((q/4) mod 5) + q mod 4,
+	--and (q/4) mod 5 is the sum of its two nibbles mod 5, as 16 mod 5 = 1.
+	LIN31Q<=conv_std_logic_vector(VCOUNT-VIV,10);
+	C_LIN31<=0 when VCOUNT<VIV else
+			conv_integer(LIN31Q(3 downto 0)) when VMODEC='1' else
+			MOD5(conv_integer(LIN31Q(9 downto 6))+conv_integer(LIN31Q(5 downto 2)))*4+conv_integer(LIN31Q(1 downto 0));
 	--24kHz: the character height is not fixed, so count from the first line of the row
 	LDIFF<=VCOUNT-LBASE;
 	C_LIN24<=0 when VCOUNT<vivs or LDIFF<0 else
