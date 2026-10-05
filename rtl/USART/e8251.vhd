@@ -389,7 +389,12 @@ begin
 		elsif(clk' event and clk='1')then
 			oeset<='0';
 			peset<='0';
-			if(rxed='1')then
+			--RxEnable off holds RxRDY reset (8251A data sheet), so a character that was fully
+			--received before the receiver was disabled is not presented once it is enabled again.
+			if(RxEN='0')then
+				RxRDYb<='0';
+				RXINT<='0';
+			elsif(rxed='1')then
 				RXINT<='1';
 				if(RxRDYb='1')then
 					oeset<='1';
@@ -435,7 +440,9 @@ begin
 	TxRDYb<=txbemp;
 	TxEMPb<=TxRDYb and (not txbusy);
 	
-	RxRDY<=RxRDYb;
+	--Gated as well, so RxRDY is low from the clock the receiver is disabled (a character
+	--completing on that same clock would otherwise show for one clock).
+	RxRDY<=RxRDYb and RxEN;
 	TxEMP<=TxEMPb;
 	TxRDY<=TxRDYb when CTSn='0' and TxEN='1' else '0';
 	RTSn<=not RTS;
@@ -445,7 +452,7 @@ begin
 	OEF	:g_srff port map(oeset,oereset,OE,clk,rstn);
 	FEF	:g_srff port map(feset,fereset,FE,clk,rstn);
 	
-	STATUS<= not DSRn & '0' & FE & OE & PE & TxEMPb & RxRDYb & TxRDYb;
+	STATUS<= not DSRn & '0' & FE & OE & PE & TxEMPb & (RxRDYb and RxEN) & TxRDYb;
 	
 	RECVDAT<=	rxdat(7 downto 0) 			when CLEN="11" else
 				'0' & rxdat(6 downto 0)		when CLEN="10" else
