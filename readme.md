@@ -50,7 +50,7 @@ copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.ro
 The Sound Board option on the OSD selects the sound chips.
 
 - Normal(SR) (default): the YM2203 at 44h-45h only, as a PC-8801 mkII SR without a sound board.
-- OnBoard(FA/MA+): a YM2608 at 44h-47h, as on the FA, MA and later models.
+- OnBoard(FA/MA+): a YM2608 at 44h-47h, as on the FA, MA and later models. N88-BASIC reads as version 1.9, as on the MA, for software that picks the sound ports from the version.
 - Add-on (SB2): the YM2203 at 44h-45h and Sound Board II (YM2608) at A8h-ADh, as an SR with the board fitted. This was the default before.
 
 Some software only supports one of these. You could find more information on this issue ticket https://github.com/MiSTer-devel/PC88_MiSTer/issues/11.
