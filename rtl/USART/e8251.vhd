@@ -28,6 +28,11 @@ port(
 	
 	--Baud rate factor from the last mode command (00/01 = x1, 10 = x16, 11 = x64).
 	MODE_BAUD	:out std_logic_vector(1 downto 0);
+	--The rest of the last mode command: character length, parity enable/even, stop bits.
+	MODE_CLEN	:out std_logic_vector(1 downto 0);
+	MODE_PEN	:out std_logic;
+	MODE_PEV	:out std_logic;
+	MODE_STOP	:out std_logic_vector(1 downto 0);
 	
 	TxCn	:in std_logic;
 	RxCn	:in std_logic;
@@ -226,6 +231,10 @@ begin
 	prescen<=	'1' when BAUD="11" else '0';
 	
 	MODE_BAUD<=BAUD;
+	MODE_CLEN<=CLEN;
+	MODE_PEN<=PEN;
+	MODE_PEV<=PEV;
+	MODE_STOP<=STOP;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -380,7 +389,12 @@ begin
 		elsif(clk' event and clk='1')then
 			oeset<='0';
 			peset<='0';
-			if(rxed='1')then
+			--RxEnable off holds RxRDY reset (8251A data sheet), so a character that was fully
+			--received before the receiver was disabled is not presented once it is enabled again.
+			if(RxEN='0')then
+				RxRDYb<='0';
+				RXINT<='0';
+			elsif(rxed='1')then
 				RXINT<='1';
 				if(RxRDYb='1')then
 					oeset<='1';
@@ -426,7 +440,9 @@ begin
 	TxRDYb<=txbemp;
 	TxEMPb<=TxRDYb and (not txbusy);
 	
-	RxRDY<=RxRDYb;
+	--Gated as well, so RxRDY is low from the clock the receiver is disabled (a character
+	--completing on that same clock would otherwise show for one clock).
+	RxRDY<=RxRDYb and RxEN;
 	TxEMP<=TxEMPb;
 	TxRDY<=TxRDYb when CTSn='0' and TxEN='1' else '0';
 	RTSn<=not RTS;
@@ -436,7 +452,7 @@ begin
 	OEF	:g_srff port map(oeset,oereset,OE,clk,rstn);
 	FEF	:g_srff port map(feset,fereset,FE,clk,rstn);
 	
-	STATUS<= not DSRn & '0' & FE & OE & PE & TxEMPb & RxRDYb & TxRDYb;
+	STATUS<= not DSRn & '0' & FE & OE & PE & TxEMPb & (RxRDYb and RxEN) & TxRDYb;
 	
 	RECVDAT<=	rxdat(7 downto 0) 			when CLEN="11" else
 				'0' & rxdat(6 downto 0)		when CLEN="10" else
