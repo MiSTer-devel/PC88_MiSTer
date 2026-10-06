@@ -1762,6 +1762,10 @@ signal	FRAMADDR		:std_logic_vector(12 downto 0);
 signal	FRAMWDAT		:std_logic_vector(7 downto 0);
 signal	FRAMWR		:std_logic;
 signal	FRAM8WR		:std_logic;
+signal	LOADER_OEf,LOADER_OEr	:std_logic;
+signal	LOADER_WRr,LOADER_WRd	:std_logic;
+signal	LOADER_WE	:std_logic;
+signal	RAM_WAITf	:std_logic;
 
 --DISK emulation
 signal	EMUINITDONE	:std_logic;
@@ -2028,18 +2032,36 @@ begin
 
 --	pLed<=TRAM_CE & TVRAM_CE & RAM_CE & IORQ_n & CPUADR(15 downto 12);
 	
+	-- The loader runs on clk21m and holds the address and data until the write is
+	-- acknowledged (ioctl_wait), so only the write and the select cross to rclk, one
+	-- bit each. LOADER_OE is an AND of two clk21m registers: register it before it crosses.
+	process(clk21m)begin
+		if(clk21m' event and clk21m='1')then
+			LOADER_OEf<=LOADER_OE;
+		end if;
+	end process;
+	LDROEs	:cdc_sync2 port map(LOADER_OEf,LOADER_OEr,rclk);
+	LDRWRs	:cdc_sync2 port map(LOADER_WR,LOADER_WRr,rclk);
+	-- The font RAMs take one write per byte, on the clock the write arrives.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			LOADER_WRd<=LOADER_WRr;
+		end if;
+	end process;
+	LOADER_WE<=LOADER_WRr and not LOADER_WRd;
+
 	RAMADR<=
 			ADDR_BACKRAM(RAMAWIDTH-1 downto 19) & CLR_ADR when CLR_OE='1' else
-			ADDR_N88(RAMAWIDTH-1 downto 19) & LOADER_ADR when LOADER_OE='1' else
+			ADDR_N88(RAMAWIDTH-1 downto 19) & LOADER_ADR when LOADER_OEr='1' else
 			VMAP_RADR when TCNV_BUSUSE='1' else
 			MAP_RADR;
 	RAM_WDAT<=	CLR_WDAT when CLR_OE='1' else 
-				LOADER_WDAT when LOADER_OE='1' else
+				LOADER_WDAT when LOADER_OEr='1' else
 				 CPUDAT_W;
 	RAM_WR<=	CLR_WR when CLR_OE='1' else
-				LOADER_WR when LOADER_OE='1' else
+				LOADER_WRr when LOADER_OEr='1' else
 				(RAM_CE and (not WR_n));
-	RAM_RD<='0' when (LOADER_OE='1' or CLR_OE='1') else
+	RAM_RD<='0' when (LOADER_OEr='1' or CLR_OE='1') else
 			not TCNV_RDn when TCNV_BUSUSE='1' else
 			'1' when KANJI1RD='1' or KANJI2RD='1' else
 			(RAM_CE and (not RD_n));
@@ -2048,9 +2070,9 @@ begin
 	
 	FRAMADDR<=LOADER_ADR(12 downto 0);
 	FRAMWDAT<=LOADER_WDAT;
-	FRAMWR<=	LOADER_WR when LOADER_OE='1' and LOADER_ADR(18 downto 13)=ADDR_FONT(18 downto 13) else '0';
+	FRAMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 13)=ADDR_FONT(18 downto 13) else '0';
 	--8x8 font for 24kHz and 15kHz timing, from the kanji ROM. Loaded whatever the timing.
-	FRAM8WR<=	LOADER_WR when LOADER_OE='1' and LOADER_ADR(18 downto 11)=ADDR_FONT8(18 downto 11) else '0';
+	FRAM8WR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 11)=ADDR_FONT8(18 downto 11) else '0';
 
 	GALU	:GraphALU
 port map(
@@ -2186,7 +2208,9 @@ port map(
 	CLR_OE<='0';
 	-- loader_rstn<=CLR_rstn;
 	
-	LOADER_ACK<=not RAM_WAIT;
+	-- The loader waits for the acknowledge on clk21m.
+	LDRACKs	:cdc_sync2 port map(RAM_WAIT,RAM_WAITf,clk21m);
+	LOADER_ACK<=not RAM_WAITf;
 	
 --	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
 	process(clk21m,rstn,srstna)begin
