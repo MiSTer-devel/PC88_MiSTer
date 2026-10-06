@@ -741,6 +741,7 @@ port(
 	DONE		:out std_logic;
 	
 	clk			:in std_logic;
+	ce			:in std_logic;
 	rstn		:in std_logic
 );
 end component;
@@ -1554,6 +1555,10 @@ signal	TCNV_WADR	:std_logic_vector(11 downto 0);
 signal	TCNV_WDAT	:std_logic_vector(8 downto 0);
 signal	TCNV_WE		:std_logic;
 signal	TCNV_BUSUSE	:std_logic;
+signal	tcnvcnt		:integer range 0 to 14;
+signal	tcnv_ce		:std_logic;
+signal	TCNV_V1S21,TCNV_CPUMD21	:std_logic;
+signal	TCNV_V1S,TCNV_CPUMD	:std_logic;
 signal	COLORn		:std_logic;
 signal	ODAT_TCNV	:std_logic_vector(7 downto 0);
 signal	pclk		:std_logic;
@@ -1910,9 +1915,9 @@ begin
 	
 
 
-	--HRTC/VRTC are combinational outputs of the rclk domain (synccont2.vhd), so TRAMCONV
-	--can latch a decoding glitch when it reads them from clk21m. Register them here
-	--first. The added latency is one rclk period.
+	--HRTC/VRTC are combinational outputs of the rclk domain (synccont2.vhd). TRAMCONV
+	--takes them from these registers, which it needed when it ran on clk21m; they keep
+	--the step at which it sees them. The added latency is one rclk period.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
 			HRTCr<=HRTC;
@@ -2209,15 +2214,43 @@ port map(
 	end process;
 
 	--In 24kHz and 15kHz timing the dot enable is 3 to 6 clocks apart, so the text RAM
-	--ports used by the CPU and by TRAMCONV (clk21m) take every clock instead.
+	--ports used by the CPU and by TRAMCONV take every clock instead.
 	TCROSS_ce<='1' when VT24='1' else vid_ce3;
+
+	--TRAMCONV runs on rclk and takes a step 4 times in 15 clocks: 20MHz, the speed
+	--it had on clk21m, so its step counts (the V1S bus hold) keep their length.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			if(tcnvcnt=14)then
+				tcnvcnt<=0;
+			else
+				tcnvcnt<=tcnvcnt+1;
+			end if;
+			if(tcnvcnt=3 or tcnvcnt=7 or tcnvcnt=11 or tcnvcnt=14)then
+				tcnv_ce<='1';
+			else
+				tcnv_ce<='0';
+			end if;
+		end if;
+	end process;
+
+	--The mode and the CPU speed are set on clk21m. not cHS equals cV1S in all four
+	--modes, so one bit gives both TMODE and V1S and they cannot arrive apart.
+	process(clk21m)begin
+		if(clk21m' event and clk21m='1')then
+			TCNV_V1S21<=cV1S;
+			TCNV_CPUMD21<=CPUMD;
+		end if;
+	end process;
+	TV1S	:cdc_sync2 port map(TCNV_V1S21,TCNV_V1S,rclk);
+	TCMD	:cdc_sync2 port map(TCNV_CPUMD21,TCNV_CPUMD,rclk);
 
 	TRAM	:TEXTRAM port map(
 		address_a		=>TRAM_ADR,
 		address_b		=>TCNV_TADR,
 		clock			=>rclk,
 		ce_a			=>TCROSS_ce,
-		ce_b			=>TCROSS_ce,
+		ce_b			=>'1',	--read by TRAMCONV only, one step (3 or 4 clocks) later
 		data_a			=>CPUDAT_W,
 		data_b			=>(others=>'0'),
 		wren_a			=>TRAM_CE and (not WR_n),
@@ -2230,7 +2263,7 @@ port map(
 	T2V	:TRAMCONV
 	port map(
 	TVRMODE		=>TVRMODE,
-	TMODE		=>not cHS,
+	TMODE		=>TCNV_V1S,
 	SMODE		=>SMODE,
 	COLOR		=>not COLORn,
 	ATTRCOLOR	=>ATTRCOLOR,
@@ -2239,9 +2272,9 @@ port map(
 	ATTRLEN		=>ATTRLEN,
 	TXTLINES	=>TXTLINES,
 
-	V1S			=>cV1S,
+	V1S			=>TCNV_V1S,
 	VMODE		=>CRTC_VMODE,
-	CPUMD		=>CPUMD,
+	CPUMD		=>TCNV_CPUMD,
 	GVSTR		=>GVSTRr,
 	VT24		=>VT24,
 	TSET		=>CRTC_TSET,
@@ -2269,10 +2302,11 @@ port map(
 	HRET		=>HRTCr,
 	-- DONE		=>TCNVDONE,
 	
-	clk			=>clk21m,
-	rstn		=>CPU_rstn
+	clk			=>rclk,
+	ce			=>tcnv_ce,
+	rstn		=>CPU_rstnr
 );
-	-- TRAMCONV asks for the bus on clk21m. Bring the request over to rclk for the CPU.
+	-- Two clocks to the CPU, as when TRAMCONV ran on clk21m.
 	BRQs	:cdc_sync2 port map(BUSRQ_nf,BUSRQ_n,rclk);
 
 	TVRAM_WDAT	<='0' & CPUDAT_W			when TMODE='0' and TVRMODE='1' else TCNV_WDAT;
@@ -2566,8 +2600,7 @@ port map(
 	-- slowed enables.
 	GVSTR<='1' when cV1S='1' and G_PLANESEL='1' and GVAM='0' and GRAPHEN='1' and VRTCr='0' and GHSMv='0' else '0';
 	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr);
-	--GVSTR is a combination of rclk registers, so TRAMCONV could latch a decoding
-	--glitch when it reads it from clk21m. Register it here first, as for VRTCr.
+	--TRAMCONV takes GVSTR from this register, as for VRTCr.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
 			GVSTRr<=GVSTR;
