@@ -148,6 +148,7 @@ set_global_assignment -name VHDL_FILE rtl/RTC/rtc4990MiSTer.vhd
 set_global_assignment -name VHDL_FILE rtl/RTC/rtcbody.vhd
 set_global_assignment -name VHDL_FILE rtl/Cyc5/romcopy.vhd
 set_global_assignment -name VHDL_FILE rtl/sdramcde0cvDEMU2.vhd
+set_global_assignment -name VHDL_FILE rtl/sdrbridge.vhd
 set_global_assignment -name QIP_FILE rtl/TEXTRAM.qip
 set_global_assignment -name VHDL_FILE rtl/IO_RD.vhd
 set_global_assignment -name VHDL_FILE rtl/IO_WR.vhd
