@@ -67,18 +67,18 @@ ENTITY SDRAMCde0cvDEMU2 IS
 		VIDWAIT			:out std_logic;
 		
 		FDEADR			:in std_logic_vector(AWIDTH-1 downto 0)	:=(others=>'0');
-		FDERD				:in std_logic								:='0';
+		FDEREQ			:in std_logic								:='0';
 		FDEWR				:in std_logic								:='0';
 		FDERDAT			:out std_logic_Vector(15 downto 0);
 		FDEWDAT			:in std_logic_vector(15 downto 0)	:=(others=>'0');
-		FDEWAIT			:out std_logic;
+		FDEACK			:out std_logic;
 		
 		FECADR			:in std_logic_vector(AWIDTH-1 downto 0)	:=(others=>'0');
-		FECRD				:in std_logic								:='0';
+		FECREQ			:in std_logic								:='0';
 		FECWR				:in std_logic								:='0';
 		FECRDAT			:out std_logic_vector(15 downto 0);
 		FECWDAT			:in std_logic_vector(15 downto 0)	:=(others=>'0');
-		FECWAIT			:out std_logic;
+		FECACK			:out std_logic;
 		
 		SNDADR			:in std_logic_vector(AWIDTH-1 downto 0);
 		SNDRD				:in std_logic;
@@ -169,21 +169,15 @@ signal	SNDWAITb	:std_logic;
 
 signal	lCPUWR,lCPURD,lSUBWR,lSUBRD :std_logic_vector(3 downto 0);
 signal	lVIDRD	:std_logic_vector(1 downto 0);
-signal	sFDEADR	:std_logic_vector(AWIDTH-1 downto 0);
-signal	lFDEADR	:std_logic_vector(AWIDTH-1 downto 0);
-signal	fFDEADR	:std_logic_vector(AWIDTH-1 downto 0);
-signal	lFECADR	:std_logic_vector(AWIDTH-1 downto 0);
-signal	lFDEWR	:std_logic_vector(4 downto 0);
-signal	lFDERD	:std_logic_vector(4 downto 0);
-signal	lFECWR	:std_logic_vector(1 downto 0);
-signal	lFECRD	:std_logic_vector(1 downto 0);
+--FDE/FEC: two-phase handshake. FDEREQ/FECREQ arrive through synchronizers;
+--address, data and FDEWR/FECWR are held by the sender until FDEACK/FECACK
+--follows the request. FDEBSY/FECBSY: taken, ACK not yet given.
+signal	FDEACKb,FECACKb	:std_logic;
+signal	FDEBSY,FECBSY	:std_logic;
 signal	lSNDWR	:std_logic_vector(2 downto 0);
 signal	lSNDRD	:std_logic_vector(2 downto 0);
 signal	FDEADRb	:std_logic_vector(AWIDTH-1 downto 0);
-signal	pFDEADR	:std_logic_vector(AWIDTH-1 downto 0);
-signal	pFECADR	:std_logic_vector(AWIDTH-1 downto 0);
 signal	FDEWDATb	:std_logic_vector(15 downto 0);
-signal	sFDEWDAT	:std_logic_vector(15 downto 0);
 signal	FECADRb	:std_logic_vector(AWIDTH-1 downto 0);
 signal	FECWDATb	:std_logic_vector(15 downto 0);
 signal	lSNDADR	:std_logic_vector(AWIDTH-1 downto 0);
@@ -235,8 +229,8 @@ begin
 	CPUWAIT<=CPUWAITb;
 	VIDWAIT<=VIDWAITb;
 	SUBWAIT<=SUBWAITb;
-	FDEWAIT<=FDEWAITb;
-	FECWAIT<=FECWAITb;
+	FDEACK<=FDEACKb;
+	FECACK<=FECACKb;
 	SNDWAIT<=SNDWAITb;
 	
 	process(memclk,rstn)begin
@@ -281,16 +275,14 @@ begin
 			CPUWDATb	<=(others=>'0');
 			SUBADRb		<=(others=>'0');
 			SUBWDATb	<=(others=>'0');
-			lFDEADR<=(others=>'0');
-			sFDEADR<=(others=>'0');
-			pFDEADR<=(others=>'0');
 			FDEADRb<=(others=>'0');
-			lFECADR<=(others=>'0');
-			pFECADR<=(others=>'0');
+			FDEACKb<='0';
+			FDEBSY<='0';
 			FECADRb<=(others=>'0');
+			FECACKb<='0';
+			FECBSY<='0';
 			lSNDADR<=(others=>'0');
 			SNDADRb<=(others=>'0');
-			sFDEWDAT<=(others=>'0');
 		elsif(memclk' event and memclk='1')then
 --			if(lCPUWR(0)='0' and CPUWR='1')then
 			if(lCPUWR="0111")then
@@ -323,41 +315,35 @@ begin
 				SUBJOB<=JOB_RD;
 				SUBADRb<=SUBADR;
 			end if;
-			if(sFDEADR=lFDEADR)then
-				fFDEADR<=lFDEADR;
-			end if;
-			if(lFDEWR="11111")then
-				if(pFDEADR/=fFDEADR or FDEWDATb/=sFDEWDAT)then
-					FDEADRb<=fFDEADR;
-					FDEWDATb<=sFDEWDAT;
-					pFDEADR<=fFDEADR;
+			--Take a request once. ACK follows one cycle after the job ends,
+			--so FDERDAT/FECRDAT are registered before it.
+			if(FDEREQ/=FDEACKb and FDEBSY='0')then
+				FDEADRb<=FDEADR;
+				FDEWDATb<=FDEWDAT;
+				if(FDEWR='1')then
 					FDEJOB<=JOB_WR;
-					FDEWAITb<='1';
-				end if;
-			elsif(lFDERD="11111")then
-				if((pFDEADR/=fFDEADR) and FDEJOB/=JOB_WR)then
-					FDEADRb<=fFDEADR;
-					pFDEADR<=fFDEADR;
+				else
 					FDEJOB<=JOB_RD;
-					FDEWDATb<=x"ffff";
-					FDEWAITb<='1';
 				end if;
+				FDEWAITb<='1';
+				FDEBSY<='1';
+			elsif(FDEBSY='1' and FDEWAITb='0')then
+				FDEACKb<=FDEREQ;
+				FDEBSY<='0';
 			end if;
-			if(lFECWR="11")then
-				if(pFECADR/=lFECADR)then
-					FECADRb<=lFECADR;
-					FECWDATb<=FECWDAT;
-					pFECADR<=lFECADR;
+			if(FECREQ/=FECACKb and FECBSY='0')then
+				FECADRb<=FECADR;
+				FECWDATb<=FECWDAT;
+				if(FECWR='1')then
 					FECJOB<=JOB_WR;
-					FECWAITb<='1';
-				end if;
-			elsif(lFECRD="11")then
-				if(pFECADR/=lFECADR)then
-					FECADRb<=lFECADR;
-					pFECADR<=lFECADR;
+				else
 					FECJOB<=JOB_RD;
-					FECWAITb<='1';
 				end if;
+				FECWAITb<='1';
+				FECBSY<='1';
+			elsif(FECBSY='1' and FECWAITb='0')then
+				FECACKb<=FECREQ;
+				FECBSY<='0';
 			end if;
 			if(lSNDRD="011")then
 					SNDADRb<=lSNDADR;
@@ -1326,17 +1312,9 @@ begin
 			lSUBWR<=lSUBWR(2 downto 0) & SUBWR;
 			lSUBRD<=lSUBRD(2 downto 0) & SUBRD;
 			lVIDRD<=lVIDRD(0) & VIDRD;
-			lFDERD<=lFDERD(3 downto 0) & FDERD;
-			lFDEWR<=lFDEWR(3 downto 0) & FDEWR;
-			lFECRD<=lFECRD(0) & FECRD;
-			lFECWR<=lFECWR(0) & FECWR;
 			lSNDRD<=lSNDRD(1 downto 0) & SNDRD;
 			lSNDWR<=lSNDWR(1 downto 0) & SNDWR;
-			sFDEADR<=FDEADR;
-			lFDEADR<=sFDEADR;
-			lFECADR<=FECADR;
 			lSNDADR<=SNDADR;
-			sFDEWDAT<=FDEWDAT;
 			lSTATE<=STATE;
 		end if;
 	end process;

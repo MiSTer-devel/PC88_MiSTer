@@ -174,18 +174,18 @@ component SDRAMCde0cvDEMU2
 		VIDWAIT			:out std_logic;
 		
 		FDEADR			:in std_logic_vector(AWIDTH-1 downto 0)	:=(others=>'0');
-		FDERD				:in std_logic								:='0';
+		FDEREQ			:in std_logic								:='0';
 		FDEWR				:in std_logic								:='0';
 		FDERDAT			:out std_logic_Vector(15 downto 0);
 		FDEWDAT			:in std_logic_vector(15 downto 0)	:=(others=>'0');
-		FDEWAIT			:out std_logic;
+		FDEACK			:out std_logic;
 		
 		FECADR			:in std_logic_vector(AWIDTH-1 downto 0)	:=(others=>'0');
-		FECRD				:in std_logic								:='0';
+		FECREQ			:in std_logic								:='0';
 		FECWR				:in std_logic								:='0';
 		FECRDAT			:out std_logic_vector(15 downto 0);
 		FECWDAT			:in std_logic_vector(15 downto 0)	:=(others=>'0');
-		FECWAIT			:out std_logic;
+		FECACK			:out std_logic;
 		
 		SNDADR			:in std_logic_vector(AWIDTH-1 downto 0);
 		SNDRD			:in std_logic;
@@ -644,6 +644,31 @@ port(
 	q		:out std_logic;
 
 	clk		:in std_logic
+);
+end component;
+
+component sdrbridge
+generic(
+	AWIDTH	:integer	:=25;
+	ADRREAD	:boolean	:=false
+);
+port(
+	ADR		:in std_logic_vector(AWIDTH-1 downto 0);
+	RD		:in std_logic;
+	WR		:in std_logic;
+	WDAT	:in std_logic_vector(15 downto 0);
+	RDAT	:out std_logic_vector(15 downto 0);
+	WAITo	:out std_logic;
+
+	REQ		:out std_logic;
+	REQADR	:out std_logic_vector(AWIDTH-1 downto 0);
+	REQWR	:out std_logic;
+	REQWDAT	:out std_logic_vector(15 downto 0);
+	ACK		:in std_logic;
+	ACKRDAT	:in std_logic_vector(15 downto 0);
+
+	clk		:in std_logic;
+	rstn	:in std_logic
 );
 end component;
 
@@ -1769,7 +1794,6 @@ signal	EMUINITDONE	:std_logic;
 
 signal	FDE_ADDR	:std_logic_vector(22 downto 0);
 signal	FDE_ADDRW	:std_logic_vector(RAMAWIDTH-1 downto 0);
-signal	FDE_RD		:std_logic;
 signal	FDE_WR		:std_logic;
 signal	FDE_WDAT	:std_logic_vector(15 downto 0);
 signal	FDE_RDAT	:std_logic_vector(15 downto 0);
@@ -1782,6 +1806,19 @@ signal	FEC_WR		:std_logic;
 signal	FEC_WDAT	:std_logic_vector(15 downto 0);
 signal	FEC_RDAT	:std_logic_vector(15 downto 0);
 signal	FEC_RAMWAIT	:std_logic;
+
+--Disk emulation <-> SDRAM controller: sdrbridge on clk21m, the request and
+--acknowledge toggles through synchronizers, the rest held by the sender.
+signal	FDE_REQ,FDE_REQr,FDE_ACK,FDE_ACKf	:std_logic;
+signal	FDE_RADR	:std_logic_vector(RAMAWIDTH-1 downto 0);
+signal	FDE_RWR		:std_logic;
+signal	FDE_RWDAT	:std_logic_vector(15 downto 0);
+signal	FDE_RRDAT	:std_logic_vector(15 downto 0);
+signal	FEC_REQ,FEC_REQr,FEC_ACK,FEC_ACKf	:std_logic;
+signal	FEC_RADR	:std_logic_vector(RAMAWIDTH-1 downto 0);
+signal	FEC_RWR		:std_logic;
+signal	FEC_RWDAT	:std_logic_vector(15 downto 0);
+signal	FEC_RRDAT	:std_logic_vector(15 downto 0);
 
 --OPNA
 signal	PCMADDR	:std_logic_vector(17 downto 0);
@@ -2097,6 +2134,48 @@ port map(
 	GRAMADRW<=ADDR_GVRAM(RAMAWIDTH-1 downto 15) & GRAMADR & '0';
 	FDE_ADDRW<=ADDR_FDEMU(RAMAWIDTH-1 downto 23) & FDE_ADDR(22 downto 0);
 	FEC_ADDRW<=ADDR_FDEMU(RAMAWIDTH-1 downto 23) & FEC_ADDR(22 downto 0);
+
+	FDEB	:sdrbridge generic map(RAMAWIDTH,true) port map(
+		ADR		=>FDE_ADDRW,
+		RD		=>'0',
+		WR		=>FDE_WR,
+		WDAT	=>FDE_WDAT,
+		RDAT	=>FDE_RDAT,
+		WAITo	=>FDE_RAMWAIT,
+
+		REQ		=>FDE_REQ,
+		REQADR	=>FDE_RADR,
+		REQWR	=>FDE_RWR,
+		REQWDAT	=>FDE_RWDAT,
+		ACK		=>FDE_ACKf,
+		ACKRDAT	=>FDE_RRDAT,
+
+		clk		=>clk21m,
+		rstn	=>srstn21
+	);
+	FDEREQs	:cdc_sync2 port map(FDE_REQ,FDE_REQr,rclk);
+	FDEACKs	:cdc_sync2 port map(FDE_ACK,FDE_ACKf,clk21m);
+
+	FECB	:sdrbridge generic map(RAMAWIDTH,false) port map(
+		ADR		=>FEC_ADDRW,
+		RD		=>FEC_RD,
+		WR		=>FEC_WR,
+		WDAT	=>FEC_WDAT,
+		RDAT	=>FEC_RDAT,
+		WAITo	=>FEC_RAMWAIT,
+
+		REQ		=>FEC_REQ,
+		REQADR	=>FEC_RADR,
+		REQWR	=>FEC_RWR,
+		REQWDAT	=>FEC_RWDAT,
+		ACK		=>FEC_ACKf,
+		ACKRDAT	=>FEC_RRDAT,
+
+		clk		=>clk21m,
+		rstn	=>srstn21
+	);
+	FECREQs	:cdc_sync2 port map(FEC_REQ,FEC_REQr,rclk);
+	FECACKs	:cdc_sync2 port map(FEC_ACK,FEC_ACKf,clk21m);
 	PCMADDRW<=ADDR_ADPCM(RAMAWIDTH-1 downto 18) & PCMADDR;
 
 	RAM	:SDRAMCde0cvDEMU2 generic map(RAMCAWIDTH,RAMAWIDTH,ramclk/1000,64000/8192)
@@ -2153,19 +2232,19 @@ port map(
 		VIDRD			=>GRAMRD,
 		VIDWAIT			=>GRAMWAIT,
 		
-		FDEADR			=>FDE_ADDRW,
-		FDERD			=>FDE_RD,
-		FDEWR			=>FDE_WR,
-		FDERDAT			=>FDE_RDAT,
-		FDEWDAT			=>FDE_WDAT,
-		FDEWAIT			=>FDE_RAMWAIT,
+		FDEADR			=>FDE_RADR,
+		FDEREQ			=>FDE_REQr,
+		FDEWR			=>FDE_RWR,
+		FDERDAT			=>FDE_RRDAT,
+		FDEWDAT			=>FDE_RWDAT,
+		FDEACK			=>FDE_ACK,
 		
-		FECADR			=>FEC_ADDRW,
-		FECRD			=>FEC_RD,
-		FECWR			=>FEC_WR,
-		FECRDAT			=>FEC_RDAT,
-		FECWDAT			=>FEC_WDAT,
-		FECWAIT			=>FEC_RAMWAIT,
+		FECADR			=>FEC_RADR,
+		FECREQ			=>FEC_REQr,
+		FECWR			=>FEC_RWR,
+		FECRDAT			=>FEC_RRDAT,
+		FECWDAT			=>FEC_RWDAT,
+		FECACK			=>FEC_ACK,
 		
 		SNDADR			=>PCMADDRW,
 		SNDRD				=>PCMRD,
@@ -2797,7 +2876,7 @@ port map(
 		mist_buffwr		=>mist_buffwr,
 		
 		FDE_ADDR		=>FDE_ADDR,
-		FDE_RD			=>FDE_RD,
+		FDE_RD			=>open,	--FDE reads follow the address in sdrbridge
 		FDE_WR			=>FDE_WR,
 		FDE_WDAT		=>FDE_WDAT,
 		FDE_RDAT		=>FDE_RDAT,

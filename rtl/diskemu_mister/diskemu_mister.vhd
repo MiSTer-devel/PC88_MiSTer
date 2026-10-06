@@ -1916,7 +1916,7 @@ begin
 		address_a		=>fbaddr,
 		address_b		=>fec_ramaddrl,
 		clock_a			=>sclk,
-		clock_b			=>rclk,
+		clock_b			=>sclk,
 		data_a			=>trackwrdat,
 		data_b			=>fec_ramwdat,
 		wren_a			=>fbwr,
