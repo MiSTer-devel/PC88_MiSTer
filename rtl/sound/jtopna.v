@@ -25,6 +25,7 @@ module jtopna(
     input   [7:0]   adpcm_din,
     output          adpcm_wr,
     output  [7:0]   adpcm_dout,
+    input           adpcm_wait,
     // Output
     output  signed  [15:0] fm_snd_right,
     output  signed  [15:0] fm_snd_left,
@@ -82,6 +83,7 @@ jt08 u_jt08(
     .adpcmb_din     ( adpcm_din    ),
     .adpcmb_wr_n    ( adpcmb_wr_n  ),
     .adpcmb_dout    ( adpcm_dout   ),
+    .adpcmb_wait    ( adpcm_wait   ),
     // Separated output
     .psg_A          (              ),
     .psg_B          (              ),

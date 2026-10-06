@@ -49,6 +49,7 @@ module jt08_adpcm_drvB(
     output     [ 7:0] ram_dout,
     output            ram_oe_n,
     output            ram_wr_n,
+    input             ram_wait,
     // cpu bus
     input       [7:0] bus_din,
     output      [7:0] bus_dout,
@@ -141,6 +142,7 @@ jt08_adpcmb_mem u_memc(
     .ram_mode    ( acmd_mem_b      ),
     .ram_read    ( ram_read        ),
     .ram_write   ( ram_write & acmd_rec_b ),
+    .ram_wait    ( ram_wait        ),
 
     .ram_busy    ( ram_busy        ),
     .ram_stb     ( ram_stb         ),

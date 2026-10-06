@@ -190,11 +190,11 @@ component SDRAMCde0cvDEMU2
 		FECACK			:out std_logic;
 		
 		SNDADR			:in std_logic_vector(AWIDTH-1 downto 0);
-		SNDRD			:in std_logic;
+		SNDREQ			:in std_logic;
 		SNDWR			:in std_logic;
 		SNDRDAT			:out std_logic_vector(7 downto 0);
 		SNDWDAT			:in std_logic_vector(7 downto 0);
-		SNDWAIT			:out std_logic;
+		SNDACK			:out std_logic;
 		SNDH_Ln			:in std_logic;
 				
 		monout			:out std_logic_vector(7 downto 0);
@@ -1282,6 +1282,7 @@ component JTOPNA
 		adpcm_din 	:in std_logic_vector(7 downto 0);
 		adpcm_wr	:out std_logic;
 		adpcm_dout	:out std_logic_vector(7 downto 0);
+		adpcm_wait	:in std_logic;
 
 		fm_snd_right	:out std_logic_vector(15 downto 0);
 		fm_snd_left		:out std_logic_vector(15 downto 0);
@@ -1842,6 +1843,13 @@ signal	PCMWR		:std_logic;
 signal	PCMRDAT	:std_logic_vector(7 downto 0);
 signal	PCMWDAT	:std_logic_vector(7 downto 0);
 signal	PCMRWAIT	:std_logic;
+--ADPCM RAM <-> SDRAM controller: sdrbridge on clk21m, as for the disk emulation.
+signal	SND_REQ,SND_REQr,SND_ACK,SND_ACKf	:std_logic;
+signal	SND_RADR	:std_logic_vector(RAMAWIDTH-1 downto 0);
+signal	SND_RWR		:std_logic;
+signal	SND_RWDAT	:std_logic_vector(15 downto 0);
+signal	SND_RRDAT	:std_logic_vector(15 downto 0);
+signal	SND_RDAT	:std_logic_vector(15 downto 0);
 
 --video signal
 signal	vidR3	:std_logic_vector(2 downto 0);
@@ -2210,6 +2218,29 @@ port map(
 	FECACKs	:cdc_sync2 port map(FEC_ACK,FEC_ACKf,clk21m);
 	PCMADDRW<=ADDR_ADPCM(RAMAWIDTH-1 downto 18) & PCMADDR;
 
+	SNDB	:sdrbridge generic map(RAMAWIDTH,false) port map(
+		ADR		=>PCMADDRW,
+		RD		=>PCMRD,
+		WR		=>PCMWR,
+		WDAT	=>x"00" & PCMWDAT,
+		RDAT	=>SND_RDAT,
+		WAITo	=>PCMRWAIT,
+
+		REQ		=>SND_REQ,
+		REQADR	=>SND_RADR,
+		REQWR	=>SND_RWR,
+		REQWDAT	=>SND_RWDAT,
+		ACK		=>SND_ACKf,
+		ACKRDAT	=>SND_RRDAT,
+
+		clk		=>clk21m,
+		rstn	=>srstn21
+	);
+	PCMRDAT<=SND_RDAT(7 downto 0);
+	SND_RRDAT(15 downto 8)<=(others=>'0');
+	SNDREQs	:cdc_sync2 port map(SND_REQ,SND_REQr,rclk);
+	SNDACKs	:cdc_sync2 port map(SND_ACK,SND_ACKf,clk21m);
+
 	RAM	:SDRAMCde0cvDEMU2 generic map(RAMCAWIDTH,RAMAWIDTH,ramclk/1000,64000/8192)
 	port map(
 		PMEMCKE			=>pMemCke,
@@ -2278,12 +2309,12 @@ port map(
 		FECWDAT			=>FEC_RWDAT,
 		FECACK			=>FEC_ACK,
 		
-		SNDADR			=>PCMADDRW,
-		SNDRD				=>PCMRD,
-		SNDWR				=>PCMWR,
-		SNDRDAT			=>PCMRDAT,
-		SNDWDAT			=>PCMWDAT,
-		SNDWAIT			=>PCMRWAIT,
+		SNDADR			=>SND_RADR,
+		SNDREQ			=>SND_REQr,
+		SNDWR				=>SND_RWR,
+		SNDRDAT			=>SND_RRDAT(7 downto 0),
+		SNDWDAT			=>SND_RWDAT(7 downto 0),
+		SNDACK			=>SND_ACK,
 		SNDH_Ln			=>'0',
 
 		monout			=>open,
@@ -3142,6 +3173,7 @@ end process;
 			adpcm_wr	=>PCMWR,
 			adpcm_din	=>PCMRDAT,
 			adpcm_dout	=>PCMWDAT,
+			adpcm_wait	=>PCMRWAIT,
 
 			fm_snd_right	=>sndFMR,
 			fm_snd_left		=>sndFML,
@@ -3242,6 +3274,7 @@ end process;
 			adpcm_wr	=>PCMWR,
 			adpcm_din	=>PCMRDAT,
 			adpcm_dout	=>PCMWDAT,
+			adpcm_wait	=>PCMRWAIT,
 
 			fm_snd_right	=>sndFMR,
 			fm_snd_left		=>sndFML,
