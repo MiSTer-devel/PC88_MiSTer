@@ -1481,6 +1481,8 @@ signal	IO_WAIT		:std_logic;
 signal	FMWSEL		:std_logic;
 signal	sb2c		:std_logic;
 signal	sbnc		:std_logic;
+signal	sb2m		:std_logic;
+signal	N88VER		:std_logic;
 signal	MP_FMSEL	:std_logic;
 signal	FM_WDAT		:std_logic_vector(7 downto 0);
 signal	SB1_ADR		:std_logic;
@@ -2398,9 +2400,22 @@ port map(
 		frstn	=>CPU_rstn
 	);
 	
+	-- With the Sound Board set to OnBoard, N88-BASIC reads as version 1.9, as on the MA. Some software
+	-- reads this digit at 79D7h to choose between ports 44h and A8h. The setting is the one
+	-- held for the access, as for the sound ports.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			if(MREQ_n='1')then
+				sb2m<=cSB2;
+			end if;
+		end if;
+	end process;
+	N88VER<='1' when sb2m='1' and MAP_RADR=ADDR_N88(RAMAWIDTH-1 downto 16) & x"79D7" else '0';
+
 	CPUDAT<=
 				IDAT_RAM	when GRAM_M_OE='1' else
 				IDAT_ALU	when ALU_OE='1' else
+				x"39"		when (N88VER='1' and RAM_CE='1' and RD_n='0') else
 				IDAT_RAM	when (RAM_CE='1' and RD_n='0') else
 				IDAT_TRAM	when (TRAM_CE='1' and RD_n='0') else
 				IDAT_TVRAM	when (TVRAM_CE='1' and RD_n='0') else
