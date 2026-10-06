@@ -2073,8 +2073,8 @@ port map(
 	GAM		=>GAM,
 	NSEL	=>NG_RAMSEL,
 
-	clk		=>clk21m,
-	rstn	=>CPU_rstn
+	clk		=>rclk,
+	rstn	=>CPU_rstnr
 );
 	
 
