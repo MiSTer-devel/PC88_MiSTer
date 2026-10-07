@@ -606,7 +606,9 @@ port(
 
 	clk		:in std_logic;
 	ce_f	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	VT24	:in std_logic
 );
 end component;
 
@@ -621,7 +623,9 @@ port(
 	ce_f	:out std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	T24		:in std_logic
 );
 end component;
 
@@ -744,6 +748,7 @@ port(
 	CPUMD		:in std_logic;
 	GVSTR		:in std_logic;
 	VT24		:in std_logic;
+	VT15		:in std_logic;
 	TSET		:in std_logic_vector(17 downto 0);
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
@@ -1415,6 +1420,7 @@ signal	cSBN		:std_logic;	-- Normal(SR): no YM2608
 signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- pCoreConfig(4 downto 3) sampled on rclk
 signal	VT24		:std_logic	:='0';	-- 24kHz or 15kHz timing, taken at reset
 signal	VT15		:std_logic	:='0';	-- 15kHz timing, taken at reset
+signal	T24			:std_logic;	-- 24kHz timing
 signal	CRTC_C		:std_logic_vector(1 downto 0);
 signal	CRTC_SETL	:std_logic_vector(5 downto 0);
 signal	CRTC_SETR	:std_logic_vector(4 downto 0);
@@ -1909,6 +1915,7 @@ begin
 		end if;
 	end process;
 	pVideo24k<=VT24;
+	T24<=VT24 and not VT15;
 
 	srstna<=plllocked;	--LOADER_DONE and 
 	
@@ -2392,6 +2399,7 @@ port map(
 	CPUMD		=>TCNV_CPUMD,
 	GVSTR		=>GVSTRr,
 	VT24		=>VT24,
+	VT15		=>VT15,
 	TSET		=>CRTC_TSET,
 	
 	TADR_TOP	=>TRAMTOP,
@@ -2714,7 +2722,7 @@ port map(
 	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
 	-- slowed enables.
 	GVSTR<='1' when cV1S='1' and G_PLANESEL='1' and GVAM='0' and GRAPHEN='1' and VRTCr='0' and GHSMv='0' else '0';
-	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr);
+	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr,T24);
 	--TRAMCONV takes GVSTR from this register, as for VRTCr.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
@@ -2729,7 +2737,7 @@ port map(
 	-- Wait states on graphic VRAM reads and writes in V1S and N with direct
 	-- access, as measured on a real FH. GVWAIT above covers the ALU.
 	GVSEN<='1' when cV1S='1' and GVAM='0' and GHSMv='0' else '0';
-	GVSW	:GVSWAIT port map(GVSEL,GV_other,CPUMD,GVSTR,GVSEN,GVS_WAITn,rclk,cpuce_f,CPU_rstnr);
+	GVSW	:GVSWAIT port map(GVSEL,GV_other,CPUMD,GVSTR,GVSEN,GVS_WAITn,rclk,cpuce_f,CPU_rstnr,VT24);
 	
 	process(rclk,srstn)begin
 		if(srstn='0')then

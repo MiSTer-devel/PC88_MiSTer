@@ -11,7 +11,14 @@ generic(
 	V1SHOLD8	:integer	:=3325;
 	--Same, for rows taken while the CPU is slowed down by GVSTR
 	V1SHOLD4S	:integer	:=2356;
-	V1SHOLD8S	:integer	:=2742
+	V1SHOLD8S	:integer	:=2742;
+	--24kHz and 15kHz timing: the same per row, and per row while slowed down
+	V1SHOLD4N	:integer	:=3606;
+	V1SHOLD8N	:integer	:=3146;
+	V1SHOLD4S24	:integer	:=2680;
+	V1SHOLD8S24	:integer	:=2778;
+	V1SHOLD4S15	:integer	:=2266;
+	V1SHOLD8S15	:integer	:=2598
 );
 port(
 	TVRMODE		:in std_logic;
@@ -29,6 +36,7 @@ port(
 	CPUMD		:in std_logic	:='0';	-- 0:4MHz 1:8MHz
 	GVSTR		:in std_logic	:='0';	-- 1:the CPU is slowed down (rclk)
 	VT24		:in std_logic	:='0';	-- 1:24kHz or 15kHz timing (rclk)
+	VT15		:in std_logic	:='0';	-- 1:15kHz timing (rclk)
 	TSET		:in std_logic_vector(17 downto 0)	:=(others=>'0');	-- 24kHz, 15kHz: rows, height, first request line (rclk)
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
@@ -134,6 +142,14 @@ signal	REQLINE		:integer range 0 to 1023;		-- raster of the next request
 signal	VMODEs		:std_logic;
 signal	GVSTRs		:std_logic;
 signal	VT24s		:std_logic;
+signal	VT15s		:std_logic;
+--24kHz, 15kHz in V1S: like a real FH, the CPU is not stopped in the retrace.
+--Row 0 is read there without the hold, and the hold it would have taken is
+--taken alone, with no transfer, one row after the last row (XREQ).
+signal	XREQ		:std_logic;	-- the hold-only request is due
+signal	HOLDONLY	:std_logic;	-- the bus is being taken for the hold only
+signal	NOHOLD		:std_logic;	-- this row is row 0: no hold after it
+signal	HOLDTGT		:integer range 0 to 65535;
 --TSET, taken when TSr2 and TSr3 agree. Until then (a few clocks after reset, before
 --any CAPLINE), the 24kHz 25-line set.
 constant TSDEF	:std_logic_vector(17 downto 0)	:=conv_std_logic_vector(ROWSDEF24,5) & conv_std_logic_vector(CHRLDEF24,5) & conv_std_logic_vector(VRETDEF24-CHRLDEF24,8);
@@ -154,7 +170,7 @@ signal	TEXTENr		:std_logic;
 --TXTLINES, taken when TXLr2 and TXLr3 agree.
 signal	TXLr,TXLr2,TXLr3	:std_logic_vector(5 downto 0);
 --VMODE, GVSTR and VT24, two steps late as before.
-signal	VMODEs1,GVSTRs1,VT24s1	:std_logic;
+signal	VMODEs1,GVSTRs1,VT24s1,VT15s1	:std_logic;
 
 begin
 
@@ -165,6 +181,17 @@ begin
 	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
 	LINES<=conv_integer(TXTLINES);
 
+	HOLDTGT<=	V1SHOLD4		when capCPUMD='0' and capSTR='0' and VT24s='0' else
+				V1SHOLD8		when capCPUMD='1' and capSTR='0' and VT24s='0' else
+				V1SHOLD4S		when capCPUMD='0' and VT24s='0' else
+				V1SHOLD8S		when VT24s='0' else
+				V1SHOLD4N		when capCPUMD='0' and capSTR='0' else
+				V1SHOLD8N		when capSTR='0' else
+				V1SHOLD4S15		when capCPUMD='0' and VT15s='1' else
+				V1SHOLD8S15		when VT15s='1' else
+				V1SHOLD4S24		when capCPUMD='0' else
+				V1SHOLD8S24;
+
 	process(clk)begin
 		if(clk' event and clk='1')then
 			if(ce='1')then
@@ -174,6 +201,8 @@ begin
 				GVSTRs<=GVSTRs1;
 				VT24s1<=VT24;
 				VT24s<=VT24s1;
+				VT15s1<=VT15;
+				VT15s<=VT15s1;
 			end if;
 		end if;
 	end process;
@@ -242,6 +271,9 @@ begin
 			HOLDING<='0';
 			BLKADR<=0;
 			SINCEBND<=3;
+			XREQ<='0';
+			HOLDONLY<='0';
+			NOHOLD<='0';
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -269,7 +301,8 @@ begin
 						if(stuckcnt=STUCKMAX)then
 							stuckcnt<=0;
 							STATE<=ST_RELBUS;
-							if(capV1S='1')then
+							HOLDONLY<='0';
+							if(capV1S='1' and HOLDONLY='0')then
 								--V1S: drop the row, but step to the next one as ST_SETATR2 does.
 								if(SMODE='1' and LINESKIP='0')then
 									LINESKIP<='1';
@@ -325,6 +358,11 @@ begin
 								CHARCNT<=0;
 								ATRCNT<=0;
 								LINECNT<=LINECNT+1;
+								if(VT24s='1' and LINECNT=0)then
+									NOHOLD<='1';
+								else
+									NOHOLD<='0';
+								end if;
 								if(rTMODE='1')then
 									STATE<=ST_GETBUS;
 									BUSREQn<='0';
@@ -336,6 +374,12 @@ begin
 								for iCOUNTER in 0 to 79 loop
 									fATTR(iCOUNTER)<='0';
 								end loop;
+							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1')then
+								--24kHz, 15kHz: the hold-only request.
+								XREQ<='0';
+								HOLDONLY<='1';
+								STATE<=ST_GETBUS;
+								BUSREQn<='0';
 							elsif(CAPD='1' and BLANKD='0')then
 								--24kHz, 15kHz: a due row request goes first (few rows and a short retrace
 								--can leave no time to clear first), then the clearing continues
@@ -392,7 +436,12 @@ begin
 						end if;
 					when ST_GETBUS =>
 						if(BUSACKnr='0')then
-							STATE<=ST_RDTXT;
+							if(HOLDONLY='1')then
+								STATE<=ST_HOLD;
+								HOLDONLY<='0';
+							else
+								STATE<=ST_RDTXT;
+							end if;
 							BUS_USE<='1';
 							HOLDING<='1';
 							capSTR<=GVSTRs;
@@ -544,7 +593,7 @@ begin
 							SDSTADR<=SDSTADR+x"0a0";
 							CHARCNT<=0;
 							ATRCNT<=0;
-							if(capV1S='1' and rTMODE='1')then
+							if(capV1S='1' and rTMODE='1' and NOHOLD='0')then
 								STATE<=ST_HOLD;
 							else
 								STATE<=ST_RELBUS;
@@ -553,8 +602,7 @@ begin
 					when ST_HOLD =>
 						--V1S: keep the bus for the hold length, shorter for a row taken
 						--while the CPU is slowed down.
-						if((capCPUMD='0' and capSTR='0' and holdcnt>=V1SHOLD4-2) or (capCPUMD='1' and capSTR='0' and holdcnt>=V1SHOLD8-2) or
-						   (capCPUMD='0' and capSTR='1' and holdcnt>=V1SHOLD4S-2) or (capCPUMD='1' and capSTR='1' and holdcnt>=V1SHOLD8S-2))then
+						if(holdcnt>=HOLDTGT-2)then
 							STATE<=ST_RELBUS;
 						end if;
 					when ST_BLANK =>
@@ -623,6 +671,7 @@ begin
 				if(pVRET='0' and VRETr='1')then
 					RASTER<=0;
 					REQ<=0;
+					XREQ<='0';
 					BNDPEND<='1';
 					CAPD<='0';
 					BLANKD<='0';
@@ -662,6 +711,10 @@ begin
 							CAPD<='1';
 						elsif(CAPD='1' and RASTER+1=REQLINE and REQ<capROWS)then
 							REQ<=REQ+1;
+							REQLINE<=REQLINE+capCHRL;
+						elsif(CAPD='1' and RASTER+1=REQLINE and VT24s='1' and capV1S='1')then
+							--One row after the last row: the hold-only request.
+							XREQ<='1';
 							REQLINE<=REQLINE+capCHRL;
 						end if;
 					end if;
