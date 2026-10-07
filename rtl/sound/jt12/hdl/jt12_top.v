@@ -48,6 +48,7 @@ module jt12_top (
     output          adpcmb_roe_n, // ADPCM-B ROM output enable
     output          adpcmb_wr_n,  // ADPCM-B RAM write strobe
     output  [ 7:0]  adpcmb_dout,
+    input           adpcmb_wait,  // ADPCM-B RAM access not finished yet
     // I/O pins used by YM2203 embedded YM2149 chip
     input      [7:0] IOA_in,
     input      [7:0] IOB_in,
@@ -360,6 +361,7 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .ram_dout   ( adpcmb_dout   ),
         .ram_oe_n   ( adpcmb_roe_n  ),
         .ram_wr_n   ( adpcmb_wr_n   ),
+        .ram_wait   ( adpcmb_wait   ),
         .bus_din    ( din           ),
         .bus_dout   ( dout_b        ),
         .sel_ram    ( sel_ram       ),

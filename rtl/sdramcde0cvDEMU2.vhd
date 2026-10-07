@@ -81,11 +81,11 @@ ENTITY SDRAMCde0cvDEMU2 IS
 		FECACK			:out std_logic;
 		
 		SNDADR			:in std_logic_vector(AWIDTH-1 downto 0);
-		SNDRD				:in std_logic;
+		SNDREQ			:in std_logic;
 		SNDWR				:in std_logic;
 		SNDRDAT			:out std_logic_vector(7 downto 0);
 		SNDWDAT			:in std_logic_vector(7 downto 0);
-		SNDWAIT			:out std_logic;
+		SNDACK			:out std_logic;
 		SNDH_Ln			:in std_logic;
 		
 		monout			:out std_logic_vector(7 downto 0);
@@ -169,18 +169,16 @@ signal	SNDWAITb	:std_logic;
 
 signal	lCPUWR,lCPURD,lSUBWR,lSUBRD :std_logic_vector(3 downto 0);
 signal	lVIDRD	:std_logic_vector(1 downto 0);
---FDE/FEC: two-phase handshake. FDEREQ/FECREQ arrive through synchronizers;
---address, data and FDEWR/FECWR are held by the sender until FDEACK/FECACK
---follows the request. FDEBSY/FECBSY: taken, ACK not yet given.
-signal	FDEACKb,FECACKb	:std_logic;
-signal	FDEBSY,FECBSY	:std_logic;
-signal	lSNDWR	:std_logic_vector(2 downto 0);
-signal	lSNDRD	:std_logic_vector(2 downto 0);
+--FDE/FEC/SND: two-phase handshake. FDEREQ/FECREQ/SNDREQ arrive through
+--synchronizers; address, data and FDEWR/FECWR/SNDWR are held by the sender
+--until FDEACK/FECACK/SNDACK follows the request. FDEBSY/FECBSY/SNDBSY:
+--taken, ACK not yet given.
+signal	FDEACKb,FECACKb,SNDACKb	:std_logic;
+signal	FDEBSY,FECBSY,SNDBSY	:std_logic;
 signal	FDEADRb	:std_logic_vector(AWIDTH-1 downto 0);
 signal	FDEWDATb	:std_logic_vector(15 downto 0);
 signal	FECADRb	:std_logic_vector(AWIDTH-1 downto 0);
 signal	FECWDATb	:std_logic_vector(15 downto 0);
-signal	lSNDADR	:std_logic_vector(AWIDTH-1 downto 0);
 signal	SNDADRb	:std_logic_vector(AWIDTH-1 downto 0);
 signal	SNDWDATb	:std_logic_vector(7 downto 0);
 
@@ -231,7 +229,7 @@ begin
 	SUBWAIT<=SUBWAITb;
 	FDEACK<=FDEACKb;
 	FECACK<=FECACKb;
-	SNDWAIT<=SNDWAITb;
+	SNDACK<=SNDACKb;
 	
 	process(memclk,rstn)begin
 		if(rstn='0')then
@@ -281,8 +279,9 @@ begin
 			FECADRb<=(others=>'0');
 			FECACKb<='0';
 			FECBSY<='0';
-			lSNDADR<=(others=>'0');
 			SNDADRb<=(others=>'0');
+			SNDACKb<='0';
+			SNDBSY<='0';
 		elsif(memclk' event and memclk='1')then
 --			if(lCPUWR(0)='0' and CPUWR='1')then
 			if(lCPUWR="0111")then
@@ -316,7 +315,7 @@ begin
 				SUBADRb<=SUBADR;
 			end if;
 			--Take a request once. ACK follows one cycle after the job ends,
-			--so FDERDAT/FECRDAT are registered before it.
+			--so FDERDAT/FECRDAT/SNDRDAT are registered before it.
 			if(FDEREQ/=FDEACKb and FDEBSY='0')then
 				FDEADRb<=FDEADR;
 				FDEWDATb<=FDEWDAT;
@@ -345,15 +344,19 @@ begin
 				FECACKb<=FECREQ;
 				FECBSY<='0';
 			end if;
-			if(lSNDRD="011")then
-					SNDADRb<=lSNDADR;
-					SNDJOB<=JOB_RD;
-					SNDWAITb<='1';
-			elsif(lSNDWR="011")then
-					SNDADRb<=lSNDADR;
-					SNDWDATb<=SNDWDAT;
+			if(SNDREQ/=SNDACKb and SNDBSY='0')then
+				SNDADRb<=SNDADR;
+				SNDWDATb<=SNDWDAT;
+				if(SNDWR='1')then
 					SNDJOB<=JOB_WR;
-					SNDWAITb<='1';
+				else
+					SNDJOB<=JOB_RD;
+				end if;
+				SNDWAITb<='1';
+				SNDBSY<='1';
+			elsif(SNDBSY='1' and SNDWAITb='0')then
+				SNDACKb<=SNDREQ;
+				SNDBSY<='0';
 			end if;
 			if(INITTIMER>0)then
 				if(INITTIMER=1)then
@@ -1312,9 +1315,6 @@ begin
 			lSUBWR<=lSUBWR(2 downto 0) & SUBWR;
 			lSUBRD<=lSUBRD(2 downto 0) & SUBRD;
 			lVIDRD<=lVIDRD(0) & VIDRD;
-			lSNDRD<=lSNDRD(1 downto 0) & SNDRD;
-			lSNDWR<=lSNDWR(1 downto 0) & SNDWR;
-			lSNDADR<=SNDADR;
 			lSTATE<=STATE;
 		end if;
 	end process;

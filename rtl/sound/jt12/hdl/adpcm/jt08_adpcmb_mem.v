@@ -30,6 +30,7 @@ module jt08_adpcmb_mem(
     input               ram_mode,
     input               ram_read,
     input               ram_write,
+    input               ram_wait,   // external memory has not finished the access yet
 
     output  reg         ram_busy,
     output  reg         ram_stb,
@@ -92,7 +93,7 @@ always @(posedge clk) begin
                     ram_busy    <= 1'b1;
                     ram_stb     <= 1'b0;
                     waits       <= {1'b1, waits[RDWAIT:1]};
-                    if (waits[0]) begin
+                    if (waits[0] && !ram_wait) begin
                         state   <= STATE_POST;
                     end else begin
                         state   <= STATE_WAIT;

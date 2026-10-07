@@ -50,6 +50,7 @@ module jt08(
     input   [7:0]   adpcmb_din,
     output          adpcmb_wr_n,  // ADPCM-B RAM write strobe
     output  [7:0]   adpcmb_dout,
+    input           adpcmb_wait,  // ADPCM-B RAM access not finished yet
     // Separated output
     output          [ 9:0] psg_A,
     output          [ 9:0] psg_B,
@@ -89,6 +90,7 @@ u_jt12(
     .adpcmb_data    ( adpcmb_din   ), // Data from RAM
     .adpcmb_wr_n    ( adpcmb_wr_n  ), // ADPCM-B RAM write strobe
     .adpcmb_dout    ( adpcmb_dout  ),
+    .adpcmb_wait    ( adpcmb_wait  ),
     // Separated output
     .psg_A          ( psg_A        ),
     .psg_B          ( psg_B        ),

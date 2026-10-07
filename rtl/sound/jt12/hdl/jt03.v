@@ -86,6 +86,7 @@ u_jt12(
     .adpcmb_data    ( 8'd0         ),
     .adpcmb_addr    (              ), // real hardware has 12 pins multiplexed through PMPX pin
     .adpcmb_roe_n   (              ), // ADPCM-B ROM output enable
+    .adpcmb_wait    ( 1'b0         ),
     // Separated output
     .psg_A          ( psg_A        ),
     .psg_B          ( psg_B        ),
