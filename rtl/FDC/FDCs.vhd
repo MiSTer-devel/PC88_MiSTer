@@ -1296,7 +1296,9 @@ begin
 		end if;
 	end process;
 	
-	process(fclk,rstn)begin
+	process(fclk,rstn)
+		variable	lastsect	:std_logic;	-- the sector just finished was the last one (EOT)
+	begin
 		if(rstn='0')then
 			execstate<=es_idle;
 			end_EXEC<='0';
@@ -2082,6 +2084,7 @@ begin
 					when es_CRCdc =>
 						if(crcdone='1')then
 							if((crczero='1') or (ecommand=cmd_READATRACK))then
+								lastsect:='0';
 								if(R/=EOT)then
 									incR<='1';
 								elsif(MT='1')then
@@ -2094,10 +2097,12 @@ begin
 										resH<='1';
 										resHD<='1';
 										incC<='1';
+										lastsect:='1';
 									end if;
 								else
 									resR<='1';
 									incC<='1';
+									lastsect:='1';
 								end if;
 								sDE<='0';
 								if(sOR='1')then
@@ -2123,6 +2128,20 @@ begin
 									PCN<=cPCN;
 									INT<='1';
 									-- iSE<='1';
+									end_EXEC<='1';
+								elsif(lastsect='1')then
+									-- reached EOT without TC: end the command here with EN set, like the uPD765
+									-- (it used to look for sector EOT+1 for two turns and end with IC=01 and ND)
+									execstate<=es_IDLE;
+									sIC<="00";
+									sEN<='1';
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
+									sHD<=HD;
+									sUS<=US;
+									PCN<=cPCN;
+									INT<='1';
 									end_EXEC<='1';
 								else
 									nturns<=0;
@@ -3816,6 +3835,7 @@ begin
 					when es_CRCdc =>
 						if(crcdone='1')then
 							if(crczero='1')then
+								lastsect:='0';
 								if(R/=EOT)then
 									incR<='1';
 								elsif(MT='1')then
@@ -3828,10 +3848,12 @@ begin
 										resH<='1';
 										resHD<='1';
 										incC<='1';
+										lastsect:='1';
 									end if;
 								else
 									resR<='1';
 									incC<='1';
+									lastsect:='1';
 								end if;
 								sDE<='0';
 								if(TCen='1')then
@@ -3845,6 +3867,20 @@ begin
 									PCN<=cPCN;
 									INT<='1';
 									-- iSE<='1';
+									end_EXEC<='1';
+								elsif(lastsect='1')then
+									-- reached EOT without TC: end the command here with EN set, like the uPD765
+									-- (it used to look for sector EOT+1 for two turns and end with IC=01 and ND)
+									execstate<=es_IDLE;
+									sIC<="00";
+									sEN<='1';
+									sNR<=READY;
+									sEC<='0';
+									sSE<='0';
+									sHD<=HD;
+									sUS<=US;
+									PCN<=cPCN;
+									INT<='1';
 									end_EXEC<='1';
 								else
 									nturns<=0;
