@@ -8,7 +8,8 @@ use IEEE.numeric_std.all;
 --Slows the main CPU down while STR is high by dropping some of its clock
 --enables. A real FH in V1S runs about 4.94 times slower at 4MHz (5.02 at
 --8MHz) while graphic VRAM is selected for direct access and the graphic
---screen is being displayed.
+--screen is being displayed, and about 6.85 times (7.30 at 8MHz) in 24kHz
+--timing.
 --Only the original ce_r/ce_f ticks are passed or dropped, and the passed ones
 --always alternate ce_r, ce_f, ce_r, ... so every user of the enables sees a
 --slower CPU clock. While STR is low all of them pass.
@@ -27,12 +28,15 @@ port(
 	ce_f	:out std_logic;
 
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	T24		:in std_logic	-- '1' in 24kHz timing
 );
 end GVSTRETCH;
 
 architecture rtl of GVSTRETCH is
--- ratio K/N: 207/1024 = 1/4.947 at 4MHz, 204/1024 = 1/5.020 at 8MHz
+-- ratio K/N: 207/1024 = 1/4.947 at 4MHz, 204/1024 = 1/5.020 at 8MHz,
+-- 150/1024 = 1/6.827 and 140/1024 = 1/7.314 in 24kHz timing
 constant N		:integer := 1024;
 signal	K		:integer range 0 to 255;
 signal	acc		:integer range 0 to 2047;
@@ -46,7 +50,10 @@ signal	expf_nx	:std_logic;
 signal	known_nx	:std_logic;
 signal	sum		:integer range 0 to 2303;
 begin
-	K<=204 when FAST='1' else 207;
+	K<=	140 when FAST='1' and T24='1' else
+		204 when FAST='1' else
+		150 when T24='1' else
+		207;
 
 	-- state after this edge
 	process(ce_r_in,ce_f_in,pass_r,pass_f,strd,acc,expf,known,K)

@@ -7,8 +7,9 @@ use IEEE.std_logic_1164.all;
 --Adds wait states to CPU reads and writes of graphic VRAM selected for direct
 --access (5Ch-5Eh) in V1S and N, as measured on a real FH.
 --While GVSTRETCH slows the CPU down (STR high), a real FH waits about 2 slowed
---states at 4MHz and 3.6 at 8MHz (4,3,4,3,4, one step per access). Otherwise
---it waits 2 states at 8MHz and none at 4MHz.
+--states at 4MHz and 3.6 at 8MHz (4,3,4,3,4, one step per access); at 4MHz
+--in 24kHz and 15kHz timing, none. Otherwise it waits 2 states at 8MHz and
+--none at 4MHz.
 --Only ce_f samples where no other wait holds the CPU are counted, so these
 --waits add to the others. Once the CPU has seen WAIT_n high in an access, the
 --wait stays off until the access ends, even if STR, FAST or en changes.
@@ -24,7 +25,9 @@ port(
 
 	clk		:in std_logic;
 	ce_f	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	VT24	:in std_logic	-- '1' in 24kHz or 15kHz timing
 );
 end GVSWAIT;
 
@@ -38,7 +41,7 @@ begin
 	target<=	3 when FAST='1' and STR='1' and (k=1 or k=3) else
 				4 when FAST='1' and STR='1' else
 				2 when FAST='1' else
-				2 when STR='1' else
+				2 when STR='1' and VT24='0' else
 				0;
 
 	process(clk,rstn)begin
