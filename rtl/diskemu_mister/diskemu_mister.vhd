@@ -119,6 +119,12 @@ type fdstate_t is (
 	fs_loadsheadw,
 	fs_loadsectorsl,
 	fs_loadsectorsh,
+	fs_psinit,
+	fs_psden,
+	fs_pslenl,
+	fs_pslenh,
+	fs_psadd,
+	fs_pschk,
 	fs_gap0,
 	fs_syncp,
 	fs_am0,
@@ -252,6 +258,34 @@ signal	sectcount:std_logic_vector(15 downto 0);
 signal	cursecthead	:std_logic_vector(31 downto 0);
 signal	nxtsecthead	:std_logic_vector(31 downto 0);
 signal	sectlen	:std_logic_vector(15 downto 0);
+-- GAP3: standard format values when the whole track fits in one revolution, else 26/13 as before
+signal	usestd	:std_logic;
+signal	gap3sel	:integer range 0 to 127;
+signal	pscnt	:std_logic_vector(15 downto 0);
+signal	psaddr	:std_logic_vector(31 downto 0);
+signal	pslen	:std_logic_vector(15 downto 0);
+signal	pssum	:std_logic_vector(17 downto 0);
+signal	pslimit	:std_logic_vector(17 downto 0);
+function stdgap(len :std_logic_vector(15 downto 0)) return integer is
+begin
+	if(len<=x"0080")then		-- 0 is written as 128
+		return 26;
+	elsif(len<=x"0100")then
+		return 54;
+	elsif(len<=x"0200")then
+		return 80;
+	else
+		return 116;
+	end if;
+end stdgap;
+function efflen(len :std_logic_vector(15 downto 0)) return std_logic_vector is
+begin
+	if(len=x"0000")then
+		return x"0080";
+	else
+		return len;
+	end if;
+end efflen;
 signal	deleted	:std_logic;
 signal	crcwrdat	:std_logic_vector(7 downto 0);
 signal	crcwr		:std_logic;
@@ -1060,7 +1094,65 @@ begin
 					if(img_busy='0')then
 						numsect(15 downto 8)<=img_rddat;
 						sectcount<=(others=>'0');
+						fdstate<=fs_psinit;
+					end if;
+				when fs_psinit =>
+					-- pre-scan the sector headers: use the standard GAP3 only if the whole track fits
+					pscnt<=numsect;
+					psaddr<=cursecthead;
+					pssum<="00" & x"0092";		-- 146: GAP4a, sync, IAM, GAP1
+					if(numsect=x"0000")then
+						usestd<='0';
 						fdstate<=fs_gap0;
+					else
+						usestd<='1';
+						img_addr<=cursecthead+x"06";
+						img_rd<='1';
+						swait:=1;
+						fdstate<=fs_psden;
+					end if;
+				when fs_psden =>
+					if(img_busy='0')then
+						if(img_rddat(6)='1')then	-- FM sector in the track
+							usestd<='0';
+							fdstate<=fs_gap0;
+						else
+							img_addr<=psaddr+x"0e";
+							img_rd<='1';
+							swait:=1;
+							fdstate<=fs_pslenl;
+						end if;
+					end if;
+				when fs_pslenl =>
+					if(img_busy='0')then
+						pslen(7 downto 0)<=img_rddat;
+						img_addr<=psaddr+x"0f";
+						img_rd<='1';
+						swait:=1;
+						fdstate<=fs_pslenh;
+					end if;
+				when fs_pslenh =>
+					if(img_busy='0')then
+						pslen(15 downto 8)<=img_rddat;
+						fdstate<=fs_psadd;
+					end if;
+				when fs_psadd =>
+					-- 62 bytes of sync, marks, ID, CRCs and GAP2 per MFM sector
+					pssum<=pssum+("00" & efflen(pslen))+std_logic_vector(ieee.numeric_std.to_unsigned(62+stdgap(pslen),18));
+					psaddr<=psaddr+pslen+x"10";
+					pscnt<=pscnt-1;
+					fdstate<=fs_pschk;
+				when fs_pschk =>
+					if(pssum>pslimit)then
+						usestd<='0';
+						fdstate<=fs_gap0;
+					elsif(pscnt=x"0000")then
+						fdstate<=fs_gap0;
+					else
+						img_addr<=psaddr+x"06";
+						img_rd<='1';
+						swait:=1;
+						fdstate<=fs_psden;
 					end if;
 				when fs_gap0 =>
 					if(trackbusy='0')then
@@ -1306,6 +1398,13 @@ begin
 						img_addr<=cursecthead+x"10";
 						img_rd<='1';
 						nxtsecthead<=cursecthead+(img_rddat & sectlen(7 downto 0))+x"10";
+						if(mfm='0')then
+							gap3sel<=13;
+						elsif(usestd='1')then
+							gap3sel<=stdgap(img_rddat & sectlen(7 downto 0));
+						else
+							gap3sel<=26;
+						end if;
 						track_curaddr<=track_curaddr+1;
 						if(mfm='1')then
 							bytecount<=22;
@@ -1444,11 +1543,7 @@ begin
 						end if;
 						trackwr<='1';
 						fdstate<=fs_gap3;
-						if(mfm='1')then
-							bytecount<=26;
-						else
-							bytecount<=13;
-						end if;
+						bytecount<=gap3sel;
 						swait:=1;
 					end if;
 				when fs_gap3 =>
@@ -1889,6 +1984,10 @@ begin
 					x"000030d4" when diskmode="10" and mfm='1' else
 					x"00003a98" when diskmode="11" and mfm='1' else
 					x"00000000";
+	pslimit<=	std_logic_vector(ieee.numeric_std.to_unsigned( 6250,18)) when diskmode="00" else
+				std_logic_vector(ieee.numeric_std.to_unsigned( 7000,18)) when diskmode="01" else
+				std_logic_vector(ieee.numeric_std.to_unsigned(10416,18)) when diskmode="10" else
+				std_logic_vector(ieee.numeric_std.to_unsigned(12500,18));
 	tracks<=	x"54" when ddmode='0' else
 				x"a4" when ddmode='1' else
 				x"00";
