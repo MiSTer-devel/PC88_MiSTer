@@ -594,6 +594,31 @@ port(
 );
 end component;
 
+component WRPOST
+generic(
+	AWIDTH	:integer	:=25
+);
+port(
+	RD		:in std_logic;
+	WR		:in std_logic;
+	POST	:in std_logic;
+	ADR		:in std_logic_vector(AWIDTH-1 downto 0);
+	WDAT	:in std_logic_vector(7 downto 0);
+	WE		:in std_logic_vector(3 downto 0);
+	WAITo	:out std_logic;
+
+	oRD		:out std_logic;
+	oWR		:out std_logic;
+	oADR	:out std_logic_vector(AWIDTH-1 downto 0);
+	oWDAT	:out std_logic_vector(7 downto 0);
+	oWE		:out std_logic_vector(3 downto 0);
+	WAITi	:in std_logic;
+
+	clk		:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component GVSWAIT
 port(
 	SEL		:in std_logic;
@@ -1453,6 +1478,15 @@ signal	BUSRQ_n		:std_logic;
 signal	BUSRQ_nf	:std_logic;
 signal	BUSACK_n	:std_logic;
 signal	RAM_WAIT	:std_logic;
+--The SDRAM port side of WRPOST.
+signal	RAMADRo		:std_logic_vector(RAMAWIDTH-1 downto 0);
+signal	RAM_WRo		:std_logic;
+signal	RAM_RDo		:std_logic;
+signal	RAM_WDATo	:std_logic_vector(7 downto 0);
+signal	RAM_WAITi	:std_logic;
+signal	VRAMWEo		:std_logic_vector(3 downto 0);
+signal	RAM_POST	:std_logic;
+signal	PWSEL		:std_logic;
 -- signal	LOADER_rstn :std_logic;
 signal	CLR_ADR		:std_logic_vector(18 downto 0);
 signal	CLR_WDAT	:std_logic_vector(7 downto 0);
@@ -2233,12 +2267,12 @@ port map(
 		PMEMADR			=>pMemAdr,
 		PMEMDAT			=>pMemDat,
 
-		CPUADR			=>RAMADR,
+		CPUADR			=>RAMADRo,
 		CPURDAT			=>IDAT_RAM,
-		CPUWDAT			=>RAM_WDAT,
-		CPUWR			=>RAM_WR,
-		CPURD			=>RAM_RD,
-		CPUWAIT			=>RAM_WAIT,
+		CPUWDAT			=>RAM_WDATo,
+		CPUWR			=>RAM_WRo,
+		CPURD			=>RAM_RDo,
+		CPUWAIT			=>RAM_WAITi,
 		CPUCLK			=>cpuclkb,
 		-- CPURSTn			=>CLR_rstn,
 		MRAMDAT			=>TCNV_RDAT,
@@ -2264,7 +2298,7 @@ port map(
 		ALUWD0			=>GWDAT0,
 		ALUWD1			=>GWDAT1,
 		ALUWD2			=>GWDAT2,
-		VRAMWE			=>VRAMWE,
+		VRAMWE			=>VRAMWEo,
 		
 		VIDADR			=>GRAMADRW,
 		VIDDAT0			=>GRAMDAT0,
@@ -2304,6 +2338,31 @@ port map(
 	);
 
 	CLR_OE<='0';
+
+	-- CPU writes outside graphic VRAM are posted: a real FH has no wait state on
+	-- them at 4MHz and one at 8MHz (MEMWAIT), with the SDRAM write done later.
+	-- Graphic VRAM writes are not, as the port reads the ALU and plane enables
+	-- while it writes.
+	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and GVSEL='0' else '0';
+	WRP	:WRPOST generic map(RAMAWIDTH) port map(
+		RD		=>RAM_RD,
+		WR		=>RAM_WR,
+		POST	=>RAM_POST,
+		ADR		=>RAMADR,
+		WDAT	=>RAM_WDAT,
+		WE		=>VRAMWE,
+		WAITo	=>RAM_WAIT,
+
+		oRD		=>RAM_RDo,
+		oWR		=>RAM_WRo,
+		oADR	=>RAMADRo,
+		oWDAT	=>RAM_WDATo,
+		oWE		=>VRAMWEo,
+		WAITi	=>RAM_WAITi,
+
+		clk		=>rclk,
+		rstn	=>srstn
+	);
 	-- loader_rstn<=CLR_rstn;
 	
 	-- The loader waits for the acknowledge on clk21m.
@@ -2729,9 +2788,11 @@ port map(
 			GVSTRr<=GVSTR;
 		end if;
 	end process;
-	-- Keeps the 8MHz memory wait of a real FH while slowed down.
+	-- Keeps the 8MHz memory wait of a real FH while slowed down, and gives it
+	-- to posted writes, which SDRAM no longer holds.
 	MEMSEL<='1' when MREQ_n='0' and (RD_n='0' or WR_n='0') else '0';
-	MEMEN<=GVSTR and CPUMD;
+	PWSEL<='1' when RAM_POST='1' and RAM_CE='1' and WR_n='0' else '0';
+	MEMEN<=(GVSTR or PWSEL) and CPUMD;
 	M1_HOLD<=not M1_WAITn;
 	MEMW	:MEMWAIT port map(MEMSEL,WAIT_other,M1_HOLD,MEMEN,MEM_WAITn,rclk,cpuce_f,CPU_rstnr);
 	-- Wait states on graphic VRAM reads and writes in V1S and N with direct
