@@ -636,7 +636,9 @@ port(
 
 	clk		:in std_logic;
 	ce_f	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	VRTC	:in std_logic
 );
 end component;
 
@@ -2706,7 +2708,7 @@ port map(
 		'1' when GHSMv='1' and GVAM='0' else
 		'0';
 	GV_other<=not (WAIT_nb and M1_WAITn and MEM_WAITn);
-	GVW		:GVWAIT port map(GVSEL,GV_other,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr);
+	GVW		:GVWAIT port map(GVSEL,GV_other,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,VRTCr);
 	-- V1S and N slow down the whole CPU while graphic VRAM is selected for
 	-- direct access (5Ch-5Eh) and the graphic screen is being displayed,
 	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
