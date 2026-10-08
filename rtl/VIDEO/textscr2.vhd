@@ -17,7 +17,7 @@ port(
 	FRAMADR	:out std_logic_vector(11 downto 0);
 	FRAMDAT0:in std_logic_vector( 7 downto 0);
 	FRAMDAT1:in std_logic_vector( 7 downto 0);
-	FRAMADR8:out std_logic_vector(10 downto 0);	-- 8x8 font, used in 24kHz and 15kHz timing
+	FRAMADR8:out std_logic_vector(10 downto 0);	-- 8x8 font
 	FRAMDAT8:in std_logic_vector( 7 downto 0);
 	
 	BITOUT	:out std_logic;
@@ -259,11 +259,7 @@ begin
 						BNXTDOT1:=(others=>'0');
 					else
 						if(C_LIN2<16)then
-							if(VT24='1')then
-								BNXTDOT0:=FRAMDAT8;
-							else
-								BNXTDOT0:=FRAMDAT0;
-							end if;
+							BNXTDOT0:=FRAMDAT8;
 							BNXTDOT1:=FRAMDAT1;
 						else
 							BNXTDOT0:=(others=>'0');
