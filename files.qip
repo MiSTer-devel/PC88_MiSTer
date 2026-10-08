@@ -176,4 +176,10 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_file.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_t88.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_fmt.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_play.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_capture.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_deck.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_t88w.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_wblk.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_rec.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cmt_ev.sv
 set_global_assignment -name SYSTEMVERILOG_FILE PC8801SR.sv

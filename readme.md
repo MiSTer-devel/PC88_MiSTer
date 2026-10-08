@@ -74,7 +74,18 @@ board. Connect the recorder's line or earphone output to that input, start the t
 as usual. Both tape speeds (600 and 1200 baud) work. The motor is not controlled, so the tape
 has to be started by hand.
 
-Saving to tape is not supported.
+Saving goes to a .t88 image, which has to exist beforehand because the core cannot create
+files. An empty one can be made with, for example:
+
+    printf 'PC-8801 Tape Image(T88)\0\1\0\2\0\0\1\0\0\0\0' > rec.t88 && truncate -s 256K rec.t88
+
+256 KB holds about 40 minutes at 1200 baud. Select the image with Tape, set Tape Record to On
+and save as usual (`CSAVE"name"` in N-BASIC, `SAVE"CAS1:"` in N88-BASIC). Recording starts at
+the beginning of the image, and everything saved until Tape Record is set to Off follows on, as
+on a real tape. To load it back, set Tape Record to Off, wait for "Tape: saved" on the OSD,
+select the image again and load as usual. After a reset, select the image again before
+recording. When recording cannot start or has to stop (a read-only or .cmt image, an image that
+is too small or full), the OSD says why.
 
 ## Video timing
 
@@ -99,6 +110,5 @@ On HDMI, Scale set to V-Integer keeps the lines the same thickness.
 ## TODO
 - Update T80 cpu
 - Add Audio Mix
-- Add support of saving to tape
 - Add support of other models like PC8801MC
 - ...
