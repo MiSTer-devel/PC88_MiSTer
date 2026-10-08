@@ -140,6 +140,7 @@ component SDRAMCde0cvDEMU2
 		CPUWDAT			:in std_logic_vector(7 downto 0);
 		CPUWR			:in std_logic;
 		CPURD			:in std_logic;
+		CPURDV2			:in std_logic;
 		CPUWAIT			:out std_logic;
 		CPUCLK			:out std_logic;
 		CPURSTn			:out std_logic;
@@ -1647,6 +1648,7 @@ signal	TCNV_WADR	:std_logic_vector(11 downto 0);
 signal	TCNV_WDAT	:std_logic_vector(8 downto 0);
 signal	TCNV_WE		:std_logic;
 signal	TCNV_BUSUSE	:std_logic;
+signal	RAM_RDV2	:std_logic;
 signal	tcnvcnt		:integer range 0 to 14;
 signal	tcnv_ce		:std_logic;
 signal	TCNV_V1S21,TCNV_CPUMD21	:std_logic;
@@ -2324,6 +2326,7 @@ port map(
 		CPUWDAT			=>RAM_WDATo,
 		CPUWR			=>RAM_WRo,
 		CPURD			=>RAM_RDo,
+		CPURDV2			=>RAM_RDV2,
 		CPUWAIT			=>RAM_WAITi,
 		CPUCLK			=>cpuclkb,
 		-- CPURSTn			=>CLR_rstn,
@@ -2397,6 +2400,8 @@ port map(
 	-- Graphic VRAM writes are not, as the port reads the ALU and plane enables
 	-- while it writes.
 	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and GVSEL='0' else '0';
+	-- Text DMA reads keep to window 1, so the text timing does not change.
+	RAM_RDV2<=not TCNV_BUSUSE;
 	WRP	:WRPOST generic map(RAMAWIDTH) port map(
 		RD		=>RAM_RD,
 		WR		=>RAM_WR,
