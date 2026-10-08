@@ -143,6 +143,7 @@ set_global_assignment -name VHDL_FILE rtl/USART/txframe.vhd
 set_global_assignment -name VHDL_FILE rtl/SPI/SPI_IF.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/SUBunitsMiSTer.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/mmapsub.vhd
+set_global_assignment -name VHDL_FILE rtl/SUBunit/submem.vhd
 set_global_assignment -name VHDL_FILE rtl/SUBunit/INTSUB.vhd
 set_global_assignment -name VHDL_FILE rtl/cpuclk.vhd
 set_global_assignment -name VHDL_FILE rtl/RTC/rtc4990MiSTer.vhd
