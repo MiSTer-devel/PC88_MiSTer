@@ -594,6 +594,24 @@ port(
 );
 end component;
 
+component SUBMEM
+generic(
+	AWIDTH	:integer	:=25
+);
+port(
+	ADR		:in std_logic_vector(AWIDTH-1 downto 0);
+	WR		:in std_logic;
+	WDAT	:in std_logic_vector(7 downto 0);
+	RDAT	:out std_logic_vector(7 downto 0);
+
+	LDADR	:in std_logic_vector(12 downto 0);
+	LDDAT	:in std_logic_vector(7 downto 0);
+	LDWR	:in std_logic;
+
+	clk		:in std_logic
+);
+end component;
+
 component WRPOST
 generic(
 	AWIDTH	:integer	:=25
@@ -1839,6 +1857,7 @@ signal	FRAMADDR		:std_logic_vector(12 downto 0);
 signal	FRAMWDAT		:std_logic_vector(7 downto 0);
 signal	FRAMWR		:std_logic;
 signal	FRAM8WR		:std_logic;
+signal	SUBROMWR	:std_logic;
 signal	LOADER_OEf,LOADER_OEr	:std_logic;
 signal	LOADER_WRr,LOADER_WRd	:std_logic;
 signal	LOADER_WE	:std_logic;
@@ -2163,6 +2182,8 @@ begin
 	FRAMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 13)=ADDR_FONT(18 downto 13) else '0';
 	--8x8 font for 24kHz and 15kHz timing, from the kanji ROM. Loaded whatever the timing.
 	FRAM8WR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 11)=ADDR_FONT8(18 downto 11) else '0';
+	--Sub CPU ROM, kept in block RAM with the sub CPU RAM (SUBMEM).
+	SUBROMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 13)=ADDR_SUBROM(18 downto 13) else '0';
 
 	GALU	:GraphALU
 port map(
@@ -2277,12 +2298,13 @@ port map(
 		-- CPURSTn			=>CLR_rstn,
 		MRAMDAT			=>TCNV_RDAT,
 		
+		-- The sub CPU memory is in SUBMEM: no sub CPU requests reach the controller.
 		SUBADR			=>SUBADR,
-		SUBRDAT			=>SUBRDAT,
+		SUBRDAT			=>open,
 		SUBWDAT			=>SUBWDAT,
-		SUBWR			=>SUBWR,
-		SUBRD			=>SUBRD,
-		SUBWAIT			=>SUBWAIT,
+		SUBWR			=>'0',
+		SUBRD			=>'0',
+		SUBWAIT			=>open,
 		SUBCLK			=>subclkb,
 		SUBCE_R			=>subce_r,
 		SUBCE_F			=>subce_f,
@@ -2943,6 +2965,20 @@ port map(
 	
 	TIMP600	:sftclk generic map(sysclk*1000,600,1) port map("0",RTI,clk21m,srstn21);
 	
+	SUBM	:SUBMEM generic map(RAMAWIDTH) port map(
+		ADR		=>SUBADR,
+		WR		=>SUBWR,
+		WDAT	=>SUBWDAT,
+		RDAT	=>SUBRDAT,
+
+		LDADR	=>LOADER_ADR(12 downto 0),
+		LDDAT	=>LOADER_WDAT,
+		LDWR	=>SUBROMWR,
+
+		clk		=>rclk
+	);
+	SUBWAIT<='0';
+
 	SUBU	:SUBunitsMiSTer generic map(SYSCLK,RAMCLK,RAMAWIDTH) port map(
 		RAMADR			=>SUBADR,
 		RAMRDAT			=>SUBRDAT,
