@@ -36,8 +36,6 @@ signal	PAL_R,PAL_B,PAL_G	:PALDAT_T;
 
 signal	IOWRn	:std_logic;
 signal	ipalno	:integer range 0 to 7;
-signal	lastpal	:std_logic_vector(2 downto 0);
-signal	lastno	:integer range 0 to 7;
 signal	g_bit	:std_logic;
 signal	mode	:std_logic_vector(4 downto 0);
 
@@ -50,7 +48,6 @@ begin
 	variable vnum	:std_logic_vector(7 downto 0);
 	begin
 		if(rstn='0')then
-			lastpal<="000";
 			--The N-BASIC ROM never writes the palette, so it starts as the 8 digital colors.
 			for i in 0 to 7 loop
 				if((i mod 2)=1)then PAL_B(i)<="111"; else PAL_B(i)<="000"; end if;
@@ -67,7 +64,6 @@ begin
 					vnum:=ADR-x"54";
 					if(WDAT(7)='0')then
 						inum:=conv_integer(vnum(2 downto 0));
-						lastpal<=vnum(2 downto 0);
 					else
 						inum:=8;
 					end if;
@@ -92,7 +88,6 @@ begin
 	end process;
 	
 	ipalno<=conv_integer(DOTIN);
-	lastno<=conv_integer(lastpal);
 	g_bit <='0' when ipalno=0 else '1';
 	mode  <=PMODE & GCOLOR & X_BIT & g_bit & CRTCEN;
 	process(gclk)begin
@@ -114,16 +109,12 @@ begin
 					ROUT<=(others=>'1');
 					GOUT<=(others=>'1');
 					BOUT<=(others=>'1');
-				when "10010" =>
-					-- A-pal, Mono-CG, G-bit on, CRTC off: G-bit colored in the last palette
-					ROUT<=PAL_R(lastno);
-					GOUT<=PAL_G(lastno);
-					BOUT<=PAL_B(lastno);
 				when "01101"|"01111"|"11101"|"11111" =>
 					-- Color-CG, T-bit on: T-bit colored in digital palettes
 					ROUT<=(others=>DOTIN(1));
 					GOUT<=(others=>DOTIN(2));
 					BOUT<=(others=>DOTIN(0));
+				-- A-pal, Mono-CG, G-bit on, CRTC off: the text color, as with the CRTC on (checked on a PC-8801FH)
 				when others =>
 					ROUT<=PAL_R(ipalno);
 					GOUT<=PAL_G(ipalno);
