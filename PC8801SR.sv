@@ -299,6 +299,8 @@ wire  [7:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
+reg  [18:0] ldr_addr;
+reg   [7:0] ldr_dout;
 
 wire        ps2_kbd_clk_out;
 wire        ps2_kbd_data_out;
@@ -698,9 +700,9 @@ PC88MiSTer PC88_top
 	
 	.sysrtc(sysrtc),
 
-	.LOADER_ADR(ioctl_addr[18:0]),
-	.LOADER_WDAT(ioctl_dout),
-	.LOADER_OE(ioctl_download & ~ldr_done),
+	.LOADER_ADR(ldr_addr),
+	.LOADER_WDAT(ldr_dout),
+	.LOADER_OE((ioctl_download | ldr_wr) & ~ldr_done),
 	.LOADER_WR(ldr_wr),
 	.LOADER_ACK(ldr_ack),
 	.LOADER_DONE(ldr_done),
@@ -772,6 +774,7 @@ PC88MiSTer PC88_top
 
 wire ldr_ack;
 reg ldr_wr = 0;
+reg ldr_end = 0;
 reg ldr_done = 0;
 always @(posedge clk_sys) begin
 	reg old_ack, old_download;
@@ -780,9 +783,18 @@ always @(posedge clk_sys) begin
 	old_ack <= ldr_ack;
 
 	if(~old_ack & ldr_ack & ldr_wr) ldr_wr <= 0;
-	if(ioctl_wr & ~ldr_done) ldr_wr <= 1;
+	// The address and data are held until the write is acknowledged: at the end
+	// of the download hps_io moves ioctl_addr on without waiting for ioctl_wait.
+	if(ioctl_wr & ~ldr_done) begin
+		ldr_wr <= 1;
+		ldr_addr <= ioctl_addr[18:0];
+		ldr_dout <= ioctl_dout;
+	end
 
-	if(old_download & ~ioctl_download) ldr_done <= 1;
+	// Done only when the last write is acknowledged. Until then LOADER_OE keeps
+	// the loader on the SDRAM port, so the last byte is not lost.
+	if(old_download & ~ioctl_download) ldr_end <= 1;
+	if(ldr_end & ~ldr_wr & ~ioctl_wr) ldr_done <= 1;
 end
 
 
