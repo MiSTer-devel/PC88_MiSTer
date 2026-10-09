@@ -29,6 +29,7 @@ ENTITY SDRAMCde0cvDEMU2 IS
 		CPUWDAT			:in std_logic_vector(7 downto 0);
 		CPUWR				:in std_logic;
 		CPURD				:in std_logic;
+		CPURDV2			:in std_logic :='1';	--'1': a GVRAM-range read may use window 2 (not for text DMA)
 		CPUWAIT			:out std_logic;
 		CPUCLK			:out std_logic;
 		CPURSTn			:out std_logic;
@@ -102,6 +103,7 @@ type state_t is (
 	ST_REFRSH,
 	ST_READ,
 	ST_READ2,
+	ST_VREAD2,
 	ST_WRITE,
 	ST_VREAD,
 	ST_VWRITE,
@@ -161,6 +163,8 @@ signal SUBWDATb	:std_logic_vector(7 downto 0);
 signal	VIDADRb	:std_logic_vector(AWIDTH-1 downto 0);
 
 signal	CPUWAITb	:std_logic;
+signal	CPURDV2b	:std_logic;
+signal	VREAD2W1	:std_logic;	--ST_VREAD2: the 2nd word is due in slot 13
 signal	VIDWAITb	:std_logic;
 signal	SUBWAITb	:std_logic;
 signal	FDEWAITb	:std_logic;
@@ -217,7 +221,7 @@ begin
 	monout<="00000001" when STATE=ST_REFRSH else
 			"00000010" when STATE=ST_READ or STATE=ST_READ2 else
 			"00000100" when STATE=ST_WRITE else
-			"00001000" when STATE=ST_VREAD else
+			"00001000" when STATE=ST_VREAD or STATE=ST_VREAD2 else
 			"00010000" when STATE=ST_VWRITE else
 			"00100000" when STATE=ST_VIDREAD else
 			"01000000" when STATE=ST_SUBREAD else
@@ -252,6 +256,8 @@ begin
 			CLOCKWAIT	<=cwaitcnt;
 			clkcount	<=0;
 			CPUWAITb	<='0';
+			CPURDV2b	<='0';
+			VREAD2W1	<='0';
 			VIDWAITb	<='0';
 			-- pCPUWR		<='0';
 			-- pCPURD		<='0';
@@ -295,6 +301,14 @@ begin
 				CPUWAITb<='1';
 				CPUJOB<=JOB_RD;
 				CPUADRb<=CPUADR;
+				CPURDV2b<=CPURDV2;
+			end if;
+			--ST_VREAD2 takes its 2nd word in slot 13, after slot 11 has moved STATE on.
+			if(clkcount=12 and lSTATE=ST_VREAD2)then
+				VREAD2W1<='1';
+			elsif(clkcount=13 and VREAD2W1='1')then
+				VREAD2W1<='0';
+				CPUWAITb<='0';
 			end if;
 			if(lVIDRD="01" and VIDRD='1')then
 				VIDWAITb<='1';
@@ -769,9 +783,13 @@ begin
 						MEMADR(12 downto 11)	<="11";
 						MEMDAT		<=ALUWD1 & ALUWD0;
 						MEMDATOE	<='1';
-					elsif(STATE=ST_REFRSH and SUBJOB=JOB_NOP and CPUJOB=JOB_RD and CPUADRb(AWIDTH-1 downto 15)/=ADDR_GVRAM(AWIDTH-1 downto 15))then
+					elsif(STATE=ST_REFRSH and SUBJOB=JOB_NOP and CPUJOB=JOB_RD and (CPUADRb(AWIDTH-1 downto 15)/=ADDR_GVRAM(AWIDTH-1 downto 15) or CPURDV2b='1'))then
 						-- Window 1 was idle: serve a main CPU read that arrived after the slot 18 arbitration.
-						STATE<=ST_READ2;
+						if(CPUADRb(AWIDTH-1 downto 15)=ADDR_GVRAM(AWIDTH-1 downto 15))then
+							STATE<=ST_VREAD2;
+						else
+							STATE<=ST_READ2;
+						end if;
 						MEMCKE		<='1';	--Bank active
 						MEMCS_N		<='0';
 						MEMRAS_N		<='0';
@@ -832,9 +850,13 @@ begin
 						MEMADR		<=SUBADRb(AWIDTH-3 downto CAWIDTH);
 						MEMDATOE		<='0';
 						SUBJOB		<=JOB_NOP;
-					elsif((STATE=ST_FDEREAD or STATE=ST_FDEWRITE or STATE=ST_FECREAD or STATE=ST_FECWRITE or STATE=ST_SNDREAD or STATE=ST_SNDWRITE) and CPUJOB=JOB_RD and CPUADRb(AWIDTH-1 downto 15)/=ADDR_GVRAM(AWIDTH-1 downto 15))then
+					elsif((STATE=ST_FDEREAD or STATE=ST_FDEWRITE or STATE=ST_FECREAD or STATE=ST_FECWRITE or STATE=ST_SNDREAD or STATE=ST_SNDWRITE) and CPUJOB=JOB_RD and (CPUADRb(AWIDTH-1 downto 15)/=ADDR_GVRAM(AWIDTH-1 downto 15) or CPURDV2b='1'))then
 						-- Window 1 went to FDC/FDC-EC/sound: serve the waiting main CPU read here.
-						STATE<=ST_READ2;
+						if(CPUADRb(AWIDTH-1 downto 15)=ADDR_GVRAM(AWIDTH-1 downto 15))then
+							STATE<=ST_VREAD2;
+						else
+							STATE<=ST_READ2;
+						end if;
 						MEMCKE		<='1';	--Bank active
 						MEMCS_N		<='0';
 						MEMRAS_N		<='0';
@@ -962,6 +984,18 @@ begin
 						MEMBA0		<=CPUADRb(AWIDTH-2);
 						MEMADR		<="100" & CPUADRb(9 downto 0);
 						MEMDATOE		<='0';
+					when ST_VREAD2 =>
+						MEMCKE		<='1';	--Read, both words as in ST_VREAD
+						MEMCS_N		<='0';
+						MEMRAS_N		<='1';
+						MEMCAS_N		<='0';
+						MEMWE_N		<='1';
+						MEMUDQ		<='0';
+						MEMLDQ		<='0';
+						MEMBA1		<=CPUADRb(AWIDTH-1);
+						MEMBA0		<=CPUADRb(AWIDTH-2);
+						MEMADR		<="000" & CPUADRb(9 downto 0);
+						MEMDATOE		<='0';
 					when others =>
 						MEMCKE		<='1';	--nop
 						MEMCS_N		<='1';
@@ -989,6 +1023,18 @@ begin
 						MEMBA1		<='0';
 						MEMBA0		<='0';
 						MEMADR		<=(others=>'1');
+						MEMDATOE		<='0';
+					when ST_VREAD2 =>
+						MEMCKE		<='1';	--Read(cont.): DQM low for the 2nd word
+						MEMCS_N		<='1';
+						MEMRAS_N		<='1';
+						MEMCAS_N		<='1';
+						MEMWE_N		<='1';
+						MEMUDQ		<='0';
+						MEMLDQ		<='0';
+						MEMBA1		<='0';
+						MEMBA0		<='0';
+						MEMADR		<=(others=>'0');
 						MEMDATOE		<='0';
 					when ST_SUBWRITE =>
 						MEMCKE		<='1';	--Precharge all
@@ -1019,7 +1065,7 @@ begin
 					end case;
 				when 10 =>
 					case STATE is
-					when ST_SUBREAD | ST_READ2 =>
+					when ST_SUBREAD | ST_READ2 | ST_VREAD2 =>
 						MEMCKE		<='1';	--precharge all banks
 						MEMCS_N		<='0';
 						MEMRAS_N		<='0';
@@ -1393,6 +1439,25 @@ begin
 				if(lSTATE=ST_READ2)then
 					CPURDAT<=PMEMDAT(7 downto 0);
 					MRAMDAT<=PMEMDAT(7 downto 0);
+				end if;
+				if(lSTATE=ST_VREAD2)then
+					ALURD0<=PMEMDAT(7 downto 0);
+					ALURD1<=PMEMDAT(15 downto 8);
+					if(VRAMRSEL=0)then
+						CPURDAT<=PMEMDAT(7 downto 0);
+					elsif(VRAMRSEL=1)then
+						CPURDAT<=PMEMDAT(15 downto 8);
+					end if;
+				end if;
+			when 13 =>
+				if(VREAD2W1='1')then
+					ALURD2<=PMEMDAT(7 downto 0);
+					if(VRAMRSEL=2)then
+						CPURDAT<=PMEMDAT(7 downto 0);
+					elsif(VRAMRSEL=3)then
+						CPURDAT<=PMEMDAT(15 downto 8);
+					end if;
+					MRAMDAT<=PMEMDAT(15 downto 8);
 				end if;
 			when 18 =>
 				if(STATE=ST_VIDREAD)then
