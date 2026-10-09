@@ -51,6 +51,12 @@ begin
 	begin
 		if(rstn='0')then
 			lastpal<="000";
+			--The N-BASIC ROM never writes the palette, so it starts as the 8 digital colors.
+			for i in 0 to 7 loop
+				if((i mod 2)=1)then PAL_B(i)<="111"; else PAL_B(i)<="000"; end if;
+				if(((i/2) mod 2)=1)then PAL_R(i)<="111"; else PAL_R(i)<="000"; end if;
+				if((i/4)=1)then PAL_G(i)<="111"; else PAL_G(i)<="000"; end if;
+			end loop;
 			PAL_R(9)<="000";	-- Don't reset by BASIC ROM
 			PAL_B(9)<="000";
 			PAL_G(9)<="000";
