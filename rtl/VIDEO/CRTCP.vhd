@@ -351,6 +351,10 @@ signal	VIDENb	:std_logic;
 
 signal F_REVERSE :std_logic;
 signal A_REVERSE :std_logic_vector(2 downto 0);
+--In black and white mode the reverse attribute also lights the dots with no text and
+--no graphics, so a reversed character is shown even when the graphics are off.
+signal R_BIT	:std_logic;
+signal R_BITd	:std_logic;
 
 --24kHz, 15kHz: the CRTC parameters used for the frame being drawn, taken at the frame boundary
 signal	aROWS	:integer range 1 to ROWSMAX24	:=ROWSDEF24;
@@ -449,6 +453,7 @@ begin
 	
 	F_REVERSE <= T_BGCOLOR(0) xor REVERSE;
 	A_REVERSE <= (others=>F_REVERSE);
+	R_BIT<='1' when TXTEN='1' and GCOLOR='0' and F_REVERSE='1' else '0';
 
 	X_BIT<='0' when TXTEN='0' else T_BIT when GCOLOR='0' else T_BIT xor F_REVERSE;
 	
@@ -496,6 +501,7 @@ begin
 			COLNUMd<=COLNUM;
 			GE_BITd<=GE_BIT;
 			X_BITd<=X_BIT;
+			R_BITd<=R_BIT;
 			VIDEN<=VIDENb;
 			VISIBLEd<=VISIBLE;
 		 end if;
@@ -506,9 +512,9 @@ begin
 	GRN<=	PAL_GRN when PALEN='1' else (others=>COLNUMd(1));
 	BLE<=	PAL_BLE when PALEN='1' else (others=>COLNUMd(0));
 	
-	ROUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and TXTMODE='0')) else RED;
-	GOUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and TXTMODE='0')) else GRN;
-	BOUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and TXTMODE='0')) else BLE;
+	ROUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else RED;
+	GOUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else GRN;
+	BOUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else BLE;
 
 	gclk<=clk3;
 	CE3<=ce3b;
