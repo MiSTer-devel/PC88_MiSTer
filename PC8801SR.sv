@@ -216,6 +216,7 @@ parameter CONF_STR = {
 	"S0,D88,FDD0;",
 	"S1,D88,FDD1;",
 	"S4,CMTT88,Tape;",
+	"OE,Tape Record,Off,On;",
 	"RF,SYNC FD0;",
 	"RG,SYNC FD1;",
 	"-;",
@@ -229,6 +230,17 @@ parameter CONF_STR = {
 	"-;",
 	"R6,Reset;",
 	"J,Fire 1,Fire 2;",
+	"I,",
+	"Tape: recording,",
+	"Tape: saved,",
+	"Tape: OVERRUN - stopped,",
+	"Tape: image full - stopped,",
+	"Tape: image changed - stopped,",
+	"Tape: no writable image,",
+	"Tape: image is read-only,",
+	"Tape: not a .t88 image,",
+	"Tape: image too small,",
+	"Tape: unsupported serial mode;",
 	"V,v",`BUILD_DATE
 };
 
@@ -306,7 +318,10 @@ wire   [3:0] dsk_wr;
 wire   [3:0] dsk_ack;
 // The tape image's SD requests (slot 4), before and after cmt_arb.
 wire  [31:0] cmt_lba, cmt_host_lba;
-wire         cmt_rd, cmt_ack;
+wire         cmt_rd, cmt_wr, cmt_ack;
+wire   [7:0] cmt_buff_din;
+wire         cmt_info_req;
+wire   [7:0] cmt_info;
 wire         own_disk, own_tape;
 
 wire  [4:0] sd_ack;
@@ -340,8 +355,10 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(5)) hps_io
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din('{sd_buff_din,sd_buff_din,sd_buff_din,sd_buff_din,8'h00}),
+	.sd_buff_din('{sd_buff_din,sd_buff_din,sd_buff_din,sd_buff_din,cmt_buff_din}),
 	.sd_buff_wr(sd_buff_wr),
+	.info_req(cmt_info_req),
+	.info(cmt_info),
  
 	.img_mounted(img_mounted),
 	.img_readonly(img_readonly),
@@ -448,8 +465,9 @@ cmt_demod #(.CLK_HZ(CLK_SYS_HZ)) tape_demod
 	.rxd(tape_rxd)
 );
 
-// Tape image playback, SD slot 4 -> 8251 RxD.
+// Tape image playback (SD slot 4 -> 8251 RxD) and recording (8251 TxD -> SD slot 4).
 wire cmt_rst_n = reset_n & ~reset;
+wire cmt_rec_on = status[14];   // OSD "Tape Record"
 
 // The frame shape comes from the mode the CPU wrote, so the image is sent the way the
 // program expects to receive it.
@@ -480,12 +498,28 @@ always @(posedge clk_sys) begin
 	if (cmt_rst_n && cmt_mnt_pulse) cmt_present <= |img_size;
 end
 
-wire cmt_txd, cmt_ser_busy;
-wire cmt_play_run = cmt_present & tape_on & tape_motor;
+wire cmt_txd, cmt_ser_busy, cmt_cap_busy;
+wire cmt_play_run, cmt_rec_run, cmt_rec_active;
 
-// The serializer finishes the byte it is sending after the motor stops, so the line, the
-// rate and the frame shape stay with the image until that frame is out.
-wire cmt_line_hold = cmt_play_run | cmt_ser_busy;
+// Playback and recording are exclusive; Tape Record selects which one the motor runs.
+cmt_deck cmt_deck_i
+(
+	.clk(clk_sys),
+	.rst_n(cmt_rst_n),
+	.mton(tape_motor),
+	.cmt_sel(tape_on),
+	.rec_enable(cmt_rec_on),
+	.file_mounted(cmt_present),
+	.play_run(cmt_play_run),
+	.tape_run(),
+	.rec_run(cmt_rec_run),
+	.rec_active(cmt_rec_active)
+);
+
+// The serializer finishes the byte it is sending after the motor stops, and the capture
+// finishes the byte it is receiving, so the line and the USART clock selection stay with
+// the tape until that frame is through. While recording, the line idles at mark.
+wire cmt_line_hold = cmt_play_run | cmt_rec_run | cmt_ser_busy | cmt_cap_busy;
 
 // Rate and shape are taken only while no frame is being sent; the CPU may rewrite them at
 // any time. A change while frames follow each other waits until the line is idle, so the
@@ -529,8 +563,9 @@ wire [1:0] cmt_clk_sel = (cmt_line_hold & cmt_mode_ok) ? (cmt_baud_hold ? 2'b10 
                        : tape_run                      ? (tape_1200     ? 2'b10 : 2'b01)
                        : 2'b00;
 
-// With no image mounted this is the ADC path exactly as before. A mounted image idles
-// at mark, and ejecting it hands the line back to the ADC.
+// With no image mounted and Tape Record off this is the ADC path exactly as before. A
+// mounted image idles at mark, and ejecting it hands the line back to the ADC once neither
+// playback nor recording holds it.
 wire cmt_line_mark = cmt_present & tape_on;
 wire cmt_rxd = cmt_line_hold ? cmt_txd : cmt_line_mark ? 1'b1 : tape_run ? tape_rxd : 1'b0;
 
@@ -546,7 +581,7 @@ cmt_arb cmt_arb_i
 	.dsk_ack(dsk_ack),
 
 	.tap_rd(cmt_rd),
-	.tap_wr(1'b0),
+	.tap_wr(cmt_wr),
 	.tap_ack(cmt_ack),
 	.tap_lba(cmt_lba),
 	.host_lba(cmt_host_lba),
@@ -559,6 +594,9 @@ cmt_arb cmt_arb_i
 	.own_tape(own_tape)
 );
 
+wire [31:0] cmt_play_lba;
+wire        cmt_play_rd, cmt_play_ack;
+
 cmt_play #(.TICK_CLK(CMT_SYSCLK_HZ/4800)) cmt_play_i
 (
 	.clk(clk_sys),
@@ -569,9 +607,9 @@ cmt_play #(.TICK_CLK(CMT_SYSCLK_HZ/4800)) cmt_play_i
 	.mounted(cmt_mnt_pulse),
 	.img_size(img_size),
 
-	.sd_lba(cmt_lba),
-	.sd_rd(cmt_rd),
-	.sd_ack(cmt_ack),
+	.sd_lba(cmt_play_lba),
+	.sd_rd(cmt_play_rd),
+	.sd_ack(cmt_play_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_wr(sd_buff_wr & own_tape),
@@ -593,6 +631,62 @@ cmt_play #(.TICK_CLK(CMT_SYSCLK_HZ/4800)) cmt_play_i
 	.t88_done(),
 	.t88_bad_tag(),
 	.t88_speed_1200()
+);
+
+// Recording: the 8251's transmit line is captured byte by byte and written to the mounted
+// .t88 as DATA blocks. cmt_rec also merges the playback requests into the one SD port.
+wire       cmt_txd_8251;
+wire       cmt_ev_req;
+wire [3:0] cmt_ev_code;
+
+cmt_rec #(.TICK_CLK(CMT_SYSCLK_HZ/4800), .FLUSH_CLK(CMT_SYSCLK_HZ)) cmt_rec_i
+(
+	.clk(clk_sys),
+	.rst_n(cmt_rst_n),
+
+	.txd(cmt_txd_8251),
+	.div(cmt_div),
+	.data_bits(cmt_fmt_bits_h),
+	.parity_en(cmt_fmt_pen_h),
+	.parity_odd(cmt_fmt_podd_h),
+	.cap_busy(cmt_cap_busy),
+
+	.rec_run(cmt_rec_run & cmt_mode_ok),
+	.rec_active(cmt_rec_active),
+	.rec_enable(cmt_rec_on),
+	.speed_1200(cmt_baud_hold),
+	.mode_ok(cmt_mode_ok),
+
+	.mounted(cmt_mnt_pulse),
+	.img_size(img_size),
+	.img_ro(img_readonly[0]),
+
+	.play_lba(cmt_play_lba),
+	.play_rd(cmt_play_rd),
+	.play_ack(cmt_play_ack),
+
+	.sd_lba(cmt_lba),
+	.sd_rd(cmt_rd),
+	.sd_wr(cmt_wr),
+	.sd_ack(cmt_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_wr(sd_buff_wr & own_tape),
+	.sd_buff_din(cmt_buff_din),
+
+	.ev_req(cmt_ev_req),
+	.ev_code(cmt_ev_code)
+);
+
+// INFO_BASE is the position of the first tape line in the "I," list of CONF_STR.
+cmt_ev #(.INFO_BASE(8'd1)) cmt_ev_i
+(
+	.clk(clk_sys),
+	.rst_n(cmt_rst_n),
+	.ev_req(cmt_ev_req),
+	.ev_code(cmt_ev_code),
+	.info_req(cmt_info_req),
+	.info(cmt_info)
 );
 
 PC88MiSTer PC88_top
@@ -671,6 +765,7 @@ PC88MiSTer PC88_top
 	.cmt_clk_sel(cmt_clk_sel),
 	.cmt_mode(cmt_mode),
 	.pCOM_RxD(cmt_rxd),
+	.pCOM_TxD(cmt_txd_8251),
 
 	.rstn(reset_n & ~reset)
 );
