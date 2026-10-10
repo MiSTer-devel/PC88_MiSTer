@@ -4621,6 +4621,10 @@ begin
 	ST0<=sIC &sSE & sEC & sNR & sHD & sUS;
 	ST1<=sEN & '0' & sDE & sOR & '0' & sND & sNW & sMA;
 	ST2<='0' & sCM & sDD & sWC & sSH & sSN & sBC & sMD;
+	--Nothing here sets SN or BC. Without a driver they were left to synthesis, which could
+	--turn them into 1.
+	sSN<='0';
+	sBC<='0';
 	ST3<='0' & not WPRT & not readyv(conv_integer(uselb)) & not track0s & TWOSIDE(conv_integer(uselb)) & sideb & uselb;
 	MSR<=sRQM & sDIO & sEXM & sCB & sDxB;
 	
