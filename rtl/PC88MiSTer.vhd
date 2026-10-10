@@ -27,6 +27,8 @@ port(
 	LOADER_WR	:in std_logic;
 	LOADER_ACK	:out std_logic;
 	LOADER_DONE	:in std_logic;
+	--RAM type from the OSD (clk21m): "00" Fx, "01" Mx, "10" 512KB (RAMFILL, RAMTYPECTL)
+	RAMTYPE		:in std_logic_vector(1 downto 0) := "00";
 	
 	-- SD-RAM ports
 	pMemCke     : out std_logic;                        -- SD-RAM Clock enable
@@ -209,7 +211,6 @@ end component;
 
 component memorymaps
 generic(
-	extram	:integer	:=0;
 	addrwidth	:integer	:=25
 );
 port(
@@ -247,6 +248,8 @@ port(
 	ALURE		:out std_logic;
 	GADR_MSEL	:out std_logic;
 	
+	EXTTYPE		:in std_logic_vector(1 downto 0);
+
 	clk			:in std_logic;
 	rstn		:in std_logic;
 	ce			:in std_logic := '1'
@@ -717,17 +720,64 @@ end component;
 
 component RAMFILL
 port(
-	LDONE	:in std_logic;
+	CMD		:in std_logic;
+	CTYPE	:in std_logic_vector(1 downto 0);
 	RAM_WAIT	:in std_logic;
 
-	ADR		:out std_logic_vector(18 downto 0);
+	ADR		:out std_logic_vector(21 downto 0);
 	WDAT	:out std_logic_vector(7 downto 0);
 	WR		:out std_logic;
 	OE		:out std_logic;
+
+	SADR	:out std_logic_vector(13 downto 0);
+	SWDAT	:out std_logic_vector(7 downto 0);
+	SWR		:out std_logic;
+
 	DONE	:out std_logic;
+	RTYPE	:out std_logic_vector(1 downto 0);
 
 	clk		:in std_logic;
 	rstn	:in std_logic
+);
+end component;
+
+component RAMTYPECTL
+port(
+	OSDTYPE	:in std_logic_vector(1 downto 0);
+	LDONE	:in std_logic;
+	CPURSTN	:in std_logic;
+	FILLDONE	:in std_logic;
+
+	START	:out std_logic;
+	CTYPE	:out std_logic_vector(1 downto 0);
+	BUSY	:in std_logic;
+	ACKD	:in std_logic;
+
+	RELOK	:out std_logic;
+
+	clk		:in std_logic
+);
+end component;
+
+component cdc_hs
+generic(
+	AW		:integer	:=1;
+	BW		:integer	:=1
+);
+port(
+	a_start	:in std_logic;
+	a_data	:in std_logic_vector(AW-1 downto 0);
+	a_busy	:out std_logic;
+	a_done	:out std_logic;
+	a_rdata	:out std_logic_vector(BW-1 downto 0);
+	a_clk	:in std_logic;
+	a_rstn	:in std_logic;
+
+	b_valid	:out std_logic;
+	b_data	:out std_logic_vector(AW-1 downto 0);
+	b_rdata	:in std_logic_vector(BW-1 downto 0);
+	b_clk	:in std_logic;
+	b_rstn	:in std_logic
 );
 end component;
 
@@ -1540,12 +1590,22 @@ signal	VRAMWEo		:std_logic_vector(3 downto 0);
 signal	RAM_POST	:std_logic;
 signal	PWSEL		:std_logic;
 -- signal	LOADER_rstn :std_logic;
-signal	CLR_ADR		:std_logic_vector(18 downto 0);
+signal	CLR_ADR		:std_logic_vector(21 downto 0);
 signal	CLR_WDAT	:std_logic_vector(7 downto 0);
 signal	CLR_WR		:std_logic;
 signal	CLR_OE		:std_logic;
-signal	LOADER_DONEr	:std_logic;
 signal	FILLDONE,FILLDONE21	:std_logic;
+signal	FILL_CMD	:std_logic;
+signal	FILL_CTYPE	:std_logic_vector(1 downto 0);
+signal	FILL_RTYPE	:std_logic_vector(1 downto 0);
+signal	FILL_SADR	:std_logic_vector(13 downto 0);
+signal	FILL_SWDAT	:std_logic_vector(7 downto 0);
+signal	FILL_SWR	:std_logic;
+signal	RTC_START,RTC_BUSY,RTC_ACKD,RTC_RELOK	:std_logic;
+signal	RTC_CTYPE	:std_logic_vector(1 downto 0);
+signal	SUBM_ADR	:std_logic_vector(RAMAWIDTH-1 downto 0);
+signal	SUBM_WDAT	:std_logic_vector(7 downto 0);
+signal	SUBM_WR		:std_logic;
 -- signal	CLR_rstn	:std_logic;
 signal	gclk		:std_logic;
 signal	vid_ce3		:std_logic;
@@ -2144,7 +2204,7 @@ begin
 	rstnc		=>CPU_rstnr
 	);
 	
-	MMAP	:memorymaps generic map(1,RAMAWIDTH) port map(
+	MMAP	:memorymaps generic map(RAMAWIDTH) port map(
 	CPU_ADR		=>CPUADR,
 	CPU_MREQn	=>MREQ_n,
 	CPU_IORQn	=>IORQ_n,
@@ -2179,6 +2239,8 @@ begin
 	ALURE		=>ALU_RE,
 	GADR_MSEL	=>GWME,
 	
+	EXTTYPE		=>FILL_RTYPE,
+
 	clk			=>rclk,
 	rstn		=>CPU_rstnr,
 	ce			=>cpuce_r
@@ -2207,7 +2269,7 @@ begin
 	LOADER_WE<=LOADER_WRr and not LOADER_WRd;
 
 	RAMADR<=
-			ADDR_BACKRAM(RAMAWIDTH-1 downto 19) & CLR_ADR when CLR_OE='1' else
+			ADDR_BACKRAM(RAMAWIDTH-1 downto 22) & CLR_ADR when CLR_OE='1' else
 			ADDR_N88(RAMAWIDTH-1 downto 19) & LOADER_ADR when LOADER_OEr='1' else
 			VMAP_RADR when TCNV_BUSUSE='1' else
 			MAP_RADR;
@@ -2430,18 +2492,56 @@ port map(
 		rstn			=>srstn
 	);
 
-	-- Main RAM is filled once after the boot ROM download, as a real FH has it at
-	-- power on. The CPU is held in reset until the fill is done.
-	LDRDONEs	:cdc_sync2 port map(LOADER_DONE,LOADER_DONEr,rclk);
+	-- The RAM is filled after the boot ROM download, as a real machine of the RAM
+	-- type in the OSD has it at power on, and again at a reset after the type was
+	-- changed. RAMTYPECTL decides on clk21m and sends the type with the fill command;
+	-- the CPUs are held in reset until the fill is done.
+	RTC	:RAMTYPECTL port map(
+		OSDTYPE	=>RAMTYPE,
+		LDONE	=>LOADER_DONE,
+		CPURSTN	=>CPU_rstn,
+		FILLDONE	=>FILLDONE21,
+
+		START	=>RTC_START,
+		CTYPE	=>RTC_CTYPE,
+		BUSY	=>RTC_BUSY,
+		ACKD	=>RTC_ACKD,
+
+		RELOK	=>RTC_RELOK,
+
+		clk		=>clk21m
+	);
+	FILLCMD	:cdc_hs generic map(2,1) port map(
+		a_start	=>RTC_START,
+		a_data	=>RTC_CTYPE,
+		a_busy	=>RTC_BUSY,
+		a_done	=>RTC_ACKD,
+		a_rdata	=>open,
+		a_clk	=>clk21m,
+		a_rstn	=>srstn21,
+
+		b_valid	=>FILL_CMD,
+		b_data	=>FILL_CTYPE,
+		b_rdata	=>"0",
+		b_clk	=>rclk,
+		b_rstn	=>srstn
+	);
 	FILL	:RAMFILL port map(
-		LDONE	=>LOADER_DONEr,
+		CMD		=>FILL_CMD,
+		CTYPE	=>FILL_CTYPE,
 		RAM_WAIT	=>RAM_WAIT,
 
 		ADR		=>CLR_ADR,
 		WDAT	=>CLR_WDAT,
 		WR		=>CLR_WR,
 		OE		=>CLR_OE,
+
+		SADR	=>FILL_SADR,
+		SWDAT	=>FILL_SWDAT,
+		SWR		=>FILL_SWR,
+
 		DONE	=>FILLDONE,
+		RTYPE	=>FILL_RTYPE,
 
 		clk		=>rclk,
 		rstn	=>srstn
@@ -2481,14 +2581,14 @@ port map(
 	LOADER_ACK<=not RAM_WAITf;
 	
 --	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
+	-- Once released, the CPUs stay out of reset until the next reset: RTC_RELOK goes
+	-- low when only the OSD RAM type is changed, which must not reset them.
 	process(clk21m,rstn,srstna)begin
 		if(rstn='0' or srstna='0')then
 			CPU_rstn<='0';
 		elsif(clk21m' event and clk21m='1')then
-			if(LOADER_DONE='1' and EMUINITDONE='1' and FILLDONE21='1')then
+			if(LOADER_DONE='1' and EMUINITDONE='1' and RTC_RELOK='1')then
 				CPU_rstn<='1';
-			else
-				CPU_rstn<='0';
 			end if;
 		end if;
 	end process;
@@ -3060,10 +3160,15 @@ port map(
 	
 	TIMP600	:sftclk generic map(sysclk*1000,600,1) port map("0",RTI,clk21m,srstn21);
 	
+	-- The fill writes the sub CPU RAM through the same port while the sub CPU is in
+	-- reset (CPU_rstn waits for the fill).
+	SUBM_ADR<=ADDR_SUBRAM(RAMAWIDTH-1 downto 16) & "01" & FILL_SADR when FILL_SWR='1' else SUBADR;
+	SUBM_WDAT<=FILL_SWDAT when FILL_SWR='1' else SUBWDAT;
+	SUBM_WR<=FILL_SWR or SUBWR;
 	SUBM	:SUBMEM generic map(RAMAWIDTH) port map(
-		ADR		=>SUBADR,
-		WR		=>SUBWR,
-		WDAT	=>SUBWDAT,
+		ADR		=>SUBM_ADR,
+		WR		=>SUBM_WR,
+		WDAT	=>SUBM_WDAT,
 		RDAT	=>SUBRDAT,
 
 		LDADR	=>LOADER_ADR(12 downto 0),

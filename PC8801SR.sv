@@ -227,6 +227,7 @@ parameter CONF_STR = {
 	"-;",
 	"OK,Input,Joypad,Mouse;",
 	"OLM,Sound Board,Normal(SR),OnBoard(FA/MA+),Add-on (SB2);",
+	"OQR,RAM,Fx (SR/FR/FH/FA),Mx (MR/MH/MA/MC),512KB;",
 	"-;",
 	"R6,Reset;",
 	"J,Fire 1,Fire 2;",
@@ -706,6 +707,7 @@ PC88MiSTer PC88_top
 	.LOADER_WR(ldr_wr),
 	.LOADER_ACK(ldr_ack),
 	.LOADER_DONE(ldr_done),
+	.RAMTYPE(status[27:26]),
 
 	.pMemCke(SDRAM_CKE),
 	.pMemCs_n(SDRAM_nCS),
