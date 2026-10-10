@@ -22,6 +22,7 @@ set_global_assignment -name VHDL_FILE rtl/LIB/gvstretch.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/memwait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/wrpost.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/ramfill.vhd
+set_global_assignment -name VHDL_FILE rtl/LIB/ramtypectl.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/gvswait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/buswait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/DDS_OPN.vhd

@@ -5,7 +5,6 @@ LIBRARY	IEEE,WORK;
 
 entity memorymaps is
 generic(
-	extram	:integer	:=0;
 	addrwidth	:integer	:=25
 );
 port(
@@ -43,6 +42,10 @@ port(
 	ALURE		:out std_logic;
 	GADR_MSEL	:out std_logic;
 	
+	--Extended RAM (E2h/E3h): "00" none, "01" 4 banks (E3h 0-3), "10" 16 banks.
+	--A bank that is not there acts as if E2h had the RAM disabled.
+	EXTTYPE		:in std_logic_vector(1 downto 0);
+
 	clk			:in std_logic;
 	rstn		:in std_logic;
 	ce			:in std_logic := '1'
@@ -83,6 +86,9 @@ signal	TXTWINENb	:std_logic;
 signal	extsel		:std_logic_vector(3 downto 0);
 signal	extwe		:std_logic;
 signal	extre		:std_logic;
+signal	extbank		:std_logic;
+signal	extren		:std_logic;
+signal	extwen		:std_logic;
 
 begin
 
@@ -138,7 +144,7 @@ begin
 						TXWADR<=TXWADR+1;
 					end if;
 				when x"e2" =>
-					if(extram=0)then
+					if(EXTTYPE="00")then
 						extre<='0';
 						extwe<='0';
 					else
@@ -146,7 +152,7 @@ begin
 						extwe<=CPU_WDAT(4);
 					end if;
 				when x"e3" =>
-					if(extram=0)then
+					if(EXTTYPE="00")then
 						extsel<=(others=>'0');
 					else
 						extsel<=CPU_WDAT(3 downto 0);
@@ -169,14 +175,20 @@ begin
 	TXTWINENb<='1' when RMODE='0' and MMODE='0' and CPU_ADR(15 downto 10)="100000" else '0';
 	TXTWINEN<=TXTWINENb;
 
+	extbank<=	'1' when EXTTYPE="10" else
+				'1' when EXTTYPE="01" and extsel(3 downto 2)="00" else
+				'0';
+	extren<=extre and extbank;
+	extwen<=extwe and extbank;
+
 	TRAMSEL<=	'1' when GVAM='0' and G_RAMSELb=3 else
 				'1' when GVAM='1' and GAM='0' else
 				'0';
 	RAM_ADRF<=	
 				ADDR_KANJI1(27 downto 17) & KNJ1_ADR when KNJ1_RD='1' else		--Kanji1 ROM
 				ADDR_KANJI2(27 downto 17) & KNJ2_ADR when KNJ2_RD='1' else		--Kanji2 ROM
-				ADDR_EXTRAM(27 downto 19) & extsel & CPU_ADR(14 downto 0) when extram/=0 and CPU_ADR(15)='0' and extre='1' and CPU_RDn='0' else	--ext ram(read)
-				ADDR_EXTRAM(27 downto 19) & extsel & CPU_ADR(14 downto 0) when extram/=0 and CPU_ADR(15)='0' and extwe='1' and CPU_WRn='0' else	--ext ram(write)
+				ADDR_EXTRAM(27 downto 19) & extsel & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extren='1' and CPU_RDn='0' else	--ext ram(read)
+				ADDR_EXTRAM(27 downto 19) & extsel & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extwen='1' and CPU_WRn='0' else	--ext ram(write)
 				ADDR_BACKRAM(27 downto 15) & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and CPU_WRn='0' else	--write ram when rom assigned
 				ADDR_GVRAM(27 downto 15) & TXW_SUM(13 downto 0) & '0' when TXTWINENb='1' and TXW_SELV='1' else	--text window(VRAM area)
 				ADDR_MAINRAM(27 downto 16) & TXW_SUM when TXTWINENb='1' else		--text window
@@ -189,7 +201,7 @@ begin
 	ADRSEL<=	
 				ADR_TRAM 	when TRAMSEL='1' and TMODE='0' and CPU_ADR(15 downto 12)=x"F" else
 				ADR_VRAM		when CPU_ADR(15 downto 14)="11" else
-				ADR_RAM		when CPU_ADR(15)='0' and extre='1' and CPU_WRn='1' else
+				ADR_RAM		when CPU_ADR(15)='0' and extren='1' and CPU_WRn='1' else
 				ADR_ROM		when MMODE='0' and CPU_ADR(15)='0' and CPU_WRn='1' else
 				ADR_RAM;
 	
@@ -229,7 +241,7 @@ begin
 	
 	IO71<=	"1111111" & IEROMn;
 	
-	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71,extwe,extre,extsel)begin
+	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71,extwe,extre,extsel,EXTTYPE)begin
 		if(CPU_IORQn='1' or CPU_RDn='1')then
 			CPU_RDAT<=(others=>'1');
 			CPU_OE<='0';
@@ -245,18 +257,20 @@ begin
 				CPU_RDAT<=IO71;
 				CPU_OE<='1';
 			when x"e2" =>
-				if(extram/=0)then
+				if(EXTTYPE/="00")then
 					CPU_RDAT<="111" & not extwe & "111" & not extre;
 					CPU_OE<='1';
 				else
 					CPU_RDAT<=(others=>'1');
+					CPU_OE<='0';
 				end if;
 			when x"e3" =>
-				if(extram/=0)then
+				if(EXTTYPE/="00")then
 					CPU_RDAT<="0000" & extsel;
 					CPU_OE<='1';
 				else
 					CPU_RDAT<=(others=>'1');
+					CPU_OE<='0';
 				end if;
 			when others=>
 				CPU_RDAT<=(others=>'1');
