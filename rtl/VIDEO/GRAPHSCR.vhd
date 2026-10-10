@@ -114,7 +114,9 @@ begin
 	buf2    :graphbuf port map(clk,WDAT2,RADR,WADR,BUFWEL,RDAT2,ce);
 	bufe    :graphbuf port map(clk,WDATE,RADR,WADR,BUFWEL,RDATE,ce);
 
-	BUFWEL <= BUFWE when LINEEN='1' else '0';
+	-- 200-line graphics: 24kHz writes the skipped line as no graphics (black between lines, as on a real FH);
+	-- 31kHz repeats the line above
+	BUFWEL <= BUFWE when LINEEN='1' or (VT24='1' and VT15='0') else '0';
 	
 	WDAT0<=GRAMDAT0 when LINEEN='1' else (others=>'0');
 	WDAT1<=GRAMDAT1 when LINEEN='1' else (others=>'0');
