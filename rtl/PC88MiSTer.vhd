@@ -656,6 +656,22 @@ port(
 );
 end component;
 
+component BUSWAIT
+port(
+	SEL		:in std_logic;
+	IOSEL	:in std_logic;
+	OTHERWAIT	:in std_logic;
+	FAST	:in std_logic;
+	en		:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component GVSTRETCH
 port(
 	ce_r_in	:in std_logic;
@@ -1616,6 +1632,9 @@ signal	G_PLANESEL	:std_logic;
 signal	GVSTR		:std_logic;
 signal	GVSTRr		:std_logic;
 signal	GVS_WAITn	:std_logic;
+signal	BUS_WAITn	:std_logic;
+signal	BUSSEL,BUSIOSEL	:std_logic;
+signal	BUS_other	:std_logic;
 signal	GVSEN		:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
 signal	INTC_OE		:std_logic;
@@ -2653,7 +2672,7 @@ port map(
 				not RAM_WAIT when KANJI1RD='1' else
 				not RAM_WAIT when KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
-	WAIT_n<=WAIT_nb and M1_WAITn and MEM_WAITn and GV_WAITn and GVS_WAITn;
+	WAIT_n<=WAIT_nb and M1_WAITn and MEM_WAITn and GV_WAITn and GVS_WAITn and BUS_WAITn;
 
 	
 	process(clk21m,srstn21)begin
@@ -2891,6 +2910,12 @@ port map(
 	-- access, as measured on a real FH. GVWAIT above covers the ALU.
 	GVSEN<='1' when cV1S='1' and GVAM='0' and GHSMv='0' else '0';
 	GVSW	:GVSWAIT port map(GVSEL,GV_other,CPUMD,GVSTR,GVSEN,GVS_WAITn,rclk,cpuce_f,CPU_rstnr,VT24);
+	-- While slowed down, a real FH also waits on every bus cycle (BUSWAIT),
+	-- after all the other waits.
+	BUSSEL<='1' when (MREQ_n='0' or IORQ_n='0') and (RD_n='0' or WR_n='0') else '0';
+	BUSIOSEL<=not IORQ_n;
+	BUS_other<=not (WAIT_nb and M1_WAITn and MEM_WAITn and GV_WAITn and GVS_WAITn);
+	BUSW	:BUSWAIT port map(BUSSEL,BUSIOSEL,BUS_other,CPUMD,GVSTR,BUS_WAITn,rclk,cpuce_f,CPU_rstnr);
 	
 	process(rclk,srstn)begin
 		if(srstn='0')then

@@ -23,6 +23,7 @@ set_global_assignment -name VHDL_FILE rtl/LIB/memwait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/wrpost.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/ramfill.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/gvswait.vhd
+set_global_assignment -name VHDL_FILE rtl/LIB/buswait.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/DDS_OPN.vhd
 set_global_assignment -name QIP_FILE rtl/sound/OPN/RHYTHM/ROM_20RIM.qip
 set_global_assignment -name QIP_FILE rtl/sound/OPN/RHYTHM/ROM_10TOM.qip
