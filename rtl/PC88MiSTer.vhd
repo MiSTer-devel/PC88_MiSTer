@@ -699,6 +699,22 @@ port(
 );
 end component;
 
+component RAMFILL
+port(
+	LDONE	:in std_logic;
+	RAM_WAIT	:in std_logic;
+
+	ADR		:out std_logic_vector(18 downto 0);
+	WDAT	:out std_logic_vector(7 downto 0);
+	WR		:out std_logic;
+	OE		:out std_logic;
+	DONE	:out std_logic;
+
+	clk		:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component sdrbridge
 generic(
 	AWIDTH	:integer	:=25;
@@ -1512,6 +1528,8 @@ signal	CLR_ADR		:std_logic_vector(18 downto 0);
 signal	CLR_WDAT	:std_logic_vector(7 downto 0);
 signal	CLR_WR		:std_logic;
 signal	CLR_OE		:std_logic;
+signal	LOADER_DONEr	:std_logic;
+signal	FILLDONE,FILLDONE21	:std_logic;
 -- signal	CLR_rstn	:std_logic;
 signal	gclk		:std_logic;
 signal	vid_ce3		:std_logic;
@@ -2393,7 +2411,23 @@ port map(
 		rstn			=>srstn
 	);
 
-	CLR_OE<='0';
+	-- Main RAM is filled once after the boot ROM download, as a real FH has it at
+	-- power on. The CPU is held in reset until the fill is done.
+	LDRDONEs	:cdc_sync2 port map(LOADER_DONE,LOADER_DONEr,rclk);
+	FILL	:RAMFILL port map(
+		LDONE	=>LOADER_DONEr,
+		RAM_WAIT	=>RAM_WAIT,
+
+		ADR		=>CLR_ADR,
+		WDAT	=>CLR_WDAT,
+		WR		=>CLR_WR,
+		OE		=>CLR_OE,
+		DONE	=>FILLDONE,
+
+		clk		=>rclk,
+		rstn	=>srstn
+	);
+	FILLDONEs	:cdc_sync2 port map(FILLDONE,FILLDONE21,clk21m);
 
 	-- CPU writes outside graphic VRAM are posted: a real FH has no wait state on
 	-- them at 4MHz and one at 8MHz (MEMWAIT), with the SDRAM write done later.
@@ -2432,7 +2466,7 @@ port map(
 		if(rstn='0' or srstna='0')then
 			CPU_rstn<='0';
 		elsif(clk21m' event and clk21m='1')then
-			if(LOADER_DONE='1' and EMUINITDONE='1')then
+			if(LOADER_DONE='1' and EMUINITDONE='1' and FILLDONE21='1')then
 				CPU_rstn<='1';
 			else
 				CPU_rstn<='0';
