@@ -1649,6 +1649,8 @@ signal	CDIo		:std_logic;
 signal	CDIf		:std_logic;
 signal	CCK			:std_logic;
 signal	CSTB		:std_logic;
+signal	CCK21		:std_logic;
+signal	CSTB21		:std_logic;
 signal	C_RTC		:std_logic_vector(2 downto 0);
 signal	C_DO		:std_logic;
 signal	CD0			:std_logic;
@@ -1807,6 +1809,7 @@ signal	MONSFT		:std_logic_vector(7 downto 0);
 signal	VRAMWE		:std_logic_vector(3 downto 0);
 
 signal	pStr	:std_logic;
+signal	pStr21	:std_logic;
 signal	pJoy	:std_logic_vector(5 downto 0);
 signal	mdata	:std_logic_vector(5 downto 0);
 
@@ -1902,6 +1905,7 @@ signal	LOADER_OEf,LOADER_OEr	:std_logic;
 signal	LOADER_WRr,LOADER_WRd	:std_logic;
 signal	LOADER_WE	:std_logic;
 signal	RAM_WAITf	:std_logic;
+signal	RAM_WAITr	:std_logic;
 
 --DISK emulation
 signal	EMUINITDONE	:std_logic;
@@ -2476,8 +2480,14 @@ port map(
 	);
 	-- loader_rstn<=CLR_rstn;
 	
-	-- The loader waits for the acknowledge on clk21m.
-	LDRACKs	:cdc_sync2 port map(RAM_WAIT,RAM_WAITf,clk21m);
+	-- The loader waits for the acknowledge on clk21m. RAM_WAIT is combinational:
+	-- register it on rclk before it crosses so a glitch can't be taken as the end.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			RAM_WAITr<=RAM_WAIT;
+		end if;
+	end process;
+	LDRACKs	:cdc_sync2 port map(RAM_WAITr,RAM_WAITf,clk21m);
 	LOADER_ACK<=not RAM_WAITf;
 	
 --	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
@@ -3033,13 +3043,16 @@ port map(
 	CRTC_CURC<=	CURC;
 	CRTC_CURE<=	CURE;
 	
+	-- The RTC finds the edges of STB and CCK on clk21m: bring both in first.
+	RTCSTBs	:cdc_sync2 port map(CSTB,CSTB21,clk21m);
+	RTCCKs	:cdc_sync2 port map(CCK,CCK21,clk21m);
 	U_RTC	:rtc4990MiSTer generic map(sysclk*1000,x"00") port map(
-		DCLK	=>CCK,
+		DCLK	=>CCK21,
 		DIN		=>C_DO,
 		DOUT	=>CDIo,
 		C		=>C_RTC,
 		CS		=>'1',
-		STB		=>not CSTB,
+		STB		=>not CSTB21,
 		OE		=>'1',
 
 		RTCIN	=>sysrtc,
@@ -3147,10 +3160,12 @@ port map(
 		end if;
 	end process;
 	
+-- The mouse uses the strobe on clk21m: bring it in first.
+MSTBs	:cdc_sync2 port map(pStr,pStr21,clk21m);
 busmouse	:ps2mouse port map(
 	clk		=> clk21m,
 	reset	=> not CPU_rstn,
-	strobe	=> pStr,
+	strobe	=> pStr21,
 	data	=> mdata,
 	ps2_mouse	=> ps2_mouse
 );
