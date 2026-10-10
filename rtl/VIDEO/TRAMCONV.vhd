@@ -144,11 +144,27 @@ signal	GVSTRs		:std_logic;
 signal	VT24s		:std_logic;
 signal	VT15s		:std_logic;
 --24kHz, 15kHz in V1S: like a real FH, the CPU is not stopped in the retrace.
---Row 0 is read there without the hold, and the hold it would have taken is
---taken alone, with no transfer, one row after the last row (XREQ).
-signal	XREQ		:std_logic;	-- the hold-only request is due
+--One row after the last row (XREQ), row 0 of the next frame is read ahead with
+--its hold, so a CPU write to row 0 after that shows a frame later, as on a FH.
+--After the retrace, row 0 is then skipped. With one row on the screen, or when
+--the read-ahead did not end before the retrace, or the screen settings changed,
+--row 0 is read in the retrace without the hold, and XREQ takes the hold alone.
+signal	XREQ		:std_logic;	-- the request one row after the last row is due
 signal	HOLDONLY	:std_logic;	-- the bus is being taken for the hold only
 signal	NOHOLD		:std_logic;	-- this row is row 0: no hold after it
+signal	PFROW		:std_logic;	-- this row is the read-ahead of row 0
+signal	PFARM		:std_logic;	-- the read-ahead started in this frame (cleared by VRET)
+signal	PFOK		:std_logic;	-- the read-ahead ended before VRET
+signal	PFHOLD		:std_logic;	-- the frame start was held back: row 0 can be skipped
+signal	PFRST		:std_logic;	-- the held-back frame start must be done after all
+signal	PFDIRTY		:std_logic;	-- a format setting changed during the read-ahead
+signal	pfROWS		:integer range 0 to MAXLINES;
+signal	pfCHRL		:integer range CHRLMIN24 to CHRLMAX24;
+signal	pfTEXTEN,pfVT24,pfVT15	:std_logic;
+signal	pfSMODE,pfSPCHR,pfCOLOR,pfATTRCOLOR	:std_logic;
+signal	pfATTRLEN	:std_logic_vector(4 downto 0);
+signal	hTADR		:std_logic_vector(15 downto 0);	-- frame start values held at VRET
+signal	hTVRMODE,hTMODE	:std_logic;
 signal	HOLDTGT		:integer range 0 to 65535;
 --TSET, taken when TSr2 and TSr3 agree. Until then (a few clocks after reset, before
 --any CAPLINE), the 24kHz 25-line set.
@@ -274,6 +290,25 @@ begin
 			XREQ<='0';
 			HOLDONLY<='0';
 			NOHOLD<='0';
+			PFROW<='0';
+			PFARM<='0';
+			PFOK<='0';
+			PFHOLD<='0';
+			PFRST<='0';
+			PFDIRTY<='0';
+			pfROWS<=MAXLINES;
+			pfCHRL<=16;
+			pfTEXTEN<='0';
+			pfVT24<='0';
+			pfVT15<='0';
+			pfSMODE<='0';
+			pfSPCHR<='0';
+			pfCOLOR<='0';
+			pfATTRCOLOR<='0';
+			pfATTRLEN<=(others=>'0');
+			hTADR<=(others=>'0');
+			hTVRMODE<='0';
+			hTMODE<='0';
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -292,6 +327,11 @@ begin
 				end if;
 				TVRAM_WR<='0';
 				DONE<='0';
+				--The read-ahead row is converted with the live settings: one that changed
+				--while it ran is not used.
+				if(PFROW='1' and (SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR))then
+					PFDIRTY<='1';
+				end if;
 				if(waitcount>0)then
 					waitcount<=waitcount-1;
 				else
@@ -302,6 +342,7 @@ begin
 							stuckcnt<=0;
 							STATE<=ST_RELBUS;
 							HOLDONLY<='0';
+							PFROW<='0';
 							if(capV1S='1' and HOLDONLY='0')then
 								--V1S: drop the row, but step to the next one as ST_SETATR2 does.
 								if(SMODE='1' and LINESKIP='0')then
@@ -324,9 +365,40 @@ begin
 					end if;
 					case STATE is
 					when ST_IDLE =>
-						if(capV1S='1')then
-							if(BNDPEND='1')then
+						if(PFRST='1' and BNDPEND='0')then
+							--The frame start held back at VRET, with the values taken there.
+							STXTADR<=hTADR;
+							SATRADR<=hTADR+x"0050";
+							CTXTADR<=hTADR;
+							CATRADR<=hTADR+x"0050";
+							SDSTADR<=(others=>'0');
+							CDSTADR<=(others=>'0');
+							rTVRMODE<=hTVRMODE;
+							rTMODE<=hTMODE;
+							TVRAM_ADR<=(others=>'0');
+							--V1S was on at VRET (the frame start is held back only then): as the
+							--restart there would have done.
+							LINECNT<=0;
+							CURATR<="000000111";
+							LINESKIP<='0';
+							PFRST<='0';
+							PFHOLD<='0';
+						elsif(capV1S='1')then
+							if(BNDPEND='1' and PFOK='1' and PFRST='0' and V1S='1')then
+								--New frame after a read-ahead: keep where it ended, start at row 0
+								--and decide at row 0 whether to skip it.
+								hTADR<=TADR_TOP;
+								hTVRMODE<=TVRMODE;
+								hTMODE<=TMODE;
+								LINECNT<=0;
+								PFOK<='0';
+								PFHOLD<='1';
+								BNDPEND<='0';
+							elsif(BNDPEND='1')then
 								--New frame: the same restart as on VRET below.
+								PFOK<='0';
+								PFHOLD<='0';
+								PFRST<='0';
 								STXTADR<=TADR_TOP;
 								SATRADR<=TADR_TOP+x"0050";
 								CTXTADR<=TADR_TOP;
@@ -353,6 +425,15 @@ begin
 									BLKADR<=capROWS*LINECHARS*2;
 									STATE<=ST_BLANK;
 								end if;
+							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ and PFHOLD='1' and LINECNT=0)then
+								if(VT24s='1' and VT15s=pfVT15 and TMODE=rTMODE and TVRMODE=rTVRMODE
+									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR)then
+									--Row 0 was read ahead: skip it.
+									LINECNT<=1;
+									PFHOLD<='0';
+								else
+									PFRST<='1';
+								end if;
 							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ)then
 								--Start of a row: as on HRET below.
 								CHARCNT<=0;
@@ -374,8 +455,42 @@ begin
 								for iCOUNTER in 0 to 79 loop
 									fATTR(iCOUNTER)<='0';
 								end loop;
+							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1' and capROWS>=2 and VT24s='1')then
+								--24kHz, 15kHz: read row 0 of the next frame ahead, as a frame start and
+								--a row start.
+								XREQ<='0';
+								STXTADR<=TADR_TOP;
+								SATRADR<=TADR_TOP+x"0050";
+								CTXTADR<=TADR_TOP;
+								CATRADR<=TADR_TOP+x"0050";
+								SDSTADR<=(others=>'0');
+								CDSTADR<=(others=>'0');
+								CURATR<="000000111";
+								LINESKIP<='0';
+								CHARCNT<=0;
+								ATRCNT<=0;
+								NOHOLD<='0';
+								for iCOUNTER in 0 to 79 loop
+									fATTR(iCOUNTER)<='0';
+								end loop;
+								PFROW<='1';
+								PFARM<='1';
+								PFDIRTY<='0';
+								PFOK<='0';
+								pfROWS<=capROWS;
+								pfCHRL<=capCHRL;
+								pfTEXTEN<=capTEXTEN;
+								pfVT24<=VT24s;
+								pfVT15<=VT15s;
+								pfSMODE<=SMODE;
+								pfSPCHR<=SPCHR;
+								pfCOLOR<=COLOR;
+								pfATTRCOLOR<=ATTRCOLOR;
+								pfATTRLEN<=ATTRLEN;
+								STATE<=ST_GETBUS;
+								BUSREQn<='0';
 							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1')then
-								--24kHz, 15kHz: the hold-only request.
+								--24kHz, 15kHz with one row: the hold-only request.
 								XREQ<='0';
 								HOLDONLY<='1';
 								STATE<=ST_GETBUS;
@@ -593,6 +708,17 @@ begin
 							SDSTADR<=SDSTADR+x"0a0";
 							CHARCNT<=0;
 							ATRCNT<=0;
+							if(PFROW='1')then
+								PFROW<='0';
+								--Not when VRET rises in this same step (then it did not end before VRET),
+								--nor when a format setting changed while it ran.
+								if((pVRET='0' and VRETr='1') or PFDIRTY='1'
+									or SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR)then
+									PFOK<='0';
+								else
+									PFOK<=PFARM;
+								end if;
+							end if;
 							if(capV1S='1' and rTMODE='1' and NOHOLD='0')then
 								STATE<=ST_HOLD;
 							else
@@ -672,6 +798,7 @@ begin
 					RASTER<=0;
 					REQ<=0;
 					XREQ<='0';
+					PFARM<='0';
 					BNDPEND<='1';
 					CAPD<='0';
 					BLANKD<='0';
@@ -709,6 +836,11 @@ begin
 								REQLINE<=VIV-20;
 							end if;
 							CAPD<='1';
+							--A read-ahead taken with other screen settings is not used.
+							if((PFOK='1' or PFHOLD='1') and (V1S='0' or VT24s/=pfVT24 or VT15s/=pfVT15 or TEXTENr/=pfTEXTEN
+								or (VT24s='1' and (conv_integer(TSok(17 downto 13))/=pfROWS or conv_integer(TSok(12 downto 8))/=pfCHRL))))then
+								PFRST<='1';
+							end if;
 						elsif(CAPD='1' and RASTER+1=REQLINE and REQ<capROWS)then
 							REQ<=REQ+1;
 							REQLINE<=REQLINE+capCHRL;
