@@ -99,7 +99,7 @@ begin
 							current<=current+1;
 						else
 							seekerrb<='1';
-							busyb<='1';
+							busyb<='0';
 							state<=ST_IDLE;
 						end if;
 					else
@@ -139,6 +139,7 @@ begin
 				end if;
 			when ST_IDLE =>
 				if(destset='1')then
+					seekerrb<='0';
 					if(current=desttrack)then
 						reachtrack<='1';
 						state<=ST_NOP;

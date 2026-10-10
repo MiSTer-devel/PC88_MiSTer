@@ -332,6 +332,7 @@ port(
 	side	:out std_logic;		--pin32
 	usel	:out std_logic_vector(1 downto 0);
 	READY	:in std_logic;		--pin34
+	readyv	:in std_logic_vector(3 downto 0);
 	TWOSIDE	:in std_logic;
 	
 	int0	:in integer range 0 to maxbwidth;
@@ -897,6 +898,7 @@ port map(
 	side	=>FDC_SIDEn,
 	usel	=>FD_USEL,
 	READY	=>FDC_READY,	-- The actual chip is active high, but here it's active low.
+	readyv	=>"1100",
 	TWOSIDE	=>FDC_TWOSIDE,
 	
 	int0	=>FD_int0,
