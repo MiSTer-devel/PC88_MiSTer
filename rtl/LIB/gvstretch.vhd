@@ -9,7 +9,8 @@ use IEEE.numeric_std.all;
 --enables. A real FH in V1S runs about 4.94 times slower at 4MHz (5.02 at
 --8MHz) while graphic VRAM is selected for direct access and the graphic
 --screen is being displayed, and about 6.85 times (7.30 at 8MHz) in 24kHz
---timing.
+--timing. Part of it is a wait on every bus cycle (BUSWAIT); K gives the
+--rest, as fitted to 16 loops measured on a real FH.
 --Only the original ce_r/ce_f ticks are passed or dropped, and the passed ones
 --always alternate ce_r, ce_f, ce_r, ... so every user of the enables sees a
 --slower CPU clock. While STR is low all of them pass.
@@ -35,10 +36,10 @@ port(
 end GVSTRETCH;
 
 architecture rtl of GVSTRETCH is
--- ratio K/N: 207/1024 = 1/4.947 at 4MHz, 204/1024 = 1/5.020 at 8MHz,
--- 150/1024 = 1/6.827 and 140/1024 = 1/7.314 in 24kHz timing
+-- ratio K/N: 260/1024 = 1/3.938 at 4MHz, 295/1024 = 1/3.471 at 8MHz,
+-- 188/1024 = 1/5.447 and 202/1024 = 1/5.069 in 24kHz timing
 constant N		:integer := 1024;
-signal	K		:integer range 0 to 255;
+signal	K		:integer range 0 to 511;
 signal	acc		:integer range 0 to 2047;
 signal	expf	:std_logic;	-- next tick to pass is ce_f
 signal	known	:std_logic;	-- expf is valid (cleared by reset)
@@ -50,10 +51,10 @@ signal	expf_nx	:std_logic;
 signal	known_nx	:std_logic;
 signal	sum		:integer range 0 to 2303;
 begin
-	K<=	140 when FAST='1' and T24='1' else
-		204 when FAST='1' else
-		150 when T24='1' else
-		207;
+	K<=	202 when FAST='1' and T24='1' else
+		295 when FAST='1' else
+		188 when T24='1' else
+		260;
 
 	-- state after this edge
 	process(ce_r_in,ce_f_in,pass_r,pass_f,strd,acc,expf,known,K)
