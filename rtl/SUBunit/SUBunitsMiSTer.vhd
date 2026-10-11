@@ -770,6 +770,8 @@ begin
 				-- IDAT_IO12	when IO12_OE='1' else
 				IDAT_PPI	when PPI_OE='1' else
 				IDAT_FDC	when FDC_OE='1'  else
+				--Nothing else answers an I/O read. The bus floats high, as on a real PC-8801FH.
+				(others=>'1') when IORQn='0' and RDn='0' else
 				(others=>'Z');
 	
 	RAMWDAT<=CPUDAT_W;

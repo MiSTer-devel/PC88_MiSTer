@@ -150,7 +150,8 @@ begin
 			PA when ADR="00" else
 			PB when ADR="01" else
 			PC when ADR="10" else
-			REG;
+			--The control port cannot be read. A real PC-8801FH returns FFh.
+			(others=>'1');
 	DATOE<=RD;
 	
 end rtl;
