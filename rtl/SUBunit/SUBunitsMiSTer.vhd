@@ -695,6 +695,9 @@ signal	FDC_SIDEn	:std_logic;
 signal	FDC_WPROTn	:std_logic;
 signal	FDC_MFM		:std_logic;
 signal	FDC_INDISK	:std_logic_vector(1 downto 0);
+signal	FDC_TS		:std_logic_vector(1 downto 0);
+constant SPINUP	:integer	:=sysclk*470;	--0.47 s, measured on a PC-8801MA
+signal	SPIN0,SPIN1	:integer range 0 to SPINUP;
 signal	FDC_READY	:std_logic;
 signal	FDE_EMUEN	:std_logic_vector(1 downto 0);
 signal	TDSEL		:std_logic;
@@ -898,7 +901,7 @@ port map(
 	usel	=>FD_USEL,
 	READY	=>FDC_READY,	-- The actual chip is active high, but here it's active low.
 	readyv	=>"1100",
-	TWOSIDE	=>"00" & FDC_INDISK,
+	TWOSIDE	=>"00" & FDC_TS,
 	
 	int0	=>FD_int0,
 	int1	=>FD_int1,
@@ -1053,6 +1056,29 @@ port map(
 	--MTsave looks for the rising edge of the motor bits, so bring them to clk21m first.
 	MON0Ss	:cdc_sync2 port map(MON0S,MON0Sf,clk21m);
 	MON1Ss	:cdc_sync2 port map(MON1S,MON1Sf,clk21m);
+	--TS is the drive's READY line: a disk is in and its motor is up to speed. Use the motor bit
+	--the CPU wrote to F8h, not MTsave's output, which can stop the motor while the ROM thinks it
+	--runs. On a PC-8801MA, READY rises about 0.47 s after the motor starts and drops at once
+	--when it stops.
+	process(clk21m,rstn)begin
+		if(rstn='0')then
+			SPIN0<=SPINUP;
+			SPIN1<=SPINUP;
+		elsif(clk21m' event and clk21m='1')then
+			if(MON0Sf='0')then
+				SPIN0<=SPINUP;
+			elsif(SPIN0>0)then
+				SPIN0<=SPIN0-1;
+			end if;
+			if(MON1Sf='0')then
+				SPIN1<=SPINUP;
+			elsif(SPIN1>0)then
+				SPIN1<=SPIN1-1;
+			end if;
+		end if;
+	end process;
+	FDC_TS(0)<=FDC_INDISK(0) when MON0Sf='1' and SPIN0=0 else '0';
+	FDC_TS(1)<=FDC_INDISK(1) when MON1Sf='1' and SPIN1=0 else '0';
 	MTS0 :MTsave generic map(sysclk,4000) port map(MON0Sf,EN0,'1',MON0,MTSAVEON,clk21m,rstn);
 	MTS1 :MTsave generic map(sysclk,4000) port map(MON1Sf,EN1,'1',MON1,MTSAVEON,clk21m,rstn);
 
