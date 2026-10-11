@@ -42,7 +42,7 @@ port(
 	READY	:in std_logic;		--pin34
 	-- '1' when the drive is not ready, one bit per drive
 	readyv	:in std_logic_vector(3 downto 0);
-	TWOSIDE	:in std_logic;
+	TWOSIDE	:in std_logic_vector(3 downto 0);	--a disk is in the drive
 	
 	int0	:in integer range 0 to maxbwidth;
 	int1	:in integer range 0 to maxbwidth;
@@ -4621,7 +4621,7 @@ begin
 	ST0<=sIC &sSE & sEC & sNR & sHD & sUS;
 	ST1<=sEN & '0' & sDE & sOR & '0' & sND & sNW & sMA;
 	ST2<='0' & sCM & sDD & sWC & sSH & sSN & sBC & sMD;
-	ST3<='0' & not WPRT & not readyv(conv_integer(uselb)) & not track0s & TWOSIDE & sideb & uselb;
+	ST3<='0' & not WPRT & not readyv(conv_integer(uselb)) & not track0s & TWOSIDE(conv_integer(uselb)) & sideb & uselb;
 	MSR<=sRQM & sDIO & sEXM & sCB & sDxB;
 	
 	RDAT<=	RDDAT_DAT when DACKn='0' else
