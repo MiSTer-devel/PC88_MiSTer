@@ -853,7 +853,11 @@ port(
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	ce		:in std_logic := '1'
+	ce		:in std_logic := '1';
+
+	RDn		:in std_logic := '1';
+	RDAT	:out std_logic_vector(7 downto 0);
+	ROE		:out std_logic
 );
 end component;
 
@@ -1648,6 +1652,8 @@ signal	IDAT_IOR40	:std_logic_vector(7 downto 0);
 signal	IOR40_OE	:std_logic;
 signal	IDAT_IOR6e	:std_logic_vector(7 downto 0);
 signal	IOR6e_OE	:std_logic;
+signal	IDAT_DMA	:std_logic_vector(7 downto 0);
+signal	DMA_OE		:std_logic;
 signal	IDAT_IOR71	:std_logic_vector(7 downto 0);
 signal	IOR71_OE	:std_logic;
 signal	IDAT_PPIFD	:std_logic_vector(7 downto 0);
@@ -2866,6 +2872,7 @@ port map(
 				IDAT_IOR38	when IOR38_OE='1' else
 				IDAT_IOR40	when IOR40_OE='1' else
 				IDAT_IOR6e	when IOR6e_OE='1' else
+				IDAT_DMA	when DMA_OE='1' else
 				IDAT_PPIFD	when PPIFD_OE='1' else
 				IDAT_RAM	when KANJI1RD='1' else
 				IDAT_RAM	when KANJI2RD='1' else
@@ -2896,7 +2903,7 @@ port map(
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);
 	IOW71	:IO_WRS generic map(x"71")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,open,open,open,IEROM,rclk,CPU_rstnr,cpuce_r);
 	IOWaa	:IO_WRS generic map(x"aa")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,S2INTM,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
-	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r);
+	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE);
 	pStrA<=pStr;
 	pStrB<=pStr;
 	
