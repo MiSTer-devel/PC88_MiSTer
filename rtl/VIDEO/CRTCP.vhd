@@ -170,6 +170,7 @@ port(
 	BITOUT2	:out std_logic;
 	BITOUTM	:out std_logic;
 	BITOUTE	:out std_logic;
+	BITOUTG	:out std_logic;
 	
 	GRAPHEN	:in std_logic;
 	LOWRES	:in std_logic;
@@ -315,6 +316,7 @@ signal G0_BIT	:std_logic;
 signal G1_BIT	:std_logic;
 signal G2_BIT	:std_logic;
 signal GE_BIT	:std_logic;
+signal GG_BIT	:std_logic;
 signal T_FGCOLOR:std_logic_vector(2 downto 0);
 signal T_BGCOLOR:std_logic_vector(2 downto 0);
 signal T_BLINK	:std_logic;
@@ -346,6 +348,9 @@ signal PAL_BLE		:std_logic_vector(2 downto 0);
 signal	VISIBLEd	:std_logic;
 signal	COLNUMd	:std_logic_vector(2 downto 0);
 signal	GE_BITd	:std_logic;
+signal	GG_BITd	:std_logic;
+signal	GCOLORd	:std_logic;
+signal	NOGRP	:std_logic;
 signal	X_BITd	:std_logic;
 signal	VIDENb	:std_logic;
 
@@ -383,7 +388,7 @@ begin
 	VSY		=>VSY
 ) port map(VT24,VT15,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b);
 	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL);
-	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET);
+	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET);
 
 	--31kHz: the cursor is the bottom 4 lines, blinking. 24kHz, 15kHz: as set by the
 	--CRTC (C of the RESET command).
@@ -500,6 +505,8 @@ begin
 		 if(ce3b='1')then
 			COLNUMd<=COLNUM;
 			GE_BITd<=GE_BIT;
+			GG_BITd<=GG_BIT;
+			GCOLORd<=GCOLOR;	-- taken with the palette output
 			X_BITd<=X_BIT;
 			R_BITd<=R_BIT;
 			VIDEN<=VIDENb;
@@ -512,9 +519,12 @@ begin
 	GRN<=	PAL_GRN when PALEN='1' else (others=>COLNUMd(1));
 	BLE<=	PAL_BLE when PALEN='1' else (others=>COLNUMd(0));
 	
-	ROUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else RED;
-	GOUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else GRN;
-	BOUT	<="000" when (VISIBLEd='0' or ((GE_BITd='0' or GRAPHEN='0') and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else BLE;
+	--No graphics here: black. The line between 24kHz 200-line graphics lines is black in color
+	--mode, and in black and white mode shows the background color like dots that are off (PC-8801FH)
+	NOGRP	<='1' when GRAPHEN='0' or (GE_BITd='0' and (GG_BITd='0' or GCOLORd='1')) else '0';
+	ROUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else RED;
+	GOUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else GRN;
+	BOUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else BLE;
 
 	gclk<=clk3;
 	CE3<=ce3b;

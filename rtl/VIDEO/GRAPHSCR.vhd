@@ -18,6 +18,7 @@ port(
 	BITOUT2	:out std_logic;
 	BITOUTM	:out std_logic;
 	BITOUTE	:out std_logic;
+	BITOUTG	:out std_logic;		-- 1: a line between 200-line graphics lines at 24kHz
 	
 	GRAPHEN	:in std_logic;
 	LOWRES	:in std_logic;
@@ -93,11 +94,13 @@ signal	NXTDOT1	:std_logic_vector(7 downto 0);
 signal	NXTDOT2	:std_logic_vector(7 downto 0);
 signal	NXTDOTM	:std_logic_vector(7 downto 0);
 signal	NXTDOTE	:std_logic_vector(7 downto 0);
+signal	NXTDOTG	:std_logic_vector(7 downto 0);
 signal	CURDOT0	:std_logic_vector(7 downto 0);
 signal	CURDOT1	:std_logic_vector(7 downto 0);
 signal	CURDOT2	:std_logic_vector(7 downto 0);
 signal	CURDOTM	:std_logic_vector(7 downto 0);
 signal	CURDOTE	:std_logic_vector(7 downto 0);
+signal	CURDOTG	:std_logic_vector(7 downto 0);
 signal	DHCOMP	:std_logic;
 signal	DVCOMP	:std_logic;
 signal	GRAMADRb:std_logic_vector(13 downto 0);
@@ -105,6 +108,7 @@ signal	MONOFL0	:std_logic_vector(7 downto 0);
 signal	MONOFL1	:std_logic_vector(7 downto 0);
 signal	MONOFL2	:std_logic_vector(7 downto 0);
 signal  BUFWEL : std_logic;
+signal	GAPL	:std_logic;
 signal	vivs	:integer range 0 to VWMAX-1;
 signal	hivs	:integer range 0 to HUWMAX-1;
 
@@ -114,7 +118,7 @@ begin
 	buf2    :graphbuf port map(clk,WDAT2,RADR,WADR,BUFWEL,RDAT2,ce);
 	bufe    :graphbuf port map(clk,WDATE,RADR,WADR,BUFWEL,RDATE,ce);
 
-	-- 200-line graphics: 24kHz writes the skipped line as no graphics (black between lines, as on a real FH);
+	-- 200-line graphics: 24kHz writes the skipped line as no graphics (see GAPL);
 	-- 31kHz repeats the line above
 	BUFWEL <= BUFWE when LINEEN='1' or (VT24='1' and VT15='0') else '0';
 	
@@ -138,12 +142,20 @@ begin
 			BUFCNT<=0;
 			DAT1SEL<='0';
 			LINEEN<='1';
+			GAPL<='0';
 		elsif(clk' event and clk='1')then
 		 if(ce='1')then
 			BUFWE<='0';
 			case BUFSTATE is
 			when BS_IDLE =>
 				if(HUCOUNT=0 and UCOUNT=0)then
+					-- this line is written as no graphics (24kHz, 200 lines): marked for the output,
+					-- which shows it black in color mode and in the background color in black and white mode
+					if(VT24='1' and LINEEN='0' and VCOUNT/=vivs)then
+						GAPL<='1';
+					else
+						GAPL<='0';
+					end if;
 					if(VCOUNT=vivs)then
 						GRAMADRb<=(others=>'0');
 						DAT1SEL<='0';
@@ -231,6 +243,7 @@ begin
 			NXTDOT2<=(others=>'0');
 			NXTDOTM<=(others=>'0');
 			NXTDOTE<=(others=>'0');
+			NXTDOTG<=(others=>'0');
 			RADR<=(others=>'0');
 		elsif(clk' event and clk='1')then
 		 if(ce='1')then
@@ -253,6 +266,7 @@ begin
 					NXTDOT1<=RDAT1;
 					NXTDOT2<=RDAT2;
 					NXTDOTE<=RDATE;
+					NXTDOTG<=(others=>GAPL);
 					if(LOWRESb='1')then
 						NXTDOTM<=(MONOFL0 and RDAT0) or (MONOFL1 and RDAT1) or (MONOFL2 and RDAT2);
 					elsif(DAT1SEL='1')then
@@ -266,6 +280,7 @@ begin
 					NXTDOT1<=(others=>'0');
 					NXTDOT2<=(others=>'0');
 					NXTDOTE<=(others=>'0');
+					NXTDOTG<=(others=>'0');
 				end if;
 			end if;
 		 end if;
@@ -280,11 +295,13 @@ begin
 			BITOUT2<='0';
 			BITOUTM<='0';
 			BITOUTE<='0';
+			BITOUTG<='0';
 			CURDOT0<=(others=>'0');
 			CURDOT1<=(others=>'0');
 			CURDOT2<=(others=>'0');
 			CURDOTM<=(others=>'0');
 			CURDOTE<=(others=>'0');
+			CURDOTG<=(others=>'0');
 		elsif(clk' event and clk='1')then
 		 if(ce='1')then
 			if(UCOUNT=0)then
@@ -293,22 +310,26 @@ begin
 				BITOUT2<=NXTDOT2(7);
 				BITOUTM<=NXTDOTM(7);
 				BITOUTE<=NXTDOTE(7);
+				BITOUTG<=NXTDOTG(7);
 				CURDOT0<=NXTDOT0;
 				CURDOT1<=NXTDOT1;
 				CURDOT2<=NXTDOT2;
 				CURDOTM<=NXTDOTM;
 				CURDOTE<=NXTDOTE;
+				CURDOTG<=NXTDOTG;
 			else
 				BITOUT0<=CURDOT0(6);
 				BITOUT1<=CURDOT1(6);
 				BITOUT2<=CURDOT2(6);
 				BITOUTM<=CURDOTM(6);
 				BITOUTE<=CURDOTE(6);
+				BITOUTG<=CURDOTG(6);
 				CURDOT0<=CURDOT0(6 downto 0) & '0';
 				CURDOT1<=CURDOT1(6 downto 0) & '0';
 				CURDOT2<=CURDOT2(6 downto 0) & '0';
 				CURDOTM<=CURDOTM(6 downto 0) & '0';
 				CURDOTE<=CURDOTE(6 downto 0) & '0';
+				CURDOTG<=CURDOTG(6 downto 0) & '0';
 			end if;
 		 end if;
 		end if;
