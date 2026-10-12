@@ -60,6 +60,7 @@ signal	M1nc	:std_logic;
 -- signal	VECOEc	:std_logic;
 signal	INTRQ	:std_logic_vector(7 downto 0);
 signal	INTRQm	:std_logic_vector(7 downto 0);
+signal	MSKCLR	:std_logic_vector(7 downto 0);	-- requests dropped by a write to MSKADR
 signal	INTCLR	:std_logic;
 signal	INTCLRN	:integer range 0 to 7;
 signal	INTdisCLR	:std_logic;		-- INT DIS FF clear req
@@ -104,7 +105,9 @@ begin
 			INTRQ<=(others=>'0');
 		elsif(clk' event and clk='1')then
 			for i in 0 to 7 loop
-				if(INTbn(i)='0' and lINTbn(i)='1')then
+				if(MSKCLR(i)='1')then
+					INTRQ(i)<='0';
+				elsif(INTbn(i)='0' and lINTbn(i)='1')then
 					INTRQ(i)<='1';
 				elsif(INTCLRN=i and INTCLR='1')then
 					INTRQ(i)<='0';
@@ -129,7 +132,9 @@ begin
 			LEVdat<=(others=>'0');
 			LEVin<='0';
 			LEVimm<='0';
+			MSKCLR<=(others=>'0');
 		elsif(cpuclk' event and cpuclk='1')then
+		 MSKCLR<=(others=>'0');
 		 if(ce_r='1')then
 			INTdisCLR<='0';
 			-- A write that narrows the level takes effect during the write. Any
@@ -168,6 +173,9 @@ begin
 					INTmsk(0)<=DATIN(2);
 					INTmsk(1)<=DATIN(1);
 					INTmsk(2)<=DATIN(0);
+					-- As on a PC-8801FH, a request that is masked before or after the write is dropped,
+					-- so one that came while it was masked is not taken when it is unmasked
+					MSKCLR<=not (("11111" & DATIN(0) & DATIN(1) & DATIN(2)) and INTmsk);
 				when others =>
 				end case;
 			end if;
