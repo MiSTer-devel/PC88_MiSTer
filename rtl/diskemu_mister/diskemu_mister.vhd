@@ -176,6 +176,27 @@ type fdstate_t is (
 	fs_chkdatcrc,
 	fs_ststatus,
 	fs_savenexttrack,
+	fs_ovs0,
+	fs_ovs1,
+	fs_ovs2,
+	fs_ovm0,
+	fs_ovm1,
+	fs_ovm2,
+	fs_ovm3,
+	fs_ovm4,
+	fs_ovm5,
+	fs_ovm6,
+	fs_ovm7,
+	fs_ovi0,
+	fs_ovi1s,
+	fs_ovi1,
+	fs_ovi2,
+	fs_ovi3,
+	fs_ovi4,
+	fs_ovi5,
+	fs_ovn0,
+	fs_ovn1,
+	fs_ovres,
 	fs_saveend
 );
 signal	fdstate	:fdstate_t;
@@ -258,6 +279,58 @@ signal	sectcount:std_logic_vector(15 downto 0);
 signal	cursecthead	:std_logic_vector(31 downto 0);
 signal	nxtsecthead	:std_logic_vector(31 downto 0);
 signal	sectlen	:std_logic_vector(15 downto 0);
+--a long sector followed by sectors is laid out as on the real disk; the sectors behind it
+--are placed where their ID marks appear inside its data, and the track keeps the normal turn
+signal	ovl		:std_logic;	-- this track has such a long sector
+signal	ovlseen	:std_logic;	-- a sector of 6144 bytes or more was seen in this track
+signal	ovlcopy	:std_logic;	-- copying the long sector's data
+signal	ovlimg	:std_logic_vector(31 downto 0);	-- image address of the long sector's data
+signal	ovlstart	:std_logic_vector(13 downto 0);	-- track address of its first data byte
+signal	ovllen	:std_logic_vector(15 downto 0);	-- size of the long sector's data
+--IDs found in the long sector's data (prescan) and where the d88 sectors behind it go
+--the tables are block RAMs, read one entry at a time (the read data comes 2 clocks after the address)
+type ovtram_t is array(0 to 31) of std_logic_vector(45 downto 0);	-- C H R N & position of an ID found
+type ovfpram_t is array(0 to 63) of std_logic_vector(14 downto 0);	-- placed & position of a d88 sector behind
+type ovfhram_t is array(0 to 63) of std_logic_vector(31 downto 0);	-- image address of its header
+signal	tram	:ovtram_t;
+signal	fpram	:ovfpram_t;
+signal	fhram	:ovfhram_t;
+--tracks with a long sector, per drive and track: not written back (the image keeps the long sector as it is)
+type ovlram_t is array(0 to 511) of std_logic;
+signal	ovlram	:ovlram_t;
+signal	ovl_we	:std_logic;
+signal	ovl_wd	:std_logic;
+signal	ovl_q	:std_logic;
+signal	t_we,fp_we,fh_we	:std_logic;
+signal	t_wa,t_ra	:std_logic_vector(4 downto 0);
+signal	fp_wa,fp_ra,fh_wa,fh_ra	:std_logic_vector(5 downto 0);
+signal	t_wd,t_q	:std_logic_vector(45 downto 0);
+signal	fp_wd,fp_q	:std_logic_vector(14 downto 0);
+signal	fh_wd,fh_q	:std_logic_vector(31 downto 0);
+signal	prevok	:std_logic;
+signal	prevpos	:std_logic_vector(13 downto 0);
+signal	ovacc	:std_logic_vector(27 downto 0);
+signal	tn		:integer range 0 to 32;
+signal	fn		:integer range 0 to 64;
+signal	fany	:std_logic;
+signal	sr		:std_logic_vector(63 downto 0);
+signal	sbyte	:std_logic_vector(7 downto 0);
+signal	sbit	:integer range 0 to 7;
+signal	soff	:std_logic_vector(15 downto 0);
+signal	mj,mk,mq	:integer range 0 to 64;
+signal	mhead	:std_logic_vector(31 downto 0);
+signal	mchrn	:std_logic_vector(31 downto 0);
+signal	mlen	:std_logic_vector(7 downto 0);
+signal	minstep	:std_logic_vector(13 downto 0);
+signal	ilo,ihi	:integer range 0 to 64;
+signal	ilopos	:std_logic_vector(13 downto 0);
+signal	inum	:std_logic_vector(13 downto 0);
+signal	iq		:std_logic_vector(13 downto 0);
+signal	ifill	:std_logic_vector(13 downto 0);
+signal	bj		:integer range 0 to 64;
+signal	bpos	:std_logic_vector(13 downto 0);	-- where the next d88 sector behind goes
+signal	bcapn	:std_logic_vector(13 downto 0);	-- where the one after it goes
+signal	bcap	:std_logic_vector(13 downto 0);	-- end of the sector being built
 -- GAP3: standard format values when the whole track fits in one revolution, else 26/13 as before
 signal	usestd	:std_logic;
 signal	gap3sel	:integer range 0 to 127;
@@ -929,11 +1002,25 @@ begin
 	
 	process(sclk,rstn)
 	variable swait	:integer range 0 to 3;
+	variable ovb	:std_logic_vector(16 downto 0);
 	variable ambuf0,ambuf1,ambuf2,ambuf3	:std_logic_vector(9 downto 0);
 	begin
 		if(rstn='0')then
 			fdstate<=fs_idle;
 			swait:=0;
+			ovl<='0';
+			ovlseen<='0';
+			ovlcopy<='0';
+			fn<=0;
+			bj<=0;
+			bpos<=(others=>'1');
+			t_we<='0';
+			fp_we<='0';
+			fh_we<='0';
+			ovl_we<='0';
+			t_ra<=(others=>'0');
+			fp_ra<=(others=>'0');
+			fh_ra<=(others=>'0');
 			mfm<='0';
 			-- mfm0<='0';
 			-- mfm1<='0';
@@ -973,6 +1060,10 @@ begin
 			crcwr<='0';
 			fde_modeset<="00";
 			fddone<='0';
+			t_we<='0';
+			fp_we<='0';
+			fh_we<='0';
+			ovl_we<='0';
 			if(swait>0)then
 				swait:=swait-1;
 			else
@@ -1042,6 +1133,14 @@ begin
 					fdstate<=fs_loadshead;
 				when fs_loadshead =>
 					cursecthead<=haddr;
+					ovl<='0';
+					ovlseen<='0';
+					ovl_we<='1';
+					ovl_wd<='0';
+					ovlcopy<='0';
+					fn<=0;
+					bj<=0;
+					bpos<=(others=>'1');
 					case emustate is
 					when es_fload0 | es_fsave0 =>
 						img_unit<='0';
@@ -1398,6 +1497,17 @@ begin
 						img_addr<=cursecthead+x"10";
 						img_rd<='1';
 						nxtsecthead<=cursecthead+(img_rddat & sectlen(7 downto 0))+x"10";
+						if(ovlseen='0' and (img_rddat & sectlen(7 downto 0))>=x"1800")then
+							ovlseen<='1';
+						end if;
+						if(mfm='1' and diskmode(1)='0' and ddmode='0' and ovlseen='0' and (img_rddat & sectlen(7 downto 0))>=x"1800"
+							and (numsect-sectcount-1)<=x"0040")then
+							ovl<='1';
+							ovlcopy<='1';
+							ovlimg<=cursecthead+x"10";
+							ovl_we<='1';
+							ovl_wd<='1';
+						end if;
 						if(mfm='0')then
 							gap3sel<=13;
 						elsif(usestd='1')then
@@ -1496,11 +1606,57 @@ begin
 						end if;
 						trackwr<='1';
 						crcwr<='1';
-						fdstate<=fs_dat;
+						if(ovlcopy='1')then
+							ovlstart<=track_curaddr+2;
+							ovllen<=sectlen;
+							if(numsect>(sectcount+1))then
+								--prescan the long sector's data before writing it
+								soff<=(others=>'0');
+								sr<=(others=>'0');
+								tn<=0;
+								fdstate<=fs_ovs0;
+							else
+								fdstate<=fs_dat;
+							end if;
+						else
+							fdstate<=fs_dat;
+						end if;
 						swait:=1;
 					end if;
 				when fs_dat =>
-					if(trackbusy='0' and img_busy='0' and crcbusy='0')then
+					if(ovlcopy='1' and trackbusy='0' and img_busy='0' and bj<fn and (track_curaddr+1)>=bpos)then
+						--the place of the next d88 sector behind the long sector: build it there
+						track_curaddr<=bpos;
+						bcap<=bcapn;
+						ovlcopy<='0';
+						nxtsecthead<=fh_q;
+						sectcount<=numsect-std_logic_vector(ieee.numeric_std.to_unsigned(fn-bj+1,16));
+						bj<=bj+1;
+						img_addr<=fh_q+6;
+						img_rd<='1';
+						swait:=1;
+						fdstate<=fs_nxtsector;
+					elsif(ovl='1' and ovlcopy='0' and trackbusy='0' and img_busy='0' and (track_curaddr+1)>=bcap)then
+						--its data runs into the next sector (they overlap on the disk): go on with the long sector's data
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(bj mod 64,6));
+						swait:=1;
+						fdstate<=fs_ovn0;
+					elsif(ovlcopy='1' and trackbusy='0' and img_busy='0' and track_curaddr>="01100001101001")then
+						--the long sector's data runs over its own start on the real disk: stop at the end of the turn
+						trackwrdat<=x"024e";
+						fdstate<=fs_gap4;
+						if(track_curaddr>=tracklen)then
+							--the last sector behind it did not fit in the turn: a long track, as for other tracks
+							diskmode(0)<='1';
+							if(img_unit='0')then
+								diskmode0(0)<='1';
+								fde_modeset(0)<='1';
+							else
+								diskmode1(0)<='1';
+								fde_modeset(1)<='1';
+							end if;
+						end if;
+					elsif(trackbusy='0' and img_busy='0' and crcbusy='0')then
 						track_curaddr<=track_curaddr+1;
 						trackwrdat(15 downto 10)<=(others=>'0');
 						trackwrdat(9 downto 8)<=mfm & '0';
@@ -1518,7 +1674,11 @@ begin
 						swait:=1;
 					end if;
 				when fs_crcd0 =>
-					if(trackbusy='0' and crcbusy='0')then
+					if(ovl='1' and ovlcopy='0' and trackbusy='0' and img_busy='0' and (track_curaddr+2)>=bcap)then
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(bj mod 64,6));
+						swait:=1;
+						fdstate<=fs_ovn0;
+					elsif(trackbusy='0' and crcbusy='0')then
 						track_curaddr<=track_curaddr+1;
 						trackwrdat(15 downto 10)<=(others=>'0');
 						trackwrdat(9 downto 8)<=mfm & '0';
@@ -1542,8 +1702,13 @@ begin
 							trackwrdat(7 downto 0)<=crcdat(7 downto 0);
 						end if;
 						trackwr<='1';
-						fdstate<=fs_gap3;
-						bytecount<=gap3sel;
+						if(ovl='1' and ovlcopy='0')then
+							fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(bj mod 64,6));
+							fdstate<=fs_ovn0;
+						else
+							fdstate<=fs_gap3;
+							bytecount<=gap3sel;
+						end if;
 						swait:=1;
 					end if;
 				when fs_gap3 =>
@@ -1617,9 +1782,260 @@ begin
 						swait:=1;
 						fdstate<=fs_synci;
 					end if;
+				when fs_ovs0 =>
+					--prescan: read the long sector's data up to the end of the turn as a bit stream
+					if(soff>=ovllen or (ovlstart+soff(13 downto 0))>"01100001101001")then
+						mhead<=nxtsecthead;
+						mj<=0;
+						mk<=0;
+						fn<=conv_integer(numsect-sectcount-1);
+						fany<='0';
+						fdstate<=fs_ovm0;
+					else
+						img_addr<=ovlimg+(x"0000" & soff);
+						img_rd<='1';
+						swait:=1;
+						fdstate<=fs_ovs1;
+					end if;
+				when fs_ovs1 =>
+					if(img_busy='0')then
+						sbyte<=img_rddat;
+						sbit<=7;
+						fdstate<=fs_ovs2;
+					end if;
+				when fs_ovs2 =>
+					sr<=sr(62 downto 0) & sbyte(sbit);
+					if(sr(62 downto 31)=x"A1A1A1FE" and tn<32)then
+						--A1 A1 A1 FE C H R N ends with this bit: its first A1 starts 63 bits back
+						ovb:=(soff(13 downto 0) & "000")+std_logic_vector(ieee.numeric_std.to_unsigned(7-sbit,17))-60;
+						t_wa<=std_logic_vector(ieee.numeric_std.to_unsigned(tn,5));
+						t_wd<=sr(30 downto 0) & sbyte(sbit) & (ovlstart+ovb(16 downto 3)-12);
+						t_we<='1';
+						tn<=tn+1;
+					end if;
+					if(sbit=0)then
+						soff<=soff+1;
+						fdstate<=fs_ovs0;
+					else
+						sbit<=sbit-1;
+					end if;
+				when fs_ovm0 =>
+					--match the d88 sectors behind it with the IDs found, in order
+					if(mj>=fn)then
+						fdstate<=fs_ovi0;
+					else
+						fh_wa<=std_logic_vector(ieee.numeric_std.to_unsigned(mj mod 64,6));
+						fh_wd<=mhead;
+						fh_we<='1';
+						img_addr<=mhead;
+						img_rd<='1';
+						swait:=1;
+						fdstate<=fs_ovm1;
+					end if;
+				when fs_ovm1 =>
+					if(img_busy='0')then
+						mchrn(31 downto 24)<=img_rddat; img_addr<=mhead+1; img_rd<='1'; swait:=1; fdstate<=fs_ovm2;
+					end if;
+				when fs_ovm2 =>
+					if(img_busy='0')then
+						mchrn(23 downto 16)<=img_rddat; img_addr<=mhead+2; img_rd<='1'; swait:=1; fdstate<=fs_ovm3;
+					end if;
+				when fs_ovm3 =>
+					if(img_busy='0')then
+						mchrn(15 downto 8)<=img_rddat; img_addr<=mhead+3; img_rd<='1'; swait:=1; fdstate<=fs_ovm4;
+					end if;
+				when fs_ovm4 =>
+					if(img_busy='0')then
+						mchrn(7 downto 0)<=img_rddat; img_addr<=mhead+x"0e"; img_rd<='1'; swait:=1; fdstate<=fs_ovm5;
+					end if;
+				when fs_ovm5 =>
+					if(img_busy='0')then
+						mlen<=img_rddat; img_addr<=mhead+x"0f"; img_rd<='1'; swait:=1; fdstate<=fs_ovm6;
+					end if;
+				when fs_ovm6 =>
+					if(img_busy='0')then
+						mhead<=mhead+(img_rddat & mlen)+x"10";
+						t_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(mk mod 32,5));
+						mq<=mk;
+						swait:=1;
+						fdstate<=fs_ovm7;
+					end if;
+				when fs_ovm7 =>
+					--the first ID found from mk on that matches; IDs passed over are not used again
+					fp_wa<=std_logic_vector(ieee.numeric_std.to_unsigned(mj mod 64,6));
+					if(mq<tn and t_q(45 downto 14)=mchrn)then
+						fp_wd<='1' & t_q(13 downto 0); fp_we<='1'; fany<='1'; mk<=mq+1;
+						mj<=mj+1;
+						fdstate<=fs_ovm0;
+					elsif((mq+1)<tn)then
+						mq<=mq+1;
+						t_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((mq+1) mod 32,5));
+						swait:=1;
+					else
+						fp_wd<=(others=>'0'); fp_we<='1';
+						mj<=mj+1;
+						fdstate<=fs_ovm0;
+					end if;
+				when fs_ovi0 =>
+					--the smallest distance between two neighbors found
+					if(fany='0')then
+						--no ID found: lay out the track as before
+						ovl<='0';
+						fn<=0;
+						bj<=0;
+						bpos<=(others=>'1');
+						ovl_we<='1';
+						ovl_wd<='0';
+						ovlcopy<='0';
+						img_addr<=ovlimg;
+						img_rd<='1';
+						sectlen<=ovllen;
+						swait:=1;
+						fdstate<=fs_dat;
+					else
+						minstep<=(others=>'1');
+						ilo<=0;
+						fp_ra<=(others=>'0');
+						swait:=1;
+						fdstate<=fs_ovi1s;
+					end if;
+				when fs_ovi1s =>
+					prevok<=fp_q(14);
+					prevpos<=fp_q(13 downto 0);
+					fp_ra<="000001";
+					swait:=1;
+					fdstate<=fs_ovi1;
+				when fs_ovi1 =>
+					--fp_q is the entry ilo+1, prevok/prevpos the entry ilo
+					if((ilo+1)>=fn)then
+						ilo<=64;
+						ihi<=0;
+						fp_ra<=(others=>'0');
+						swait:=1;
+						fdstate<=fs_ovi2;
+					else
+						if(prevok='1' and fp_q(14)='1' and (fp_q(13 downto 0)-prevpos)<minstep)then
+							minstep<=fp_q(13 downto 0)-prevpos;
+						end if;
+						prevok<=fp_q(14);
+						prevpos<=fp_q(13 downto 0);
+						ilo<=ilo+1;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((ilo+2) mod 64,6));
+						swait:=1;
+					end if;
+				when fs_ovi2 =>
+					--fill the d88 sectors whose ID was not found: evenly between the found neighbors
+					--fp_q is the entry ihi
+					if(ihi>=fn)then
+						bj<=0;
+						fp_ra<=(others=>'0');
+						swait:=1;
+						fdstate<=fs_ovn0;
+					elsif(fp_q(14)='1')then
+						ilo<=ihi; ilopos<=fp_q(13 downto 0); ihi<=ihi+1;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((ihi+1) mod 64,6));
+						swait:=1;
+					elsif(ilo=64)then
+						ihi<=ihi+1;	-- nothing found before it: not placed
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((ihi+1) mod 64,6));
+						swait:=1;
+					else
+						ifill<=std_logic_vector(ieee.numeric_std.to_unsigned(ihi,14));
+						inum<=std_logic_vector(ieee.numeric_std.to_unsigned(ihi,14));
+						fdstate<=fs_ovi3;
+					end if;
+				when fs_ovi3 =>
+					--look for the next found one (fp_q is the entry inum)
+					if(conv_integer(inum)>=fn)then
+						iq<=minstep;
+						ovacc<=("00000000000000" & ilopos)+minstep;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(ihi mod 64,6));
+						swait:=1;
+						fdstate<=fs_ovi5;
+					elsif(fp_q(14)='1')then
+						--step = (fpos(next) - ilopos) / (next - ilo)
+						iq<=(others=>'0');
+						ifill<=fp_q(13 downto 0)-ilopos;
+						inum<=inum-std_logic_vector(ieee.numeric_std.to_unsigned(ilo,14));
+						fdstate<=fs_ovi4;
+					else
+						inum<=inum+1;
+						fp_ra<=inum(5 downto 0)+1;
+						swait:=1;
+					end if;
+				when fs_ovi4 =>
+					if(ifill>=inum)then
+						ifill<=ifill-inum; iq<=iq+1;
+					else
+						if(iq<minstep)then
+							minstep<=iq;
+						end if;
+						ovacc<=("00000000000000" & ilopos)+iq;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(ihi mod 64,6));
+						swait:=1;
+						fdstate<=fs_ovi5;
+					end if;
+				when fs_ovi5 =>
+					--place ihi, ihi+1, ... until a found one, iq apart from ilo (ovacc = ilopos + iq*(ihi-ilo))
+					if(ihi>=fn or fp_q(14)='1')then
+						fdstate<=fs_ovi2;
+					else
+						if(ovacc<std_logic_vector(ieee.numeric_std.to_unsigned(6250,28)) and iq/="11111111111111")then
+							fp_wa<=std_logic_vector(ieee.numeric_std.to_unsigned(ihi mod 64,6));
+							fp_wd<='1' & ovacc(13 downto 0);
+							fp_we<='1';
+						end if;
+						ovacc<=ovacc+iq;
+						ihi<=ihi+1;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((ihi+1) mod 64,6));
+						swait:=1;
+					end if;
+				when fs_ovn0 =>
+					--the next sector to build and where the one after it goes (fp_q is the entry bj)
+					if(bj>=fn)then
+						bpos<=(others=>'1');
+						fdstate<=fs_ovn1;
+					elsif(fp_q(14)='1')then
+						bpos<=fp_q(13 downto 0);
+						bcapn<=(others=>'1');	-- the last one is written whole, even past the turn
+						ihi<=bj+1;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((bj+1) mod 64,6));
+						swait:=1;
+						fdstate<=fs_ovn1;
+					else
+						bj<=bj+1;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((bj+1) mod 64,6));
+						swait:=1;
+					end if;
+				when fs_ovn1 =>
+					--fp_q is the entry ihi
+					if(bj>=fn or ihi>=fn)then
+						fdstate<=fs_ovres;
+					elsif(fp_q(14)='1')then
+						bcapn<=fp_q(13 downto 0);
+						fdstate<=fs_ovres;
+					else
+						ihi<=ihi+1;
+						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned((ihi+1) mod 64,6));
+						swait:=1;
+					end if;
+				when fs_ovres =>
+					--write the long sector's data from where the track is now
+					if(img_busy='0')then
+						ovlcopy<='1';
+						mfm<='1';	-- the sector built behind it may have been FM
+						img_addr<=ovlimg+(x"0000" & "00" & (track_curaddr+1-ovlstart));
+						img_rd<='1';
+						sectlen<=x"7FFF";
+						fh_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(bj mod 64,6));	-- the header of the sector built next
+						swait:=1;
+						fdstate<=fs_dat;
+					end if;
 				when fs_nxttrack =>
 					if(haddr=x"00000000")then
 						if(trackno<tracks)then
+							ovl_we<='1';
+							ovl_wd<='0';
 							track_curaddr<=(others=>'0');
 							trackwrdat<=x"00ff";
 							trackwr<='1';
@@ -1655,7 +2071,7 @@ begin
 							numsect<=sectcount;
 							sectcount<=(others=>'0');
 							cursecthead<=haddr;
-							if(trackwrote='1')then
+							if(trackwrote='1' and ovl_q='0')then
 								ambuf0:=(others=>'0');
 								ambuf1:=(others=>'0');
 								ambuf2:=(others=>'0');
@@ -2418,6 +2834,28 @@ begin
 		rstn		=>rstn
 	);						
 						
+	--tables of the long sector layout
+	process(sclk)begin
+		if(sclk' event and sclk='1')then
+			if(t_we='1')then
+				tram(conv_integer(t_wa))<=t_wd;
+			end if;
+			t_q<=tram(conv_integer(t_ra));
+			if(fp_we='1')then
+				fpram(conv_integer(fp_wa))<=fp_wd;
+			end if;
+			fp_q<=fpram(conv_integer(fp_ra));
+			if(fh_we='1')then
+				fhram(conv_integer(fh_wa))<=fh_wd;
+			end if;
+			fh_q<=fhram(conv_integer(fh_ra));
+			if(ovl_we='1')then
+				ovlram(conv_integer(img_unit & trackno))<=ovl_wd;
+			end if;
+			ovl_q<=ovlram(conv_integer(img_unit & trackno));
+		end if;
+	end process;
+
 end rtl;
 	
 
