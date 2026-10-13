@@ -668,10 +668,12 @@ begin
 	variable lSTEPn		:std_logic;
 	begin
 		if(rstn='0')then
-			curtrack0<=(others=>'1');
-			curtrack1<=(others=>'1');
-			curtrack2<=(others=>'1');
-			curtrack3<=(others=>'1');
+			--Start on track 0. From 127 a RECALIBRATE, which gives up after 77 steps, would
+			--not reach track 0, while a real head is never that far out.
+			curtrack0<=(others=>'0');
+			curtrack1<=(others=>'0');
+			curtrack2<=(others=>'0');
+			curtrack3<=(others=>'0');
 			lSTEPn:='1';
 		elsif(clk' event and clk='1')then
 			if(lSTEPn='1' and STEPn='0')then

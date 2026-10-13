@@ -4758,10 +4758,11 @@ begin
 	seek_sft2	<=seek_sft when seekusel="10" else '0';
 	seek_sft3	<=seek_sft when seekusel="11" else '0';
 	
+	--No head settling time after a seek: the uPD765 has none.
 	hds0	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl0,
 		destset		=>seek_bgnv(0),
-		setwait		=>30,
+		setwait		=>0,
 
 		curtrack	=>seek_cur0,
 	
@@ -4782,7 +4783,7 @@ begin
 	hds1	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl1,
 		destset		=>seek_bgnv(1),
-		setwait		=>30,
+		setwait		=>0,
 	
 		curtrack	=>seek_cur1,
 	
@@ -4803,7 +4804,7 @@ begin
 	hds2	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl2,
 		destset		=>seek_bgnv(2),
-		setwait		=>30,
+		setwait		=>0,
 	
 		curtrack	=>seek_cur2,
 	
@@ -4824,7 +4825,7 @@ begin
 	hds3	:headseek generic map(maxtrack,30,0) port map(
 		desttrack	=>seek_cyl3,
 		destset		=>seek_bgnv(3),
-		setwait		=>30,
+		setwait		=>0,
 	
 		curtrack	=>seek_cur3,
 	
