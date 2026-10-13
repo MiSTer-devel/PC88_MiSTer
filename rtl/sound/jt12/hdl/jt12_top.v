@@ -85,6 +85,7 @@ parameter JT49_COMP=3'd1,
           YM2203_LUMPED=0;
 parameter mask_div=1;
 parameter use_chipid=0;
+parameter busy_len=32;
 
 wire flag_A, flag_B, busy;
 
@@ -435,7 +436,7 @@ jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid)) u_d
     .dout           ( dout          )
 );
 
-jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_adpcm), .mask_div(mask_div), .use_chipid(use_chipid))
+jt12_mmr #(.use_ssg(use_ssg),.num_ch(num_ch),.use_pcm(use_pcm), .use_adpcm(use_adpcm), .mask_div(mask_div), .use_chipid(use_chipid), .busy_len(busy_len))
     u_mmr(
     .rst        ( rst       ),
     .clk        ( clk       ),
