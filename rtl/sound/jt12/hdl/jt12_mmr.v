@@ -145,6 +145,7 @@ module jt12_mmr(
 );
 
 parameter use_ssg=0, num_ch=6, use_pcm=1, use_adpcm=0, mask_div=1, use_chipid=0;
+parameter busy_len=32; // BUSY after a data write, in synthesizer clock cycles (1 to 32)
 
 jt12_div #(.use_ssg(use_ssg)) u_div (
     .rst            ( rst             ),
@@ -554,7 +555,8 @@ always @(posedge clk) begin : memory_mapped_registers
     end
 end
 
-reg  [4:0] busy_cnt; // busy lasts for 32 synthesizer clock cycles
+localparam [4:0] BUSY_START = 6'd32 - busy_len;
+reg  [4:0] busy_cnt; // busy lasts for busy_len synthesizer clock cycles
 wire [5:0] nx_busy = {1'd0,busy_cnt}+{5'd0,busy};
 
 always @(posedge clk, posedge rst) begin
@@ -564,7 +566,7 @@ always @(posedge clk, posedge rst) begin
     end else begin
         if( write&addr[0] ) begin
             busy     <= 1;
-            busy_cnt <= 0;
+            busy_cnt <= BUSY_START;
         end else if(clk_en) begin
             busy     <= ~nx_busy[5] & busy;
             busy_cnt <=  nx_busy[4:0];
