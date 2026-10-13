@@ -186,6 +186,7 @@ type fdstate_t is (
 	fs_ovm4,
 	fs_ovm5,
 	fs_ovm6,
+	fs_ovm6s,
 	fs_ovm7,
 	fs_ovi0,
 	fs_ovi1s,
@@ -284,6 +285,11 @@ signal	sectlen	:std_logic_vector(15 downto 0);
 --are placed where their ID marks appear inside its data, and the track keeps the normal turn
 signal	ovl		:std_logic;	-- this track has such a long sector
 signal	ovlseen	:std_logic;	-- a sector of 6144 bytes or more was seen in this track
+--a sector of 4096 to 6143 bytes with a data CRC error is also taken as a long sector when sectors follow it,
+--but only if the IDs of all of them are found in its data and no sector with a good CRC would be cut
+--by the next one; otherwise the track is laid out as before
+signal	ovlsmall	:std_logic;	-- the long sector is such a sector (less than 6144 bytes)
+signal	fcnt	:integer range 0 to 64;	-- number of the d88 sectors behind it whose ID was found
 signal	ovlcopy	:std_logic;	-- copying the long sector's data
 signal	ovlimg	:std_logic_vector(31 downto 0);	-- image address of the long sector's data
 signal	ovlstart	:std_logic_vector(13 downto 0);	-- track address of its first data byte
@@ -334,6 +340,11 @@ signal	mj,mk,mq	:integer range 0 to 64;
 signal	mhead	:std_logic_vector(31 downto 0);
 signal	mchrn	:std_logic_vector(31 downto 0);
 signal	mlen	:std_logic_vector(7 downto 0);
+signal	mlen16	:std_logic_vector(15 downto 0);	-- size of the d88 sector being matched
+signal	mst		:std_logic_vector(7 downto 0);	-- its d88 status
+signal	pgood	:std_logic;	-- the sector matched last is built with a good data CRC (its d88 status is not b0)
+signal	pend	:std_logic_vector(16 downto 0);	-- where its data and CRC end if built at its ID
+signal	ovlbad	:std_logic;	-- a sector with a good CRC would be cut by the next one
 signal	minstep	:std_logic_vector(13 downto 0);
 signal	ilo,ihi	:integer range 0 to 64;
 signal	ilopos	:std_logic_vector(13 downto 0);
@@ -1024,6 +1035,8 @@ begin
 			swait:=0;
 			ovl<='0';
 			ovlseen<='0';
+			ovlsmall<='0';
+			fcnt<=0;
 			ovlcopy<='0';
 			fn<=0;
 			bj<=0;
@@ -1155,6 +1168,8 @@ begin
 					cursecthead<=haddr;
 					ovl<='0';
 					ovlseen<='0';
+					ovlsmall<='0';
+					fcnt<=0;
 					ovl_we<='1';
 					ovl_wd<='0';
 					ovlcopy<='0';
@@ -1520,9 +1535,15 @@ begin
 						if(ovlseen='0' and (img_rddat & sectlen(7 downto 0))>=x"1800")then
 							ovlseen<='1';
 						end if;
-						if(mfm='1' and diskmode(1)='0' and ddmode='0' and ovlseen='0' and (img_rddat & sectlen(7 downto 0))>=x"1800"
+						if(mfm='1' and diskmode(1)='0' and ddmode='0' and ovlseen='0' and ovl='0' and ((img_rddat & sectlen(7 downto 0))>=x"1800"
+							or ((img_rddat & sectlen(7 downto 0))>=x"1000" and sectstatus=x"b0" and numsect>(sectcount+1)))
 							and (numsect-sectcount-1)<=x"0040")then
 							ovl<='1';
+							if((img_rddat & sectlen(7 downto 0))>=x"1800")then
+								ovlsmall<='0';
+							else
+								ovlsmall<='1';
+							end if;
 							ovlcopy<='1';
 							ovlimg<=cursecthead+x"10";
 							ovl_we<='1';
@@ -1810,6 +1831,9 @@ begin
 						mk<=0;
 						fn<=conv_integer(numsect-sectcount-1);
 						fany<='0';
+						fcnt<=0;
+						pgood<='0';
+						ovlbad<='0';
 						fdstate<=fs_ovm0;
 					else
 						img_addr<=ovlimg+(x"0000" & soff);
@@ -1875,6 +1899,13 @@ begin
 				when fs_ovm6 =>
 					if(img_busy='0')then
 						mhead<=mhead+(img_rddat & mlen)+x"10";
+						mlen16<=img_rddat & mlen;
+						img_addr<=mhead+x"08"; img_rd<='1'; swait:=1;
+						fdstate<=fs_ovm6s;
+					end if;
+				when fs_ovm6s =>
+					if(img_busy='0')then
+						mst<=img_rddat;
 						t_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(mk mod 32,5));
 						mq<=mk;
 						swait:=1;
@@ -1884,7 +1915,18 @@ begin
 					--the first ID found from mk on that matches; IDs passed over are not used again
 					fp_wa<=std_logic_vector(ieee.numeric_std.to_unsigned(mj mod 64,6));
 					if(mq<tn and t_q(45 downto 14)=mchrn)then
-						fp_wd<='1' & t_q(13 downto 0); fp_we<='1'; fany<='1'; mk<=mq+1;
+						fp_wd<='1' & t_q(13 downto 0); fp_we<='1'; fany<='1'; fcnt<=fcnt+1; mk<=mq+1;
+						--ID, gap, data mark, data and CRC take 62 bytes more than the data;
+						--one more for an ID found off the byte boundary, whose place is rounded down
+						if(pgood='1' and ("000" & t_q(13 downto 0))<pend)then
+							ovlbad<='1';
+						end if;
+						if(mst=x"b0")then
+							pgood<='0';
+						else
+							pgood<='1';
+						end if;
+						pend<=("000" & t_q(13 downto 0))+('0' & efflen(mlen16))+63;
 						mj<=mj+1;
 						fdstate<=fs_ovm0;
 					elsif((mq+1)<tn)then
@@ -1898,13 +1940,15 @@ begin
 					end if;
 				when fs_ovi0 =>
 					--the smallest distance between two neighbors found
-					if(fany='0')then
-						--no ID found: lay out the track as before, still not written back
-						--(sectors past the end of the track would be dropped from the image)
+					if(fany='0' or (ovlsmall='1' and (fcnt<fn or ovlbad='1')))then
+						--no ID found (or, for a long sector of less than 6144 bytes, not all of them, or one would cut a good sector): lay out the track as before
+						--a long sector of 6144 bytes or more is still not written back (sectors past the end of the track would be dropped from the image)
 						ovl<='0';
 						fn<=0;
 						bj<=0;
 						bpos<=(others=>'1');
+						ovl_we<='1';
+						ovl_wd<=not ovlsmall;
 						ovlcopy<='0';
 						img_addr<=ovlimg;
 						img_rd<='1';
