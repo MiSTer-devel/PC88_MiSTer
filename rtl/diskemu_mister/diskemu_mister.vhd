@@ -301,6 +301,10 @@ signal	ovlram	:ovlram_t;
 signal	ovl_we	:std_logic;
 signal	ovl_wd	:std_logic;
 signal	ovl_q	:std_logic;
+--the FDC's current track of each drive is such a track: writes to it are refused as write-protected
+signal	ddm	:std_logic_vector(1 downto 0);	-- 2DD/2HD image in the drive (one track per head step)
+signal	fdtrk1,fdtrk2	:std_logic_vector(9 downto 0);
+signal	ovlwp	:std_logic_vector(1 downto 0);
 signal	t_we,fp_we,fh_we	:std_logic;
 signal	t_wa,t_ra	:std_logic_vector(4 downto 0);
 signal	fp_wa,fp_ra,fh_wa,fh_ra	:std_logic_vector(5 downto 0);
@@ -1120,10 +1124,12 @@ begin
 					case emustate is
 					when es_fload0 | es_fsave0 =>
 						wrprot(0)<=haddr(20);
+						ddm(0)<=haddr(28) or haddr(29);
 						diskmode0<=haddr(29) & '0';
 						fde_modeset(0)<='1';
 					when es_fload1 | es_fsave1 =>
 						wrprot(1)<=haddr(20);
+						ddm(1)<=haddr(28) or haddr(29);
 						diskmode1<=haddr(29) & '0';
 						fde_modeset(1)<='1';
 					when others =>
@@ -1879,13 +1885,12 @@ begin
 				when fs_ovi0 =>
 					--the smallest distance between two neighbors found
 					if(fany='0')then
-						--no ID found: lay out the track as before
+						--no ID found: lay out the track as before, still not written back
+						--(sectors past the end of the track would be dropped from the image)
 						ovl<='0';
 						fn<=0;
 						bj<=0;
 						bpos<=(others=>'1');
-						ovl_we<='1';
-						ovl_wd<='0';
 						ovlcopy<='0';
 						img_addr<=ovlimg;
 						img_rd<='1';
@@ -2567,8 +2572,8 @@ begin
 	fdc_usel<=	"00" when fdc_useln="10" else
 					"01" when fdc_useln="01" else
 					"10";
-	fdc_wprotn<=not wrprot(0) when fdc_useln="10" else
-					not wrprot(1) when fdc_useln="01" else
+	fdc_wprotn<=not (wrprot(0) or ovlwp(0)) when fdc_useln="10" else
+					not (wrprot(1) or ovlwp(1)) when fdc_useln="01" else
 					'1';
 	fdc_motoren<=	not fdc_motorn(0) when fdc_useln(0)='0' else
 						not fdc_motorn(1) when fdc_useln(1)='0' else
@@ -2586,7 +2591,7 @@ begin
 		-- curfdmode	=>fde_wrmode,
 		modeset		=>"00" & fde_modeset,
 		-- wrote			=>fde_wrote,
-		wprot			=>"00" & wrprot,
+		wprot			=>"00" & (wrprot or ovlwp),
 		tracklen		=>fde_tracklen,
 		fdenable		=>"00" & fdc_indiskb,
 		
@@ -2853,6 +2858,19 @@ begin
 				ovlram(conv_integer(img_unit & trackno))<=ovl_wd;
 			end if;
 			ovl_q<=ovlram(conv_integer(img_unit & trackno));
+			--drive, head position and side of the FDC (fclk; they change only on a step or a drive select)
+			fdtrk1<=fde_ramaddrw(23 downto 14);
+			fdtrk2<=fdtrk1;
+			if(fdtrk2(9)='0')then
+				if(ddm(conv_integer(fdtrk2(8 downto 8)))='1')then
+					ovlwp(conv_integer(fdtrk2(8 downto 8)))<=ovlram(conv_integer(fdtrk2(8 downto 0)));
+				elsif(fdtrk2(1)='0')then
+					--2D: two head steps per track
+					ovlwp(conv_integer(fdtrk2(8 downto 8)))<=ovlram(conv_integer(fdtrk2(8) & '0' & fdtrk2(7 downto 2) & fdtrk2(0)));
+				else
+					ovlwp(conv_integer(fdtrk2(8 downto 8)))<='0';
+				end if;
+			end if;
 		end if;
 	end process;
 
