@@ -1940,8 +1940,9 @@ begin
 					end if;
 				when fs_ovi0 =>
 					--the smallest distance between two neighbors found
-					if(fany='0' or (ovlsmall='1' and (fcnt<fn or ovlbad='1')))then
-						--no ID found (or, for a long sector of less than 6144 bytes, not all of them, or one would cut a good sector): lay out the track as before
+					if(fany='0' or (ovlsmall='1' and (fcnt<fn or ovlbad='1' or (pgood='1' and pend>std_logic_vector(ieee.numeric_std.to_unsigned(6250,17))))))then
+						--no ID found (or, for a long sector of less than 6144 bytes, not all of them, one would cut a good sector,
+						--or the last one has a good CRC and would run past the end of the turn): lay out the track as before
 						--a long sector of 6144 bytes or more is still not written back (sectors past the end of the track would be dropped from the image)
 						ovl<='0';
 						fn<=0;
