@@ -297,14 +297,22 @@ signal	fpram	:ovfpram_t;
 signal	fhram	:ovfhram_t;
 --tracks with a long sector, per drive and track: not written back (the image keeps the long sector as it is)
 type ovlram_t is array(0 to 511) of std_logic;
-signal	ovlram	:ovlram_t;
+signal	ovlram	:ovlram_t:=(others=>'0');
 signal	ovl_we	:std_logic;
 signal	ovl_wd	:std_logic;
 signal	ovl_q	:std_logic;
---the FDC's current track of each drive is such a track: writes to it are refused as write-protected
+--the FDC's current track of each drive is such a track: writes to it are refused as write-protected.
+--The marks of both sides of both drives at their head positions are looked up in turn, so a change of
+--drive or side selects the right one at once (SENSE DRIVE STATUS takes ST3 one clock after it)
 signal	ddm	:std_logic_vector(1 downto 0);	-- 2DD/2HD image in the drive (one track per head step)
 signal	fdtrk1,fdtrk2	:std_logic_vector(9 downto 0);
-signal	ovlwp	:std_logic_vector(1 downto 0);
+type headpos_t is array(0 to 1) of std_logic_vector(6 downto 0);
+signal	headpos	:headpos_t:=(others=>(others=>'1'));	-- head position of each drive, as last selected
+signal	wpsel,wpselq	:std_logic_vector(1 downto 0):="00";	-- drive & side looked up now / one clock ago
+signal	wpval	:std_logic;
+signal	wpq		:std_logic;
+signal	ovlwpb	:std_logic_vector(3 downto 0):=(others=>'0');	-- index drive & side
+signal	ovlwp	:std_logic_vector(1 downto 0);	-- of the side selected now, per drive
 signal	t_we,fp_we,fh_we	:std_logic;
 signal	t_wa,t_ra	:std_logic_vector(4 downto 0);
 signal	fp_wa,fp_ra,fh_wa,fh_ra	:std_logic_vector(5 downto 0);
@@ -2572,6 +2580,7 @@ begin
 	fdc_usel<=	"00" when fdc_useln="10" else
 					"01" when fdc_useln="01" else
 					"10";
+	ovlwp<=ovlwpb(3) & ovlwpb(1) when fdc_siden='0' else ovlwpb(2) & ovlwpb(0);
 	fdc_wprotn<=not (wrprot(0) or ovlwp(0)) when fdc_useln="10" else
 					not (wrprot(1) or ovlwp(1)) when fdc_useln="01" else
 					'1';
@@ -2858,19 +2867,23 @@ begin
 				ovlram(conv_integer(img_unit & trackno))<=ovl_wd;
 			end if;
 			ovl_q<=ovlram(conv_integer(img_unit & trackno));
-			--drive, head position and side of the FDC (fclk; they change only on a step or a drive select)
+			--head position of the selected drive (fclk; it changes only on a step)
 			fdtrk1<=fde_ramaddrw(23 downto 14);
 			fdtrk2<=fdtrk1;
 			if(fdtrk2(9)='0')then
-				if(ddm(conv_integer(fdtrk2(8 downto 8)))='1')then
-					ovlwp(conv_integer(fdtrk2(8 downto 8)))<=ovlram(conv_integer(fdtrk2(8 downto 0)));
-				elsif(fdtrk2(1)='0')then
-					--2D: two head steps per track
-					ovlwp(conv_integer(fdtrk2(8 downto 8)))<=ovlram(conv_integer(fdtrk2(8) & '0' & fdtrk2(7 downto 2) & fdtrk2(0)));
-				else
-					ovlwp(conv_integer(fdtrk2(8 downto 8)))<='0';
-				end if;
+				headpos(conv_integer(fdtrk2(8 downto 8)))<=fdtrk2(7 downto 1);
 			end if;
+			--look up drive & side wpsel; 2D: two head steps per track, odd positions hold no track
+			wpsel<=wpsel+1;
+			wpselq<=wpsel;
+			if(ddm(conv_integer(wpsel(1 downto 1)))='1')then
+				wpq<=ovlram(conv_integer(wpsel(1) & headpos(conv_integer(wpsel(1 downto 1))) & wpsel(0)));
+				wpval<='1';
+			else
+				wpq<=ovlram(conv_integer(wpsel(1) & '0' & headpos(conv_integer(wpsel(1 downto 1)))(6 downto 1) & wpsel(0)));
+				wpval<=not headpos(conv_integer(wpsel(1 downto 1)))(0);
+			end if;
+			ovlwpb(conv_integer(wpselq))<=wpq and wpval;
 		end if;
 	end process;
 
