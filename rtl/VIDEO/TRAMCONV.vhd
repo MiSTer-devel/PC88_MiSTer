@@ -28,7 +28,11 @@ generic(
 	SHJITBITS	:integer	:=9;
 	SHDW15		:integer	:=77;
 	SHDW24		:integer	:=93;
-	SHDW31		:integer	:=82
+	SHDW31		:integer	:=82;
+	--8MHz: a row taken while the CPU is not slowed down is held M1GAIN/16 steps
+	--longer for each M1 above M1BASE among the last 128 CPU bus cycles
+	M1BASE		:integer	:=60;
+	M1GAIN		:integer	:=35
 );
 port(
 	TVRMODE		:in std_logic;
@@ -72,6 +76,8 @@ port(
 	HRET		:in std_logic;
 	DONE		:out std_logic;
 	
+	CPUBUS		:in std_logic	:='0';	-- a CPU bus cycle (BUSSEL)
+	CPUM1n		:in std_logic	:='1';
 	clk			:in std_logic;
 	ce			:in std_logic	:='1';	-- one step: 4 times in 15 rclk clocks (20MHz)
 	rstn		:in std_logic
@@ -193,6 +199,13 @@ signal	lBUSREQ		:std_logic;
 signal	BUSREQi		:std_logic;	-- BUSREQn, read back for the short holds
 signal	SHDW		:integer range 0 to 65535;
 signal	shlfsr		:std_logic_vector(15 downto 0);
+signal	m1hist		:std_logic_vector(127 downto 0);
+signal	m1cnt		:integer range 0 to 128;
+signal	lCPUBUS		:std_logic;
+signal	m1adj		:integer range -8192 to 8191;
+--a shift register in logic, not in block RAM
+attribute altera_attribute	:string;
+attribute altera_attribute of m1hist	:signal is "-name AUTO_SHIFT_REGISTER_RECOGNITION OFF";
 signal	HOLDING		:std_logic;
 signal	SINCEBND	:integer range 0 to 3;
 signal	BLKADR		:integer range 0 to BLANKEND;
@@ -219,6 +232,24 @@ begin
 	LINES<=conv_integer(TXTLINES);
 
 	BUSREQn<=BUSREQi;
+	--M1 among the last 128 CPU bus cycles
+	process(clk,rstn)begin
+		if(rstn='0')then
+			m1hist<=(others=>'0');
+			m1cnt<=0;
+			lCPUBUS<='0';
+		elsif(clk' event and clk='1')then
+			lCPUBUS<=CPUBUS;
+			if(CPUBUS='1' and lCPUBUS='0')then
+				m1hist<=m1hist(126 downto 0) & not CPUM1n;
+				if(CPUM1n='0' and m1hist(127)='0')then
+					m1cnt<=m1cnt+1;
+				elsif(CPUM1n='1' and m1hist(127)='1')then
+					m1cnt<=m1cnt-1;
+				end if;
+			end if;
+		end if;
+	end process;
 	SHDW<=	SHDW31	when VT24s='0' else
 			SHDW15	when VT15s='1' else
 			SHDW24;
@@ -319,6 +350,7 @@ begin
 			shage<=0;
 			lBUSREQ<='1';
 			shlfsr<=x"ACE1";
+			m1adj<=0;
 			BLKADR<=0;
 			SINCEBND<=3;
 			XREQ<='0';
@@ -612,6 +644,12 @@ begin
 							BUS_USE<='1';
 							HOLDING<='1';
 							capSTR<=GVSTRs;
+							if(GVSTRs='0' and capCPUMD='1')then
+								--rounds toward zero
+								m1adj<=((m1cnt-M1BASE)*M1GAIN)/16;
+							else
+								m1adj<=0;
+							end if;
 						end if;
 					when ST_RDTXT =>
 						MRAM_RDn<='0';
@@ -795,7 +833,7 @@ begin
 							shbase<=SHPERIOD;
 							shnext<=SHPERIOD+conv_integer(shlfsr(SHJITBITS-1 downto 0));
 							STATE<=ST_RELBUS;
-						elsif(holdcnt>=HOLDTGT-2)then
+						elsif(holdcnt>=HOLDTGT-2+m1adj)then
 							STATE<=ST_RELBUS;
 						end if;
 					when ST_BLANK =>

@@ -904,6 +904,8 @@ port(
 	HRET		:in std_logic;
 	DONE		:out std_logic;
 	
+	CPUBUS		:in std_logic;
+	CPUM1n		:in std_logic;
 	clk			:in std_logic;
 	ce			:in std_logic;
 	rstn		:in std_logic
@@ -2712,6 +2714,8 @@ port map(
 	HRET		=>HRTCr,
 	-- DONE		=>TCNVDONE,
 	
+	CPUBUS		=>BUSSEL,
+	CPUM1n		=>M1_n,
 	clk			=>rclk,
 	ce			=>tcnv_ce,
 	rstn		=>CPU_rstnr
