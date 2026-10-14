@@ -290,6 +290,7 @@ signal	ovlseen	:std_logic;	-- a sector of 6144 bytes or more was seen in this tr
 --by the next one; otherwise the track is laid out as before
 signal	ovlsmall	:std_logic;	-- the long sector is such a sector (less than 6144 bytes)
 signal	fcnt	:integer range 0 to 64;	-- number of the d88 sectors behind it whose ID was found
+signal	ovlkeep	:std_logic;	-- an earlier long sector of this track kept the no-write-back mark
 signal	ovlcopy	:std_logic;	-- copying the long sector's data
 signal	ovlimg	:std_logic_vector(31 downto 0);	-- image address of the long sector's data
 signal	ovlstart	:std_logic_vector(13 downto 0);	-- track address of its first data byte
@@ -1037,6 +1038,7 @@ begin
 			ovlseen<='0';
 			ovlsmall<='0';
 			fcnt<=0;
+			ovlkeep<='0';
 			ovlcopy<='0';
 			fn<=0;
 			bj<=0;
@@ -1170,6 +1172,7 @@ begin
 					ovlseen<='0';
 					ovlsmall<='0';
 					fcnt<=0;
+					ovlkeep<='0';
 					ovl_we<='1';
 					ovl_wd<='0';
 					ovlcopy<='0';
@@ -1951,7 +1954,9 @@ begin
 						--a track with a bad-CRC sector of 4096 to 6143 bytes that holds IDs is still not written back:
 						--sectors the old layout loses would be dropped from the image
 						ovl_we<='1';
-						ovl_wd<=(not ovlsmall) or fany;
+						--(a later long sector on the same track does not clear the mark an earlier one kept)
+						ovl_wd<=ovlkeep or (not ovlsmall) or fany;
+						ovlkeep<=ovlkeep or (not ovlsmall) or fany;
 						ovlcopy<='0';
 						img_addr<=ovlimg;
 						img_rd<='1';
