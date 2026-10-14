@@ -31,16 +31,32 @@ module jt12_dout(
     input      [3:0]  adpcmb_flag2,
     input      [7:0]  dout_b,
     input      [7:0]  psg_dout,
+    input      [7:0]  ssg_sel,
+    input             id_sel,
+    input      [7:0]  last_din,
     input      [1:0]  addr,
     output reg [7:0]  dout
 );
 
 parameter use_ssg=0, use_adpcm=0, use_chipid=0;
+parameter read_bus=0; // 1: bits a register does not drive read as the last byte written to the chip (YM2203, YM2608)
+
+reg [7:0] psg_used; // bits driven by SSG register ssg_sel[3:0]
+always @(*)
+    case( ssg_sel[3:0] )
+        4'h1,4'h3,4'h5,4'hd: psg_used = 8'h0f;
+        4'h6,4'h8,4'h9,4'ha: psg_used = 8'h1f;
+        default:             psg_used = 8'hff;
+    endcase
+
+wire [7:0] bus_dout = (use_chipid==1 && id_sel) ? 8'h1 :
+                      (use_ssg==1 && ssg_sel[7:4]==4'd0) ? psg_dout | (last_din & ~psg_used) : last_din;
 
 always @(posedge clk) begin
     casez( addr )
         2'b00: dout <= {busy, 5'd0, flag_B, flag_A }; // YM2203
-        2'b01: dout <= (use_chipid==0) ? 
+        2'b01: dout <= (read_bus==1) ? bus_dout :
+            (use_chipid==0) ? 
             {(use_ssg==1) ? psg_dout : {busy, 5'd0, flag_B, flag_A }} :
             {(sel_chipid==1'b1)? 8'h1 : psg_dout};
         2'b10: dout <= (use_adpcm==1) ?
