@@ -4625,7 +4625,9 @@ begin
 	--turn them into 1.
 	sSN<='0';
 	sBC<='0';
-	ST3<='0' & not WPRT & not readyv(conv_integer(uselb)) & not track0s & TWOSIDE(conv_integer(uselb)) & sideb & uselb;
+	--RY: the READY pin is tied active on this board, so the real machine reports
+	--ready for every drive, even drives 2 and 3 that are not there.
+	ST3<='0' & not WPRT & '1' & not track0s & TWOSIDE(conv_integer(uselb)) & sideb & uselb;
 	MSR<=sRQM & sDIO & sEXM & sCB & sDxB;
 	
 	RDAT<=	RDDAT_DAT when DACKn='0' else
