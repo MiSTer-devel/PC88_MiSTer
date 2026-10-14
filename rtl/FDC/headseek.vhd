@@ -32,12 +32,14 @@ port(
 end headseek;
 
 architecture rtl of headseek is
+--RECALIBRATE steps out until TRACK0, giving up after 77 step pulses (uPD765).
+constant recalsteps	:integer	:=77;
 signal	current	:integer range 0 to maxtrack;
 
 	type state_t is (
-		ST_INIIN0,
-		ST_INIIN1,
+		ST_INIWAIT,
 		ST_INIOUT,
+		ST_INIERR,
 		ST_IDLE,
 		ST_CONTROL,
 		ST_WAITSET,
@@ -47,11 +49,10 @@ signal	current	:integer range 0 to maxtrack;
 	
 	type movestate_t is(
 		MS_IDLE,
-		MS_SETDIR,
-		MS_DIRWAIT,
 		MS_SEEKON,
 		MS_SEEKOFF,
-		MS_SEEKWAIT
+		MS_SEEKWAIT,
+		MS_SEEKWAIT2
 	);
 	signal	movestate	:movestate_t;
 	
@@ -78,45 +79,26 @@ begin
 				state<=ST_IDLE;
 			else
 				busyb<='1';
-				state<=ST_INIIN0;
+				current<=recalsteps;
+				wsetcount<=maxset;
+				state<=ST_INIWAIT;
 			end if;
 		elsif(clk' event and clk='1')then
 			reachtrack<='0';
 			move<='0';
 			if(init='1')then
-				STATE<=ST_INIIN0;
-				current<=0;
+				STATE<=ST_INIWAIT;
+				current<=recalsteps;
+				wsetcount<=maxset;
 				seekerrb<='0';
 				busyb<='1';
 			end if;
 			case state is
-			when ST_INIIN0 =>
-				if(intbusy='0')then
-					if(track0='0')then
-						if(current<maxtrack)then
-							movedir<='0';
-							move<='1';
-							current<=current+1;
-						else
-							seekerrb<='1';
-							busyb<='0';
-							state<=ST_IDLE;
-						end if;
-					else
-						current<=0;
-						state<=st_INIIN1;
-					end if;
-				end if;
-			when ST_INIIN1 =>
-				if(intbusy='0')then
-					if(current<1)then
-						movedir<='0';
-						move<='1';
-						current<=current+1;
-					else
-						current<=maxtrack;
-						state<=st_INIOUT;
-					end if;
+			when ST_INIWAIT =>		--let track0 follow the newly selected drive
+				if(wsetcount>0)then
+					wsetcount<=wsetcount-1;
+				else
+					state<=ST_INIOUT;
 				end if;
 			when ST_INIOUT =>
 				if(intbusy='0')then
@@ -126,9 +108,7 @@ begin
 							movedir<='1';
 							move<='1';
 						else
-							seekerrb<='1';
-							busyb<='0';
-							state<=ST_IDLE;
+							state<=ST_INIERR;
 						end if;
 					else
 						current<=0;
@@ -136,6 +116,12 @@ begin
 						wsetcount<=setwait;
 						state<=ST_WAITSET;
 					end if;
+				end if;
+			when ST_INIERR =>		--report the failure one step period after the last step, as a seek end
+				if(sft='1')then
+					seekerrb<='1';
+					busyb<='0';
+					state<=ST_IDLE;
 				end if;
 			when ST_IDLE =>
 				if(destset='1')then
@@ -194,25 +180,20 @@ begin
 			movestate<=MS_IDLE;
 		elsif(clk' event and clk='1')then
 			if(move='1')then
-				if(curdir=movedir)then
-					movestate<=MS_SEEKON;
-				else
-					movestate<=MS_SETDIR;
-				end if;
+				curdir<=movedir;
+				movestate<=MS_SEEKON;
 			elsif(sft='1')then
 				case movestate is
-				when MS_SETDIR =>
-					curdir<=movedir;
-					movestate<=MS_DIRWAIT;
-				when MS_DIRWAIT =>
-					movestate<=MS_SEEKON;
 				when MS_SEEKON =>
 					seek<='0';
 					movestate<=MS_SEEKOFF;
 				when MS_SEEKOFF =>
 					seek<='1';
 					movestate<=MS_SEEKWAIT;
+				--a step takes four sft periods, (16-SRT)*2 ms as on the uPD765 at 4 MHz
 				when MS_SEEKWAIT =>
+					movestate<=MS_SEEKWAIT2;
+				when MS_SEEKWAIT2 =>
 					movestate<=MS_IDLE;
 				when others =>
 					movestate<=MS_IDLE;
