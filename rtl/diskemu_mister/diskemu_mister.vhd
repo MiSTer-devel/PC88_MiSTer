@@ -1948,8 +1948,10 @@ begin
 						fn<=0;
 						bj<=0;
 						bpos<=(others=>'1');
+						--a track with a bad-CRC sector of 4096 to 6143 bytes that holds IDs is still not written back:
+						--sectors the old layout loses would be dropped from the image
 						ovl_we<='1';
-						ovl_wd<=not ovlsmall;
+						ovl_wd<=(not ovlsmall) or fany;
 						ovlcopy<='0';
 						img_addr<=ovlimg;
 						img_rd<='1';
