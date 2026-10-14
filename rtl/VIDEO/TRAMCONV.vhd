@@ -18,7 +18,17 @@ generic(
 	V1SHOLD4S24	:integer	:=2680;
 	V1SHOLD8S24	:integer	:=2778;
 	V1SHOLD4S15	:integer	:=2266;
-	V1SHOLD8S15	:integer	:=2598
+	V1SHOLD8S15	:integer	:=2598;
+	--8MHz: a row taken while the CPU is slowed down is followed by up to SHNUM
+	--short holds, SHPERIOD steps apart from the row request plus 0 to
+	--2**SHJITBITS-1 steps; each ends SHDW steps after its own request, or 2 steps
+	--after the grant if that is later (the CPU runs on until its M cycle ends)
+	SHNUM		:integer	:=24;
+	SHPERIOD	:integer	:=340;
+	SHJITBITS	:integer	:=9;
+	SHDW15		:integer	:=77;
+	SHDW24		:integer	:=93;
+	SHDW31		:integer	:=82
 );
 port(
 	TVRMODE		:in std_logic;
@@ -172,6 +182,17 @@ constant TSDEF	:std_logic_vector(17 downto 0)	:=conv_std_logic_vector(ROWSDEF24,
 signal	TSr,TSr2,TSr3,TSok	:std_logic_vector(17 downto 0);
 signal	capSTR		:std_logic;	-- GVSTR when the bus was taken for this row
 signal	holdcnt		:integer range 0 to 65535;
+signal	SHACT		:std_logic;	-- short holds are due for this row
+signal	SHHOLD		:std_logic;	-- this hold is a short hold
+signal	shn			:integer range 0 to 255;
+signal	shnext		:integer range 0 to 65535;
+signal	shbase		:integer range 0 to 65535;
+signal	shcnt		:integer range 0 to 65535;	-- steps since the row request
+signal	shage		:integer range 0 to 65535;	-- steps since the short hold request
+signal	lBUSREQ		:std_logic;
+signal	BUSREQi		:std_logic;	-- BUSREQn, read back for the short holds
+signal	SHDW		:integer range 0 to 65535;
+signal	shlfsr		:std_logic_vector(15 downto 0);
 signal	HOLDING		:std_logic;
 signal	SINCEBND	:integer range 0 to 3;
 signal	BLKADR		:integer range 0 to BLANKEND;
@@ -197,6 +218,10 @@ begin
 	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
 	LINES<=conv_integer(TXTLINES);
 
+	BUSREQn<=BUSREQi;
+	SHDW<=	SHDW31	when VT24s='0' else
+			SHDW15	when VT15s='1' else
+			SHDW24;
 	HOLDTGT<=	V1SHOLD4		when capCPUMD='0' and capSTR='0' and VT24s='0' else
 				V1SHOLD8		when capCPUMD='1' and capSTR='0' and VT24s='0' else
 				V1SHOLD4S		when capCPUMD='0' and VT24s='0' else
@@ -245,7 +270,7 @@ begin
 			rTVRMODE<='0';
 			rTMODE<='0';
 			-- rCOLOR<='0';
-			BUSREQn<='1';
+			BUSREQi<='1';
 			MRAM_RDn<='1';
 			BUS_USE<='0';
 			TVRAM_ADR<=(others=>'0');
@@ -285,6 +310,15 @@ begin
 			REQLINE<=0;
 			holdcnt<=0;
 			HOLDING<='0';
+			SHACT<='0';
+			SHHOLD<='0';
+			shn<=0;
+			shnext<=0;
+			shbase<=0;
+			shcnt<=0;
+			shage<=0;
+			lBUSREQ<='1';
+			shlfsr<=x"ACE1";
 			BLKADR<=0;
 			SINCEBND<=3;
 			XREQ<='0';
@@ -342,6 +376,8 @@ begin
 							stuckcnt<=0;
 							STATE<=ST_RELBUS;
 							HOLDONLY<='0';
+							SHHOLD<='0';
+							SHACT<='0';
 							PFROW<='0';
 							if(capV1S='1' and HOLDONLY='0')then
 								--V1S: drop the row, but step to the next one as ST_SETATR2 does.
@@ -436,6 +472,7 @@ begin
 								end if;
 							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ)then
 								--Start of a row: as on HRET below.
+								SHACT<='0';
 								CHARCNT<=0;
 								ATRCNT<=0;
 								LINECNT<=LINECNT+1;
@@ -446,7 +483,7 @@ begin
 								end if;
 								if(rTMODE='1')then
 									STATE<=ST_GETBUS;
-									BUSREQn<='0';
+									BUSREQi<='0';
 								elsif(rTVRMODE='1')then
 									STATE<=ST_IDLE;
 								else
@@ -459,6 +496,7 @@ begin
 								--24kHz, 15kHz: read row 0 of the next frame ahead, as a frame start and
 								--a row start.
 								XREQ<='0';
+								SHACT<='0';
 								STXTADR<=TADR_TOP;
 								SATRADR<=TADR_TOP+x"0050";
 								CTXTADR<=TADR_TOP;
@@ -488,13 +526,27 @@ begin
 								pfATTRCOLOR<=ATTRCOLOR;
 								pfATTRLEN<=ATTRLEN;
 								STATE<=ST_GETBUS;
-								BUSREQn<='0';
+								BUSREQi<='0';
 							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1')then
 								--24kHz, 15kHz with one row: the hold-only request.
 								XREQ<='0';
+								SHACT<='0';
 								HOLDONLY<='1';
 								STATE<=ST_GETBUS;
-								BUSREQn<='0';
+								BUSREQi<='0';
+							elsif(SHACT='1' and rTMODE='1' and shcnt>=shnext)then
+								--8MHz: the next short hold of this row
+								if(shn>=SHNUM)then
+									SHACT<='0';
+								else
+									shn<=shn+1;
+									shbase<=shbase+SHPERIOD;
+									shnext<=shbase+SHPERIOD+conv_integer(shlfsr(SHJITBITS-1 downto 0));
+									HOLDONLY<='1';
+									SHHOLD<='1';
+									STATE<=ST_GETBUS;
+									BUSREQi<='0';
+								end if;
 							elsif(CAPD='1' and BLANKD='0')then
 								--24kHz, 15kHz: a due row request goes first (few rows and a short retrace
 								--can leave no time to clear first), then the clearing continues
@@ -532,7 +584,7 @@ begin
 								LINECNT<=LINECNT+1;
 								if(rTMODE='1')then
 									STATE<=ST_GETBUS;
-									BUSREQn<='0';
+									BUSREQi<='0';
 								elsif(rTVRMODE='1')then
 									STATE<=ST_IDLE;
 								else
@@ -728,7 +780,22 @@ begin
 					when ST_HOLD =>
 						--V1S: keep the bus for the hold length, shorter for a row taken
 						--while the CPU is slowed down.
-						if(holdcnt>=HOLDTGT-2)then
+						if(SHHOLD='1')then
+							if(shage>=SHDW-2)then
+								SHHOLD<='0';
+								STATE<=ST_RELBUS;
+							end if;
+						elsif(capSTR='1' and SHNUM>0 and capCPUMD='1')then
+							--8MHz: the rest of the row is in short holds, none for a row
+							--held past the start of the retrace
+							if(BNDPEND='0')then
+								SHACT<='1';
+							end if;
+							shn<=0;
+							shbase<=SHPERIOD;
+							shnext<=SHPERIOD+conv_integer(shlfsr(SHJITBITS-1 downto 0));
+							STATE<=ST_RELBUS;
+						elsif(holdcnt>=HOLDTGT-2)then
 							STATE<=ST_RELBUS;
 						end if;
 					when ST_BLANK =>
@@ -755,7 +822,7 @@ begin
 							end if;
 						end if;
 					when ST_RELBUS =>
-						BUSREQn<='1';
+						BUSREQi<='1';
 						BUS_USE<='0';
 						HOLDING<='0';
 						relcnt<=0;
@@ -787,6 +854,20 @@ begin
 				--V1S: count rasters and row requests.
 				pVRET<=VRETr;
 				pHRET<=HRETr;
+				lBUSREQ<=BUSREQi;
+				shlfsr<=shlfsr(14 downto 0) & (shlfsr(15) xor shlfsr(13) xor shlfsr(12) xor shlfsr(10));
+				if(lBUSREQ='1' and BUSREQi='0' and SHHOLD='0')then
+					shcnt<=0;
+				elsif(shcnt<65535)then
+					shcnt<=shcnt+1;
+				end if;
+				if(SHHOLD='1')then
+					if(shage<65535)then
+						shage<=shage+1;
+					end if;
+				else
+					shage<=0;
+				end if;
 				if(HOLDING='1')then
 					if(holdcnt<65535)then
 						holdcnt<=holdcnt+1;
@@ -800,6 +881,7 @@ begin
 					XREQ<='0';
 					PFARM<='0';
 					BNDPEND<='1';
+					SHACT<='0';
 					CAPD<='0';
 					BLANKD<='0';
 					BLANKR<='0';
