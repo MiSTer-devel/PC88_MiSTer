@@ -1554,8 +1554,9 @@ signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- the video timing from c
 signal	cfg_a		:std_logic_vector(10 downto 0);	-- OSD settings on clk21m
 signal	cfg_r		:std_logic_vector(10 downto 0);	-- the same settings on rclk, all from one transfer
 signal	cSB2r,cSBNr	:std_logic;	-- cSB2 and cSBN from cfg_r
-signal	cfg_done	:std_logic;	-- a transfer of the settings has been taken on rclk
-signal	cfg_cnt		:integer range 0 to 2;	-- transfers done since the CPUs could leave reset
+signal	cfg_busy	:std_logic;	-- a transfer of the settings is under way
+signal	cfg_done	:std_logic;	-- that transfer has been taken on rclk
+signal	cfg_vt		:std_logic_vector(1 downto 0);	-- the video timing it carries
 signal	VT24		:std_logic	:='0';	-- 24kHz or 15kHz timing, taken at reset
 signal	VT15		:std_logic	:='0';	-- 15kHz timing, taken at reset
 signal	T24			:std_logic;	-- 24kHz timing
@@ -2052,7 +2053,7 @@ begin
 	CFGX	:cdc_hs generic map(11,1) port map(
 		a_start	=>'1',
 		a_data	=>cfg_a,
-		a_busy	=>open,
+		a_busy	=>cfg_busy,
 		a_done	=>cfg_done,
 		a_rdata	=>open,
 		a_clk	=>clk21m,
@@ -2628,20 +2629,22 @@ port map(
 --	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
 	-- Once released, the CPUs stay out of reset until the next reset: RTC_RELOK goes
 	-- low when only the OSD RAM type is changed, which must not reset them.
-	-- They are released only after two transfers of the OSD settings have ended, so
-	-- the settings on rclk are the ones of this moment while VTm can still take the
-	-- video timing.
+	-- They are released only when a transfer of the OSD settings has just been taken
+	-- on rclk with the video timing set now, so VTm takes that timing before the
+	-- release. cfg_vt is the timing CFGX takes when it starts a transfer.
+	process(clk21m)begin
+		if(clk21m' event and clk21m='1')then
+			if(cfg_busy='0')then
+				cfg_vt<=cfg_a(10 downto 9);
+			end if;
+		end if;
+	end process;
 	process(clk21m,rstn,srstna)begin
 		if(rstn='0' or srstna='0')then
 			CPU_rstn<='0';
-			cfg_cnt<=0;
 		elsif(clk21m' event and clk21m='1')then
-			if(LOADER_DONE='1' and EMUINITDONE='1' and RTC_RELOK='1')then
-				if(cfg_cnt=2)then
-					CPU_rstn<='1';
-				elsif(cfg_done='1')then
-					cfg_cnt<=cfg_cnt+1;
-				end if;
+			if(LOADER_DONE='1' and EMUINITDONE='1' and RTC_RELOK='1' and cfg_done='1' and cfg_vt=cfg_a(10 downto 9))then
+				CPU_rstn<='1';
 			end if;
 		end if;
 	end process;
