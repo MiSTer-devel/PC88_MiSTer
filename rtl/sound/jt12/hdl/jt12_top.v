@@ -86,10 +86,30 @@ parameter JT49_COMP=3'd1,
 parameter mask_div=1;
 parameter use_chipid=0;
 parameter busy_len=32;
+parameter read_bus=0;
 
 wire flag_A, flag_B, busy;
 
 wire write = !cs_n && !wr_n;
+
+// For read_bus: the last byte written to any port, the register last selected at
+// the first address port (the SSG keeps it when the second one is written), and
+// whether the last address written was FFh at the first port (chip ID)
+reg [7:0] last_din, ssg_sel;
+reg       id_sel;
+always @(posedge clk)
+    if( rst ) begin
+        last_din <= 8'd0;
+        ssg_sel  <= 8'd0;
+        id_sel   <= 1'b0;
+    end else if( write ) begin
+        last_din <= din;
+        if( !addr[0] ) begin
+            if( !addr[1] ) ssg_sel <= din;
+            id_sel <= !addr[1] && din==8'hff;
+        end
+    end
+
 wire clk_en, clk_en_ssg;
 
 // Timers
@@ -420,7 +440,7 @@ if( use_adpcm==0 ) begin: gen_adpcm_no
 end
 endgenerate
 
-jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid)) u_dout(
+jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid),.read_bus(read_bus)) u_dout(
 //    .rst_n          ( rst_n         ),
     .clk            ( clk           ),        // CPU clock
     .flag_A         ( flag_A        ),
@@ -431,6 +451,9 @@ jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid)) u_d
     .adpcmb_flag    ( adpcmb_flag & flag_mask[6]    ),
     .adpcmb_flag2   ( adpcmb_flag2  ),
     .psg_dout       ( psg_dout      ),
+    .ssg_sel        ( ssg_sel       ),
+    .id_sel         ( id_sel        ),
+    .last_din       ( last_din      ),
     .dout_b         ( dout_b        ),
     .addr           ( addr          ),
     .dout           ( dout          )
@@ -637,7 +660,7 @@ generate
             .rst_n      ( ~rst      ),
             .clk        ( clk       ),    // signal on positive edge
             .clk_en     ( clk_en_ssg),    // clock enable on negative edge
-            .addr       ( psg_addr  ),
+            .addr       ( read_bus ? ssg_sel[3:0] : psg_addr ),
             .cs_n       ( 1'b0      ),
             .wr_n       ( psg_wr_n  ),  // write
             .din        ( psg_data  ),
