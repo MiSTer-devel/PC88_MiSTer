@@ -1554,6 +1554,8 @@ signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- the video timing from c
 signal	cfg_a		:std_logic_vector(10 downto 0);	-- OSD settings on clk21m
 signal	cfg_r		:std_logic_vector(10 downto 0);	-- the same settings on rclk, all from one transfer
 signal	cSB2r,cSBNr	:std_logic;	-- cSB2 and cSBN from cfg_r
+signal	cfg_done	:std_logic;	-- a transfer of the settings has been taken on rclk
+signal	cfg_cnt		:integer range 0 to 2;	-- transfers done since the CPUs could leave reset
 signal	VT24		:std_logic	:='0';	-- 24kHz or 15kHz timing, taken at reset
 signal	VT15		:std_logic	:='0';	-- 15kHz timing, taken at reset
 signal	T24			:std_logic;	-- 24kHz timing
@@ -2051,7 +2053,7 @@ begin
 		a_start	=>'1',
 		a_data	=>cfg_a,
 		a_busy	=>open,
-		a_done	=>open,
+		a_done	=>cfg_done,
 		a_rdata	=>open,
 		a_clk	=>clk21m,
 		a_rstn	=>srstn21,
@@ -2626,12 +2628,20 @@ port map(
 --	CPU_rstn<=rstn and LOADER_DONE and EMUINITDONE;
 	-- Once released, the CPUs stay out of reset until the next reset: RTC_RELOK goes
 	-- low when only the OSD RAM type is changed, which must not reset them.
+	-- They are released only after two transfers of the OSD settings have ended, so
+	-- the settings on rclk are the ones of this moment while VTm can still take the
+	-- video timing.
 	process(clk21m,rstn,srstna)begin
 		if(rstn='0' or srstna='0')then
 			CPU_rstn<='0';
+			cfg_cnt<=0;
 		elsif(clk21m' event and clk21m='1')then
 			if(LOADER_DONE='1' and EMUINITDONE='1' and RTC_RELOK='1')then
-				CPU_rstn<='1';
+				if(cfg_cnt=2)then
+					CPU_rstn<='1';
+				elsif(cfg_done='1')then
+					cfg_cnt<=cfg_cnt+1;
+				end if;
 			end if;
 		end if;
 	end process;
