@@ -203,6 +203,7 @@ signal	diskmode0	:std_logic_vector(1 downto 0);
 signal	diskmode1	:std_logic_vector(1 downto 0);
 signal	diskmode		:std_logic_vector(1 downto 0);
 signal	ddmode			:std_logic;
+signal	dstep0,dstep1	:std_logic;		-- 1: 2D image in the drive
 -- signal	fde_wrmode	:std_logic_vector(7 downto 0);
 signal	fde_modeset	:std_logic_vector(1 downto 0);
 
@@ -442,6 +443,7 @@ port(
 	rdfdmode	:in std_logic_vector(7 downto 0);
 	curfdmode	:out std_logic_vector(7 downto 0);
 	modeset		:in std_logic_vector(3 downto 0);
+	dstep		:in std_logic_vector(3 downto 0);
 	wrote		:out std_logic_vector(3 downto 0);
 	wprot		:in std_logic_vector(3 downto 0);
 	tracklen	:out std_logic_vector(13 downto 0);
@@ -956,6 +958,8 @@ begin
 			diskmode1<="00";
 			diskmode<="00";
 			ddmode<='0';
+			dstep0<='1';
+			dstep1<='1';
 			ambuf0:=(others=>'0');
 			ambuf1:=(others=>'0');
 			ambuf2:=(others=>'0');
@@ -1030,10 +1034,12 @@ begin
 					when es_fload0 | es_fsave0 =>
 						wrprot(0)<=haddr(20);
 						diskmode0<=haddr(29) & '0';
+						dstep0<=not (haddr(28) or haddr(29));
 						fde_modeset(0)<='1';
 					when es_fload1 | es_fsave1 =>
 						wrprot(1)<=haddr(20);
 						diskmode1<=haddr(29) & '0';
+						dstep1<=not (haddr(28) or haddr(29));
 						fde_modeset(1)<='1';
 					when others =>
 					end case;
@@ -2169,6 +2175,7 @@ begin
 		rdfdmode		=>"0000" & diskmode1 & diskmode0,
 		-- curfdmode	=>fde_wrmode,
 		modeset		=>"00" & fde_modeset,
+		dstep		=>"00" & dstep1 & dstep0,
 		-- wrote			=>fde_wrote,
 		wprot			=>"00" & wrprot,
 		tracklen		=>fde_tracklen,

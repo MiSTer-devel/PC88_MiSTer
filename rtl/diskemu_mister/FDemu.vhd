@@ -19,6 +19,7 @@ port(
 	rdfdmode	:in std_logic_vector(7 downto 0);
 	curfdmode	:out std_logic_vector(7 downto 0);
 	modeset		:in std_logic_vector(3 downto 0);
+	dstep		:in std_logic_vector(3 downto 0);	-- 1: 2D image, the drive moves 2 positions per STEP
 	wrote		:out std_logic_vector(3 downto 0);
 	wprot		:in std_logic_vector(3 downto 0);
 	tracklen	:out std_logic_vector(13 downto 0);
@@ -102,6 +103,7 @@ signal	curtrack0	:std_logic_vector(6 downto 0);
 signal	curtrack1	:std_logic_vector(6 downto 0);
 signal	curtrack2	:std_logic_vector(6 downto 0);
 signal	curtrack3	:std_logic_vector(6 downto 0);
+signal	ldstep		:std_logic_vector(3 downto 0);
 signal	tracklenx	:std_logic_vector(13 downto 0);
 signal	tracklen0	:std_logic_vector(13 downto 0);
 signal	tracklen1	:std_logic_vector(13 downto 0);
@@ -664,8 +666,49 @@ begin
 		end if;
 	end process;
 	
+	-- A 2D image is laid out on every other position (diskemu_mister trackaddr), so on a 2D image
+	-- the drive moves 2 positions per STEP, as a real 2D/2HD drive does for 2D media.
 	process(clk,rstn)
 	variable lSTEPn		:std_logic;
+	variable stp		:std_logic;
+	function nexttrack(cur :std_logic_vector(6 downto 0); two,chg,st,inward :std_logic) return std_logic_vector is
+	variable v	:std_logic_vector(6 downto 0);
+	begin
+		v:=cur;
+		if(chg='1')then	-- image type changed: keep the cylinder the FDC counts
+			if(two='1')then
+				if(v>"0111111")then
+					v:="1111110";
+				else
+					v:=v(5 downto 0) & '0';
+				end if;
+			else
+				v:='0' & v(6 downto 1);
+			end if;
+		end if;
+		if(st='1')then
+			if(inward='1')then
+				if(two='0')then
+					v:=v+1;
+				elsif(v>"1111100")then
+					v:="1111110";
+				else
+					v:=v+2;
+				end if;
+			else
+				if(two='0')then
+					if(v>0)then
+						v:=v-1;
+					end if;
+				elsif(v>1)then
+					v:=v-2;
+				else
+					v:=(others=>'0');
+				end if;
+			end if;
+		end if;
+		return v;
+	end function;
 	begin
 		if(rstn='0')then
 			--Start on track 0. From 127 a RECALIBRATE, which gives up after 77 steps, would
@@ -674,43 +717,35 @@ begin
 			curtrack1<=(others=>'0');
 			curtrack2<=(others=>'0');
 			curtrack3<=(others=>'0');
+			ldstep<=(others=>'0');
 			lSTEPn:='1';
 		elsif(clk' event and clk='1')then
 			if(lSTEPn='1' and STEPn='0')then
-				if(SDIRn='0')then
-					case USEL is
-					when "00" =>
-						curtrack0<=curtrack0+1;
-					when "01" =>
-						curtrack1<=curtrack1+1;
-					when "10" =>
-						curtrack2<=curtrack2+1;
-					when "11" =>
-						curtrack3<=curtrack3+1;
-					when others =>
-					end case;
-				else
-					case USEL is
-					when "00" =>
-						if(curtrack0>0)then
-							curtrack0<=curtrack0-1;
-						end if;
-					when "01" =>
-						if(curtrack1>0)then
-							curtrack1<=curtrack1-1;
-						end if;
-					when "10" =>
-						if(curtrack2>0)then
-							curtrack2<=curtrack2-1;
-						end if;
-					when "11" =>
-						if(curtrack3>0)then
-							curtrack3<=curtrack3-1;
-						end if;
-					when others =>
-					end case;
-				end if;
+				stp:='1';
+			else
+				stp:='0';
 			end if;
+			if(USEL="00")then
+				curtrack0<=nexttrack(curtrack0,dstep(0),dstep(0) xor ldstep(0),stp,not SDIRn);
+			else
+				curtrack0<=nexttrack(curtrack0,dstep(0),dstep(0) xor ldstep(0),'0',not SDIRn);
+			end if;
+			if(USEL="01")then
+				curtrack1<=nexttrack(curtrack1,dstep(1),dstep(1) xor ldstep(1),stp,not SDIRn);
+			else
+				curtrack1<=nexttrack(curtrack1,dstep(1),dstep(1) xor ldstep(1),'0',not SDIRn);
+			end if;
+			if(USEL="10")then
+				curtrack2<=nexttrack(curtrack2,dstep(2),dstep(2) xor ldstep(2),stp,not SDIRn);
+			else
+				curtrack2<=nexttrack(curtrack2,dstep(2),dstep(2) xor ldstep(2),'0',not SDIRn);
+			end if;
+			if(USEL="11")then
+				curtrack3<=nexttrack(curtrack3,dstep(3),dstep(3) xor ldstep(3),stp,not SDIRn);
+			else
+				curtrack3<=nexttrack(curtrack3,dstep(3),dstep(3) xor ldstep(3),'0',not SDIRn);
+			end if;
+			ldstep<=dstep;
 			lSTEPn:=STEPn;
 		end if;
 	end process;
