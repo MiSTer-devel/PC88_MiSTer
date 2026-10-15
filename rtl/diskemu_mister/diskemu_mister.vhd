@@ -175,6 +175,13 @@ type fdstate_t is (
 	fs_stdat,
 	fs_chkdatcrc,
 	fs_ststatus,
+	fs_svmode,
+	fs_svsize,
+	fs_allot,
+	fs_allotchk,
+	fs_reloc,
+	fs_relocw,
+	fs_putgo,
 	fs_savenexttrack,
 	fs_ovs0,
 	fs_ovs1,
@@ -279,6 +286,22 @@ signal	numsect	:std_logic_vector(15 downto 0);
 signal	sectcount:std_logic_vector(15 downto 0);
 signal	cursecthead	:std_logic_vector(31 downto 0);
 signal	nxtsecthead	:std_logic_vector(31 downto 0);
+signal	disksize	:std_logic_vector(31 downto 0);
+signal	disksize0	:std_logic_vector(31 downto 0);
+signal	newlen	:std_logic_vector(31 downto 0);
+signal	bound	:std_logic_vector(31 downto 0);
+signal	idcnt	:integer range 0 to 4;
+signal	allotidx	:std_logic_vector(7 downto 0);
+signal	wbyte	:integer range 0 to 7;
+signal	sizechg	:std_logic;
+signal	fsize0	:std_logic_vector(31 downto 0);
+signal	fsize1	:std_logic_vector(31 downto 0);
+signal	scanlim	:std_logic_vector(31 downto 0);
+signal	tracklenm	:std_logic_vector(31 downto 0);
+signal	curfsize	:std_logic_vector(31 downto 0);
+signal	svmount	:std_logic;
+signal	relok	:std_logic;
+signal	relfit	:std_logic;
 signal	sectlen	:std_logic_vector(15 downto 0);
 --a long sector followed by sectors is laid out as on the real disk; the sectors behind it
 --are placed where their ID marks appear inside its data, and the track keeps the normal turn
@@ -372,6 +395,29 @@ begin
 		return len;
 	end if;
 end efflen;
+function sectbytes(n :std_logic_vector(7 downto 0)) return std_logic_vector is
+begin
+	case n is
+	when x"00" => return x"00000090";
+	when x"01" => return x"00000110";
+	when x"02" => return x"00000210";
+	when x"03" => return x"00000410";
+	when x"04" => return x"00000810";
+	when x"05" => return x"00001010";
+	when x"06" => return x"00002010";
+	when x"07" => return x"00004010";
+	when others => return x"00000011";
+	end case;
+end sectbytes;
+function byteof(v :std_logic_vector(31 downto 0); i :integer range 0 to 3) return std_logic_vector is
+begin
+	case i is
+	when 0 => return v(7 downto 0);
+	when 1 => return v(15 downto 8);
+	when 2 => return v(23 downto 16);
+	when others => return v(31 downto 24);
+	end case;
+end byteof;
 signal	deleted	:std_logic;
 signal	crcwrdat	:std_logic_vector(7 downto 0);
 signal	crcwr		:std_logic;
@@ -630,6 +676,8 @@ port(
 end component;
 
 begin
+	relfit<='1' when disksize0<=x"00400000" and ((disksize+newlen+x"000001ff") and x"fffffe00")<=x"00400000" else '0';
+
 	
 	initdone<=rstn;
 	
@@ -657,6 +705,7 @@ begin
 	variable sasiwpend	:std_logic;
 	variable sasirpend	:std_logic;
 	variable sasispend	:std_logic;
+	variable newmount	:std_logic_vector(1 downto 0);
 	begin
 		if(rstn='0')then
 			lmount:=(others=>'0');
@@ -678,6 +727,7 @@ begin
 			sram_streq<='0';
 			sramen<='0';
 			sasien<='0';
+			svmount<='0';
 		elsif(sclk' event and sclk='1')then
 			proc_begin<='0';
 			sasi_rdreq2<='0';
@@ -685,7 +735,16 @@ begin
 			sasi_syreq2<='0';
 			sram_ldreq<='0';
 			sram_streq<='0';
+			newmount:=mist_mounted(bit_fd1 downto bit_fd0) and not lmount(bit_fd1 downto bit_fd0);
 			if(mist_mounted(bit_fd0)='1' and lmount(bit_fd0)='0')then
+				if(mist_imgsize(63 downto 32)=x"00000000")then
+					fsize0<=mist_imgsize(31 downto 0);
+				else
+					fsize0<=(others=>'1');
+				end if;
+				if(emustate=es_fsave0)then
+					svmount<='1';
+				end if;
 				if(mist_imgsize=x"00000000")then
 					fdc_indiskb(0)<='0';
 				else
@@ -694,6 +753,14 @@ begin
 				end if;
 			end if;
 			if(mist_mounted(bit_fd1)='1' and lmount(bit_fd1)='0')then
+				if(mist_imgsize(63 downto 32)=x"00000000")then
+					fsize1<=mist_imgsize(31 downto 0);
+				else
+					fsize1<=(others=>'1');
+				end if;
+				if(emustate=es_fsave1)then
+					svmount<='1';
+				end if;
 				if(mist_imgsize=x"00000000")then
 					fdc_indiskb(1)<='0';
 				else
@@ -795,11 +862,20 @@ begin
 			when es_fload0 | es_fload1 | es_fsave0 | es_fsave1 =>
 				if(fddone='1')then
 					emustate<=es_IDLE;
+					svmount<='0';
 					case emustate is
 					when es_fload0 =>
 						fdc_indiskb(0)<='1';
 					when es_fload1 =>
 						fdc_indiskb(1)<='1';
+					when es_fsave0 =>
+						if(sizechg='1' and svmount='0' and newmount(0)='0')then
+							fsize0<=disksize;
+						end if;
+					when es_fsave1 =>
+						if(sizechg='1' and svmount='0' and newmount(1)='0')then
+							fsize1<=disksize;
+						end if;
 					when others =>
 					end case;
 				end if;
@@ -879,10 +955,14 @@ begin
 			wrote:='0';
 		elsif(sclk' event and sclk='1')then
 			sbufwr<='0';
+			if(svmount='1')then
+				wrote:='0';
+			end if;
 			case sbufstate is
 			when ss_idle =>
 				if(img_rd='1')then
-					if(img_addr(31 downto 9)/=cur_lba(22 downto 0) or img_unit/=cur_unit)then
+					-- the track table is always read from the image
+					if(img_addr(31 downto 9)/=cur_lba(22 downto 0) or img_unit/=cur_unit or fdstate=fs_loadtbl0 or fdstate=fs_loadtbl1)then
 						if(wrote='1')then
 							if(img_unit='0')then
 								mist_wr(bit_fd0)<='1';
@@ -937,7 +1017,7 @@ begin
 					end if;
 				end if;
 			when ss_rwrite =>
-				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00" or svmount='1')then
 					mist_wr(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_rwrite2;
 				end if;
@@ -964,7 +1044,7 @@ begin
 					sbufstate<=ss_idle;
 				end if;
 			when ss_write =>
-				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00" or svmount='1')then
 					mist_wr(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_write2;
 				end if;
@@ -993,7 +1073,7 @@ begin
 					sbufstate<=ss_idle;
 				end if;
 			when ss_sync =>
-				if(mist_ack(bit_fd1 downto bit_fd0)/="00")then
+				if(mist_ack(bit_fd1 downto bit_fd0)/="00" or svmount='1')then
 					mist_wr(bit_fd1 downto bit_fd0)<="00";
 					sbufstate<=ss_sync2;
 				end if;
@@ -1115,15 +1195,8 @@ begin
 							tbladdr<=x"06";
 							fdstate<=fs_loadmode;
 						when es_fsave0 | es_fsave1 =>
-							tbladdr<=x"08";
-							track_curaddr<=(others=>'0');
-							trackrd<='1';
-							ambuf0:=(others=>'0');
-							ambuf1:=(others=>'0');
-							ambuf2:=(others=>'0');
-							ambuf3:=(others=>'0');
-							trackwrote<='0';
-							fdstate<=fs_scantrack;
+							tbladdr<=x"06";
+							fdstate<=fs_svmode;
 						when others =>
 							fdstate<=fs_idle;
 						end case;
@@ -2066,20 +2139,59 @@ begin
 					else
 						fdstate<=fs_loadshead;
 					end if;
+				when fs_svmode =>		-- the drives share diskmode: use the saved drive's mode
+					if(emustate=es_fsave0)then
+						diskmode<=diskmode0;
+					else
+						diskmode<=diskmode1;
+					end if;
+					ddmode<=haddr(28) or haddr(29);
+					tbladdr<=x"07";
+					swait:=2;
+					fdstate<=fs_svsize;
+				when fs_svsize =>
+					scanlim<=tracklen;
+					disksize<=(haddr+x"000001ff") and x"fffffe00";
+					disksize0<=haddr;
+					if(emustate=es_fsave0)then
+						curfsize<=fsize0;
+						if(fsize0>=x"00000200" and fsize0<=((haddr+x"000001ff") and x"fffffe00"))then relok<='1'; else relok<='0'; end if;
+					else
+						curfsize<=fsize1;
+						if(fsize1>=x"00000200" and fsize1<=((haddr+x"000001ff") and x"fffffe00"))then relok<='1'; else relok<='0'; end if;
+					end if;
+					sizechg<='0';
+					tbladdr<=x"08";
+					track_curaddr<=(others=>'0');
+					trackrd<='1';
+					ambuf0:=(others=>'0');
+					ambuf1:=(others=>'0');
+					ambuf2:=(others=>'0');
+					ambuf3:=(others=>'0');
+					trackwrote<='0';
+					newlen<=(others=>'0');
+					idcnt<=0;
+					swait:=2;
+					fdstate<=fs_scantrack;
 				when fs_scantrack =>
 					if(trackbusy='0')then
-						if(haddr=x"00000000")then
-							fdstate<=fs_savenexttrack;
-						elsif(track_curaddr<tracklen)then
+						if(track_curaddr<scanlim)then
 							ambuf3:=ambuf2;
 							ambuf2:=ambuf1;
 							ambuf1:=ambuf0;
 							ambuf0:=trackrddat(9 downto 0);
 							
 							if(ambuf3=("11" & x"a1") and ambuf2=("11" & x"a1") and ambuf1=("11" & x"a1") and ambuf0=("10" & x"fe"))then
-								sectcount<=sectcount+1;
+								idcnt<=1;
+								scanlim<=tracklenm;
 							elsif(ambuf0=("01" & x"fe"))then
+								idcnt<=1;
+							elsif(idcnt=4)then
 								sectcount<=sectcount+1;
+								newlen<=newlen+sectbytes(trackrddat(7 downto 0));
+								idcnt<=0;
+							elsif(idcnt/=0)then
+								idcnt<=idcnt+1;
 							end if;
 							trackwrote<=trackwrote or trackrddat(10);
 							track_curaddr<=track_curaddr+1;
@@ -2090,19 +2202,80 @@ begin
 							numsect<=sectcount;
 							sectcount<=(others=>'0');
 							cursecthead<=haddr;
-							if(trackwrote='1' and ovl_q='0')then
-								ambuf0:=(others=>'0');
-								ambuf1:=(others=>'0');
-								ambuf2:=(others=>'0');
-								ambuf3:=(others=>'0');
-								trackrd<='1';
-								swait:=2;
-								fdstate<=fs_scaniam;
-							else
+							if(trackwrote='0' or ovl_q='1' or sectcount=x"0000")then
 								fdstate<=fs_savenexttrack;
+							elsif(haddr=x"00000000")then	-- formatted a track the image did not have
+								if(relok='1' and relfit='1')then
+									fdstate<=fs_reloc;
+								else
+									fdstate<=fs_savenexttrack;
+								end if;
+							else
+								if(disksize0<curfsize)then
+									bound<=disksize0;
+								else
+									bound<=curfsize;
+								end if;
+								allotidx<=(others=>'0');
+								tbladdr<=x"08";
+								swait:=2;
+								fdstate<=fs_allot;
 							end if;
 						end if;
 					end if;
+				when fs_allot =>
+					if(haddr>cursecthead and haddr<bound)then
+						bound<=haddr;
+					end if;
+					if((allotidx+1)<tracks)then
+						allotidx<=allotidx+1;
+						tbladdr<=allotidx+x"09";
+						swait:=2;
+					else
+						fdstate<=fs_allotchk;
+					end if;
+				when fs_allotchk =>
+					if(bound<=cursecthead or (bound-cursecthead)<newlen)then
+						if(relok='1' and relfit='1')then
+							fdstate<=fs_reloc;
+						else
+							fdstate<=fs_savenexttrack;
+						end if;
+					else
+						fdstate<=fs_putgo;
+					end if;
+				when fs_reloc =>
+					cursecthead<=disksize;
+					disksize<=(disksize+newlen+x"000001ff") and x"fffffe00";
+					sizechg<='1';
+					wbyte<=0;
+					fdstate<=fs_relocw;
+				when fs_relocw =>		-- the new disk size first, then the table entry
+					if(img_busy='0')then
+						if(wbyte<4)then
+							img_addr<=x"0000001c"+wbyte;
+							img_wrdat<=byteof(disksize,wbyte);
+						else
+							img_addr<=(x"00000" & "00" & trackno & "00")+x"20"+(wbyte-4);
+							img_wrdat<=byteof(cursecthead,wbyte-4);
+						end if;
+						img_wr<='1';
+						swait:=2;
+						if(wbyte=7)then
+							fdstate<=fs_putgo;
+						else
+							wbyte<=wbyte+1;
+						end if;
+					end if;
+				when fs_putgo =>
+					ambuf0:=(others=>'0');
+					ambuf1:=(others=>'0');
+					ambuf2:=(others=>'0');
+					ambuf3:=(others=>'0');
+					track_curaddr<=(others=>'0');
+					trackrd<='1';
+					swait:=2;
+					fdstate<=fs_scaniam;
 				when fs_scaniam =>
 					if(trackbusy='0' and crcbusy='0')then
 						ambuf3:=ambuf2;
@@ -2392,6 +2565,9 @@ begin
 						trackrd<='1';
 						track_curaddr<=(others=>'0');
 						sectcount<=(others=>'0');
+						newlen<=(others=>'0');
+						idcnt<=0;
+						scanlim<=tracklen;
 						swait:=2;
 						fdstate<=fs_scantrack;
 					else
@@ -2410,6 +2586,10 @@ begin
 		end if;
 	end process;
 	
+	tracklenm<=	x"0000186a" when diskmode="00" else
+					x"00001b58" when diskmode="01" else
+					x"000030d4" when diskmode="10" else
+					x"00003a98";
 	tracklen<=	x"00000c35"	when diskmode="00" and mfm='0' else
 					x"00000dac" when diskmode="01" and mfm='0' else
 					x"0000186a" when diskmode="10" and mfm='0' else
