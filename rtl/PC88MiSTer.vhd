@@ -904,6 +904,8 @@ port(
 	HRET		:in std_logic;
 	DONE		:out std_logic;
 	
+	CPUBUS		:in std_logic;
+	CPUM1n		:in std_logic;
 	clk			:in std_logic;
 	ce			:in std_logic;
 	rstn		:in std_logic
@@ -1700,6 +1702,7 @@ signal	GVSTRr		:std_logic;
 signal	GVS_WAITn	:std_logic;
 signal	BUS_WAITn	:std_logic;
 signal	BUSSEL,BUSIOSEL	:std_logic;
+signal	BUSWEN	:std_logic;
 signal	BUS_other	:std_logic;
 signal	GVSEN		:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
@@ -2711,6 +2714,8 @@ port map(
 	HRET		=>HRTCr,
 	-- DONE		=>TCNVDONE,
 	
+	CPUBUS		=>BUSSEL,
+	CPUM1n		=>M1_n,
 	clk			=>rclk,
 	ce			=>tcnv_ce,
 	rstn		=>CPU_rstnr
@@ -3027,12 +3032,14 @@ port map(
 	-- access, as measured on a real FH. GVWAIT above covers the ALU.
 	GVSEN<='1' when cV1S='1' and GVAM='0' and GHSMv='0' else '0';
 	GVSW	:GVSWAIT port map(GVSEL,GV_other,CPUMD,GVSTR,GVSEN,GVS_WAITn,rclk,cpuce_f,CPU_rstnr,VT24);
-	-- While slowed down, a real FH also waits on every bus cycle (BUSWAIT),
-	-- after all the other waits.
+	-- While slowed down at 4MHz, a real FH also waits on every bus cycle
+	-- (BUSWAIT), after all the other waits. At 8MHz the text row transfers
+	-- in TRAMCONV give that part.
 	BUSSEL<='1' when (MREQ_n='0' or IORQ_n='0') and (RD_n='0' or WR_n='0') else '0';
 	BUSIOSEL<=not IORQ_n;
 	BUS_other<=not (WAIT_nb and M1_WAITn and MEM_WAITn and GV_WAITn and GVS_WAITn);
-	BUSW	:BUSWAIT port map(BUSSEL,BUSIOSEL,BUS_other,CPUMD,GVSTR,BUS_WAITn,rclk,cpuce_f,CPU_rstnr);
+	BUSWEN<=GVSTR and not CPUMD;
+	BUSW	:BUSWAIT port map(BUSSEL,BUSIOSEL,BUS_other,CPUMD,BUSWEN,BUS_WAITn,rclk,cpuce_f,CPU_rstnr);
 	
 	process(rclk,srstn)begin
 		if(srstn='0')then
