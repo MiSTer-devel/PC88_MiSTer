@@ -2794,6 +2794,7 @@ begin
 							if(bytecount>0)then
 								bytecount<=bytecount-1;
 							else
+								lastsect:='0';
 								if(R/=EOT)then
 									incR<='1';
 								elsif(MT='1')then
@@ -2806,10 +2807,12 @@ begin
 										resH<='1';
 										resHD<='1';
 										incC<='1';
+										lastsect:='1';
 									end if;
 								else
 									resR<='1';
 									incC<='1';
+									lastsect:='1';
 								end if;
 								if(sOR='1')then
 									sHD<=HD;
@@ -2834,6 +2837,19 @@ begin
 									PCN<=cPCN;
 									INT<='1';
 									-- iSE<='1';
+									end_EXEC<='1';
+								elsif(lastsect='1')then
+									-- reached EOT without TC: end the command here with EN set, like the reads
+									execstate<=es_IDLE;
+									sIC<="00";
+									sEN<='1';
+									sHD<=HD;
+									sUS<=US;
+									sNR<=readyv(iUS);
+									sEC<='0';
+									sSE<='0';
+									PCN<=cPCN;
+									INT<='1';
 									end_EXEC<='1';
 								else
 									nturns<=0;
