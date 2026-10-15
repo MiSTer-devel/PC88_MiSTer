@@ -27,13 +27,17 @@ Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801** folder
 - 12000 ~ N88 4th-1 (8ko) n88_1.rom C0BD2AA6
 - 14000 ~ N88 4th-2 (8ko) n88_2.rom AF2B6EFA
 - 16000 ~ N88 4th-3 (8ko) n88_3.rom 7713C519
-- 18000 ~ FONT (8x16) (2ko) + (2ko blank) font.rom 56653188
+- 18000 ~ FONT (8x8) (2ko) + (2ko blank) font.rom 56653188 (not used by the core, which draws the text with the 8x8 font of KANJI1)
 - 19000- Simple graphics font (attached Font / graphfont.bin) (4ko) graphfont.bin CDD1BE6B
 - 1a000 ~ DISK ROM (8ko) + (16ko blank) mh_disk.rom A222ECF0
 - 20000 ~ KANJI1 (128ko) kanji1.rom 6178BD43
 - 40000 ~ KANJI2 (128ko) kanji2.rom 154803CC
 
 copy /b mk2sr_n88.rom+mk2sr_n80.rom+mk2sr_n88_0.rom+n88_1.rom+n88_2.rom+n88_3.rom+font.rom+2KO_BLANK_00.ROM+graphfont.bin+mh_disk.rom+8KO_BLANK_00.ROM+8KO_BLANK_00.ROM+kanji1.rom+kanji2.rom boot.rom
+
+The resulting boot.rom is 393216 bytes, CRC32 7E4F92C3 (MD5 9f3ec09d19a0768f01fdbf2826ed3253).
+
+There are several revisions of the N88 4th-0 ROM. Use the one listed above (710A63EC): with 61984BAB, some software does not run correctly (#35, #72).
 
 ## Special key assignments are as follows:
 
