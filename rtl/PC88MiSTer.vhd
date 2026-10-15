@@ -688,7 +688,8 @@ port(
 	clk		:in std_logic;
 	rstn	:in std_logic;
 
-	T24		:in std_logic
+	T24		:in std_logic;
+	IOC		:in std_logic
 );
 end component;
 
@@ -1703,6 +1704,7 @@ signal	GVS_WAITn	:std_logic;
 signal	BUS_WAITn	:std_logic;
 signal	BUSSEL,BUSIOSEL	:std_logic;
 signal	BUSWEN	:std_logic;
+signal	GVSIOC	:std_logic;
 signal	BUS_other	:std_logic;
 signal	GVSEN		:std_logic;
 signal	IDAT_INTC	:std_logic_vector(7 downto 0);
@@ -3014,7 +3016,9 @@ port map(
 	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
 	-- slowed enables.
 	GVSTR<='1' when cV1S='1' and G_PLANESEL='1' and GVAM='0' and GRAPHEN='1' and VRTCr='0' and GHSMv='0' else '0';
-	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr,T24);
+	-- I/O read or write cycles, not the interrupt acknowledge
+	GVSIOC<='1' when IORQ_n='0' and M1_n='1' and (RD_n='0' or WR_n='0') else '0';
+	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr,T24,GVSIOC);
 	--TRAMCONV takes GVSTR from this register, as for VRTCr.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
