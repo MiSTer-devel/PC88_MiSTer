@@ -36,7 +36,7 @@ port(
 	rstn	:in std_logic;
 
 	T24		:in std_logic;	-- '1' in 24kHz timing
-	IOC		:in std_logic	-- '1' while an I/O read or write strobe is out
+	IOC		:in std_logic	-- '1' in an I/O read or write cycle (IORQ_n low)
 );
 end GVSTRETCH;
 
