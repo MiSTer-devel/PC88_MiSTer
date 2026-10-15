@@ -1550,7 +1550,10 @@ signal	cDisk		:std_logic;
 signal	cInDev		:std_logic;
 signal	cSB2		:std_logic;
 signal	cSBN		:std_logic;	-- Normal(SR): no YM2608
-signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- pCoreConfig(4 downto 3) sampled on rclk
+signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- the video timing from cfg_r
+signal	cfg_a		:std_logic_vector(10 downto 0);	-- OSD settings on clk21m
+signal	cfg_r		:std_logic_vector(10 downto 0);	-- the same settings on rclk, all from one transfer
+signal	cSB2r,cSBNr	:std_logic;	-- cSB2 and cSBN from cfg_r
 signal	VT24		:std_logic	:='0';	-- 24kHz or 15kHz timing, taken at reset
 signal	VT15		:std_logic	:='0';	-- 15kHz timing, taken at reset
 signal	T24			:std_logic;	-- 24kHz timing
@@ -1759,7 +1762,6 @@ signal	TCNV_BUSUSE	:std_logic;
 signal	RAM_RDV2	:std_logic;
 signal	tcnvcnt		:integer range 0 to 14;
 signal	tcnv_ce		:std_logic;
-signal	TCNV_V1S21,TCNV_CPUMD21	:std_logic;
 signal	TCNV_V1S,TCNV_CPUMD	:std_logic;
 signal	COLORn		:std_logic;
 signal	ODAT_TCNV	:std_logic_vector(7 downto 0);
@@ -2041,7 +2043,27 @@ signal	hdmiclk	:std_logic;
 signal	subdat	:std_logic_vector(7 downto 0);
 begin
 
-	MODE <=	pDip(1 downto 0);
+	--The OSD settings come from hps_io on clk21m and are used on rclk on every clock.
+	--They cross in one handshake, sent again and again, so all of them change on the
+	--same rclk edge and a change on the OSD is never taken half done.
+	cfg_a<=pCoreConfig(4 downto 1) & pDip(9) & pDip(6 downto 4) & pDip(2 downto 0);
+	CFGX	:cdc_hs generic map(11,1) port map(
+		a_start	=>'1',
+		a_data	=>cfg_a,
+		a_busy	=>open,
+		a_done	=>open,
+		a_rdata	=>open,
+		a_clk	=>clk21m,
+		a_rstn	=>srstn21,
+
+		b_valid	=>open,
+		b_data	=>cfg_r,
+		b_rdata	=>"0",
+		b_clk	=>rclk,
+		b_rstn	=>srstn
+	);
+
+	MODE <=	cfg_r(1 downto 0);
 
 	cHS	<=	'1' when MODE=MOD_V1H else
 			'1' when MODE=MOD_V2 else
@@ -2058,14 +2080,16 @@ begin
 			'1' when MODE=MOD_N else
 			'0';
 
-	cBT		<=pDip(2);
-	c40C	<=pDip(4);
-	c20L	<=pDip(5);
-	cDisk	<=pDip(6);
+	cBT		<=cfg_r(2);
+	c40C	<=cfg_r(3);
+	c20L	<=cfg_r(4);
+	cDisk	<=cfg_r(5);
 
 	MTSAVE	<=pDip(3);
 
-	CPUMD<=pDip(9);
+	CPUMD<=cfg_r(6);
+	cSB2r<=cfg_r(7);
+	cSBNr<=not(cfg_r(7) or cfg_r(8));
 
 	process(clk21m) begin
 		if (clk21m' event and clk21m='1') then
@@ -2079,7 +2103,7 @@ begin
 	--only when two samples agree, so a change of the OSD option is never taken half done.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
-			VTm<=pCoreConfig(4 downto 3);
+			VTm<=cfg_r(10 downto 9);
 			VTm2<=VTm;
 			if(CPU_rstnr='0' and VTm=VTm2)then
 				VT24<=VTm(1) or VTm(0);
@@ -2645,16 +2669,9 @@ port map(
 		end if;
 	end process;
 
-	--The mode and the CPU speed are set on clk21m. not cHS equals cV1S in all four
-	--modes, so one bit gives both TMODE and V1S and they cannot arrive apart.
-	process(clk21m)begin
-		if(clk21m' event and clk21m='1')then
-			TCNV_V1S21<=cV1S;
-			TCNV_CPUMD21<=CPUMD;
-		end if;
-	end process;
-	TV1S	:cdc_sync2 port map(TCNV_V1S21,TCNV_V1S,rclk);
-	TCMD	:cdc_sync2 port map(TCNV_CPUMD21,TCNV_CPUMD,rclk);
+	--not cHS equals cV1S in all four modes, so one bit gives both TMODE and V1S.
+	TCNV_V1S<=cV1S;
+	TCNV_CPUMD<=CPUMD;
 
 	TRAM	:TEXTRAM port map(
 		address_a		=>TRAM_ADR,
@@ -2854,7 +2871,7 @@ port map(
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
 			if(MREQ_n='1')then
-				sb2m<=cSB2;
+				sb2m<=cSB2r;
 			end if;
 		end if;
 	end process;
@@ -2982,8 +2999,8 @@ port map(
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
 			if(IORQ_n='1')then
-				sb2c<=cSB2;
-				sbnc<=cSBN;
+				sb2c<=cSB2r;
+				sbnc<=cSBNr;
 			end if;
 		end if;
 	end process;
