@@ -3016,8 +3016,10 @@ port map(
 	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
 	-- slowed enables.
 	GVSTR<='1' when cV1S='1' and G_PLANESEL='1' and GVAM='0' and GRAPHEN='1' and VRTCr='0' and GHSMv='0' else '0';
-	-- I/O read or write cycles, not the interrupt acknowledge
-	GVSIOC<='1' when IORQ_n='0' and M1_n='1' and (RD_n='0' or WR_n='0') else '0';
+	-- I/O read or write cycles, not the interrupt acknowledge. The sound
+	-- ports with their own wait (FMWSEL) are left out: on a real FH an
+	-- IN A,(44h) costs less than an IN A,(40h) or an OUT (10h),A.
+	GVSIOC<='1' when IORQ_n='0' and M1_n='1' and (RD_n='0' or WR_n='0') and FMWSEL='0' else '0';
 	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr,T24,GVSIOC);
 	--TRAMCONV takes GVSTR from this register, as for VRTCr.
 	process(rclk)begin

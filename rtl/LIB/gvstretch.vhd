@@ -57,11 +57,22 @@ signal	expf_nx	:std_logic;
 signal	known_nx	:std_logic;
 signal	sum		:integer range 0 to 2303;
 begin
-	K<=	121 when FAST='1' and T24='1' and IOC='1' else
-		142 when FAST='1' and T24='1' else
-		206 when FAST='1' else
-		188 when T24='1' else
-		260;
+	--K one clock late (keeps FAST, T24 and the CPU strobes out of the pass path)
+	process(clk)begin
+		if(clk' event and clk='1')then
+			if(FAST='1' and T24='1' and IOC='1')then
+				K<=121;
+			elsif(FAST='1' and T24='1')then
+				K<=142;
+			elsif(FAST='1')then
+				K<=206;
+			elsif(T24='1')then
+				K<=188;
+			else
+				K<=260;
+			end if;
+		end if;
+	end process;
 
 	-- state after this edge
 	process(ce_r_in,ce_f_in,pass_r,pass_f,strd,acc,expf,known,K)
