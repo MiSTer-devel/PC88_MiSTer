@@ -11,9 +11,10 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 * Modes N, N88V1L, N88V1H, N88V2
 * CPU Speeds (4MHz and 8MHz)
 * 2 Floppy Drives using D88 format (Disk types supported 2D and 2HD)
-* Sound chips YM2203 and YM2608 (Sound Board II) with ADPCM
+* Sound chips YM2203 and YM2608 (Sound Board II) with ADPCM, selected with the Sound Board option
+* Beeper, including the extended beep (port 40h bit 7) that CMD SING and some early games use for music
 * Mouse support (Changed between Mouse and Joypad on the OSD)
-* Tape (CMT) input from .t88 and .cmt images, or from the ADC of the analog I/O board
+* Tape (CMT): loading from .t88 and .cmt images or from the ADC of the analog I/O board, and saving to .t88 images
 
 ## Installation
 Copy the PC88_\*.rbf file to the root of the SD card. Create a **PC8801** folder on the root/games of the card, and place PC8801 floppies (\*.D88) inside this folder. 
