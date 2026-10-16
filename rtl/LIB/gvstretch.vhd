@@ -12,7 +12,9 @@ use IEEE.numeric_std.all;
 --timing. At 4MHz part of it is a wait on every bus cycle (BUSWAIT) and K
 --gives the rest, as fitted to 16 loops measured on a real FH. At 8MHz K gives
 --the slowdown a FH shows with the CRTC and the text DMA stopped; the text row
---transfers (TRAMCONV) and the GVRAM waits (GVSWAIT) add the rest.
+--transfers (TRAMCONV) and the GVRAM waits (GVSWAIT) add the rest. In 24kHz
+--timing at 8MHz a FH also slows I/O cycles more than memory cycles (about
+--7.8 times per T against 7.2), so K is smaller while IOC is high.
 --Only the original ce_r/ce_f ticks are passed or dropped, and the passed ones
 --always alternate ce_r, ce_f, ce_r, ... so every user of the enables sees a
 --slower CPU clock. While STR is low all of them pass.
@@ -33,13 +35,15 @@ port(
 	clk		:in std_logic;
 	rstn	:in std_logic;
 
-	T24		:in std_logic	-- '1' in 24kHz timing
+	T24		:in std_logic;	-- '1' in 24kHz timing
+	IOC		:in std_logic	-- '1' in an I/O read or write cycle (IORQ_n low)
 );
 end GVSTRETCH;
 
 architecture rtl of GVSTRETCH is
 -- ratio K/N: 260/1024 = 1/3.938 at 4MHz, 206/1024 = 1/4.971 at 8MHz,
--- 188/1024 = 1/5.447 and 142/1024 = 1/7.211 in 24kHz timing
+-- 188/1024 = 1/5.447 and 142/1024 = 1/7.211 in 24kHz timing (121/1024 =
+-- 1/8.463 in I/O cycles at 8MHz)
 constant N		:integer := 1024;
 signal	K		:integer range 0 to 511;
 signal	acc		:integer range 0 to 2047;
@@ -53,10 +57,22 @@ signal	expf_nx	:std_logic;
 signal	known_nx	:std_logic;
 signal	sum		:integer range 0 to 2303;
 begin
-	K<=	142 when FAST='1' and T24='1' else
-		206 when FAST='1' else
-		188 when T24='1' else
-		260;
+	--K one clock late (keeps FAST, T24 and the CPU strobes out of the pass path)
+	process(clk)begin
+		if(clk' event and clk='1')then
+			if(FAST='1' and T24='1' and IOC='1')then
+				K<=121;
+			elsif(FAST='1' and T24='1')then
+				K<=142;
+			elsif(FAST='1')then
+				K<=206;
+			elsif(T24='1')then
+				K<=188;
+			else
+				K<=260;
+			end if;
+		end if;
+	end process;
 
 	-- state after this edge
 	process(ce_r_in,ce_f_in,pass_r,pass_f,strd,acc,expf,known,K)
