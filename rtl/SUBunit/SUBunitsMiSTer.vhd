@@ -665,6 +665,7 @@ signal	fFDC_TC		:std_logic;
 signal	fFDC_INTEV	:std_logic;
 signal	TD1,TD0		:std_logic;
 signal	RV1,RV0		:std_logic;
+signal	RV1f,RV0f	:std_logic;
 signal	MON1,MON0	:std_logic;
 signal	TC			:std_logic;
 signal	FDC_CEn		:std_logic;
@@ -780,11 +781,15 @@ begin
 	
 --	IO12	:IO_RWS generic map(x"12") port map(ADR(7 downto 0),IORQn,RDn,WRn,CPUDAT,IDAT_IO12,IO12_OE,monout(7),monout(6),monout(5),monout(4),monout(3),monout(2),monout(1),monout(0),CPUCLK,CPUrstn);
 	IOf4	:IO_WRS generic map(x"f4") port map(ADR(7 downto 0),IORQn,WRn,CPUDAT_W,open,open,open,open,TD1,TD0,RV1,RV0,ramclk,CPUrstnr,CE_R);
+	--The FDC and the disk emulation set the bit length from the density bits on clk21m.
+	--Bring each bit over on its own, so a change can't reach some of their registers a clock early.
+	RV0s	:cdc_sync2 port map(RV0,RV0f,clk21m);
+	RV1s	:cdc_sync2 port map(RV1,RV1f,clk21m);
 	IOf8	:IO_WRS generic map(x"f8") port map(ADR(7 downto 0),IORQn,WRn,CPUDAT_W,open,open,open,open,PSEN,open,MON1S,MON0S,ramclk,CPUrstnr,CE_R);
 	IOf8r	:IO_DETAC generic map(x"f8") port map(ADR(7 downto 0),IORQn,RDn,TC,ramclk,CPUrstnr,CE_R);
 	
 	TDSEL<=TD0 when FD_USEL="00" else TD1 when FD_USEL="01" else '0';
-	RVSEL<=RV0 when FD_USEL="00" else RV1 when FD_USEL="01" else '0';
+	RVSEL<=RV0f when FD_USEL="00" else RV1f when FD_USEL="01" else '0';
 	
 	FDC_MOTORn<="11" & not MON1 & not MON0;
 	FDC_CEn<='0' when IORQn='0' and ADR(7 downto 1)="1111101" else '1';
@@ -824,9 +829,9 @@ begin
 		drv0sele		=>'0',
 		drv1sele		=>'0',
 	
-		drv0hd		=>RV0,
+		drv0hd		=>RV0f,
 		drv0hdi		=>'1',		--IBM 1.44MB format
-		drv1hd		=>RV1,
+		drv1hd		=>RV1f,
 		drv1hdi		=>'1',		--IBM 1.44MB format
 		
 		--drv0hds		=>FD_HDS(0),

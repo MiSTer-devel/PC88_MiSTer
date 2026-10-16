@@ -47,8 +47,8 @@ foreach inst {
 #    acknowledged.
 # Held values get set_max_delay, not set_false_path, so the limit the RTL
 # relies on stays checked. Hold checks are left as they are. Other crossings
-# (the MiSTer framework, the F4h settings) are not covered here and still
-# show up in the report.
+# (the MiSTer framework) are not covered here and still show up in the
+# report.
 set pc88_rclk  [get_clocks {emu|pll|pll_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}]
 set pc88_clk21 [get_clocks {emu|pll|pll_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}]
 
@@ -77,6 +77,7 @@ foreach s {SINTMs S2INTMs INT0s INT2s INT4s LDROEs LDRWRs LDRACKs FILLDONEs
 	lappend pats "$pc88_top|cdc_sync2:$s|s1"
 }
 foreach p [list "$pc88_sub|cdc_sync2:MON0Ss" "$pc88_sub|cdc_sync2:MON1Ss" \
+	"$pc88_sub|cdc_sync2:RV0s" "$pc88_sub|cdc_sync2:RV1s" \
 	"$pc88_top|singspk:sings|cdc_sync2:sings" "$pc88_top|singspk:sings|cdc_sync2:beepens"] {
 	lappend pats "$p|s1"
 }
