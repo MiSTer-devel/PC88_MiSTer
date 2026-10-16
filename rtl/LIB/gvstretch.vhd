@@ -15,6 +15,11 @@ use IEEE.numeric_std.all;
 --transfers (TRAMCONV) and the GVRAM waits (GVSWAIT) add the rest. In 24kHz
 --timing at 8MHz a FH also slows I/O cycles more than memory cycles (about
 --7.8 times per T against 7.2), so K is smaller while IOC is high.
+--At 8MHz a FH charges the 5th and 6th T of a 5T or 6T M1 cycle (RET cc,
+--INC rr and the like) differently from other T-states, mostly less, so K is
+--set separately in them. The values were fitted to a FH for each timing and
+--text DMA state; why the FH charges them differently is not known. 4MHz is
+--not changed.
 --Only the original ce_r/ce_f ticks are passed or dropped, and the passed ones
 --always alternate ce_r, ce_f, ce_r, ... so every user of the enables sees a
 --slower CPU clock. While STR is low all of them pass.
@@ -36,7 +41,10 @@ port(
 	rstn	:in std_logic;
 
 	T24		:in std_logic;	-- '1' in 24kHz timing
-	IOC		:in std_logic	-- '1' in an I/O read or write cycle (IORQ_n low)
+	IOC		:in std_logic;	-- '1' in an I/O read or write cycle (IORQ_n low)
+	T5		:in std_logic;	-- '1' in the 5th T of a 5T or 6T M1
+	T6		:in std_logic;	-- '1' in the 6th T of a 6T M1
+	TXA		:in std_logic	-- '1' while the text DMA runs (CRTC and DMAC started)
 );
 end GVSTRETCH;
 
@@ -60,7 +68,24 @@ begin
 	--K one clock late (keeps FAST, T24 and the CPU strobes out of the pass path)
 	process(clk)begin
 		if(clk' event and clk='1')then
-			if(FAST='1' and T24='1' and IOC='1')then
+			--8MHz M1 5th/6th T: 24kHz with and without the text DMA, then 15kHz.
+			if(FAST='1' and T24='1' and T5='1' and TXA='1')then
+				K<=165;
+			elsif(FAST='1' and T24='1' and T6='1' and TXA='1')then
+				K<=160;
+			elsif(FAST='1' and T24='1' and T5='1')then
+				K<=149;
+			elsif(FAST='1' and T24='1' and T6='1')then
+				K<=154;
+			elsif(FAST='1' and T5='1' and TXA='1')then
+				K<=242;
+			elsif(FAST='1' and T6='1' and TXA='1')then
+				K<=196;
+			elsif(FAST='1' and T5='1')then
+				K<=216;
+			elsif(FAST='1' and T6='1')then
+				K<=211;
+			elsif(FAST='1' and T24='1' and IOC='1')then
 				K<=121;
 			elsif(FAST='1' and T24='1')then
 				K<=142;
