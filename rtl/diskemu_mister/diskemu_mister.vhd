@@ -1311,9 +1311,12 @@ begin
 					pscnt<=numsect;
 					psaddr<=cursecthead;
 					pssum<="00" & x"0092";		-- 146: GAP4a, sync, IAM, GAP1
-					if(numsect=x"0000")then
+					if(numsect=x"0000")then				-- a header with no sectors: unformatted, like haddr=0
 						usestd<='0';
-						fdstate<=fs_gap0;
+						track_curaddr<=(others=>'0');
+						trackwrdat<=x"00ff";
+						trackwr<='1';
+						fdstate<=fs_gap4;
 					else
 						usestd<='1';
 						img_addr<=cursecthead+x"06";
