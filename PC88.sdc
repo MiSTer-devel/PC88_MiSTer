@@ -42,11 +42,13 @@ foreach inst {
 #  - the first stage of each cdc_sync2, which takes a single bit and is seen
 #    one clock later at worst,
 #  - values that cdc_busport, cdc_hs and sdrbridge hold until a synchronized
-#    flag has crossed.
+#    flag has crossed,
+#  - the address and data of the ROM loader, held until the write is
+#    acknowledged.
 # Held values get set_max_delay, not set_false_path, so the limit the RTL
 # relies on stays checked. Hold checks are left as they are. Other crossings
-# (the ROM loader, the MiSTer framework, the F4h settings) are not covered
-# here and still show up in the report.
+# (the MiSTer framework, the F4h settings) are not covered here and still
+# show up in the report.
 set pc88_rclk  [get_clocks {emu|pll|pll_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}]
 set pc88_clk21 [get_clocks {emu|pll|pll_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}]
 
@@ -116,3 +118,17 @@ foreach {b c} {FDEB FDE FECB FEC SNDB SND} {
 	set_max_delay -from [pc88_cdc_regs "$c read"  [list "$pc88_ram|${c}RDAT\[*\]"]] \
 	              -to   [pc88_cdc_regs "$b RDATb" [list "$pc88_top|sdrbridge:$b|RDATb\[*\]"]] 50.000
 }
+
+# ROM loader (the first download after the core is loaded, boot.rom; ldr_done
+# keeps later downloads out): ldr_addr and ldr_dout are taken on the clk21m
+# clock that raises ldr_wr, and ldr_wr holds the HPS through ioctl_wait until
+# the write is acknowledged (PC8801SR.sv).
+# rclk writes them only after ldr_wr has passed cdc_sync2, two rclk clocks later
+# at the earliest; one rclk clock is used. The destinations are named by
+# instance, since the names inside the inferred RAMs change between builds.
+set ldr [pc88_cdc_regs "loader" [list "emu:emu|ldr_addr\[*\]" "emu:emu|ldr_dout\[*\]"]]
+set ldr_take [pc88_cdc_regs "loader take" [list \
+	"$pc88_top|SUBMEM:SUBM|*" "$pc88_top|CRTCP:CRT|fontram:GFNT|*" "$pc88_top|CRTCP:CRT|font8ram:FNT8|*" \
+	"$pc88_ram|CPUADRb\[*\]" "$pc88_ram|CPUWDATb\[*\]" \
+	"$pc88_top|WRPOST:WRP|padr\[*\]" "$pc88_top|WRPOST:WRP|pdat\[*\]"]]
+set_max_delay -from $ldr -to $ldr_take 13.333
