@@ -122,7 +122,6 @@ takes 31kHz needs `vga_scaler=1` and a `video_mode` the monitor accepts.
 On HDMI, Scale set to V-Integer keeps the lines the same thickness.
 
 ## Known Issues
-- Timing issues
 - Gamma correction doesn't seem to change anything (?)
 
 ## TODO
