@@ -405,7 +405,7 @@ signal	bcap	:std_logic_vector(13 downto 0);	-- end of the sector being built
 --a track with no sector of 4096 bytes or more that does not fit even in the long track in order: sectors with a
 --data CRC error may hold the ID marks of the sectors written over them on the real disk, as the FDC read them.
 --The track is planned first and each sector's ID goes where its marks are recorded, the same idea as for the long
---sector above (docs/designs/disk-overlap-general.md, rules 1 to 3)
+--sector above (rules 1 to 3 below, where the sectors are placed)
 signal	ovmode	:std_logic;	-- this track is built at the planned places
 signal	psov	:std_logic;	-- a sector of 6144 bytes or more is in the track (laid out as above)
 signal	ps4k	:std_logic;	-- a sector of 4096 to 6143 bytes is in the track
