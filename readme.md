@@ -48,7 +48,20 @@ There are several revisions of the N88 4th-0 ROM. Use the one listed above (710A
 - HELP -> F11
 - GRPH -> Alt
 - COPY -> Print Screen
-- PC -> Scroll Lock
+- PC -> Scroll Lock or Menu
+- KANA -> Katakana/Hiragana (each press toggles kana; the Scroll Lock LED shows the state)
+- ROLL UP -> Page Up
+- ROLL DOWN -> Page Down
+- INS/DEL -> Backspace
+- INS -> Insert
+- DEL -> Delete
+- f.6 to f.10 -> F6 to F10
+- Full-width (zenkaku) -> Hankaku/Zenkaku (the grave accent key on a US keyboard)
+- Conversion (henkan) -> Henkan
+- Decision (kettei) -> Muhenkan
+- = on the numeric keypad -> Num Lock
+
+KANA, Conversion, Decision, the yen key and the _ key (ro) need a Japanese keyboard. A US keyboard has no keys for them.
 
 ## Sound Board
 
