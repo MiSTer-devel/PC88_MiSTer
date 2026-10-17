@@ -1701,7 +1701,9 @@ begin
 						fdstate<=fs_ssizeh;
 					end if;
 				when fs_ssizeh =>
-					if(img_busy='0')then
+					--wait for the track buffer too: when the ID CRC byte before it is the first word of a new 256-word block,
+					--the buffer stores it only after the block move, with the address and data set here
+					if(img_busy='0' and trackbusy='0')then
 						sectlen(15 downto 8)<=img_rddat;
 						img_addr<=cursecthead+x"10";
 						img_rd<='1';
