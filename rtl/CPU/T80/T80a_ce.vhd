@@ -92,7 +92,12 @@ entity T80a_ce is
 		-- CPU write data before the bidirectional bus.
 		DOUT		: out std_logic_vector(7 downto 0);
 		CE_R		: in std_logic;
-		CE_F		: in std_logic
+		CE_F		: in std_logic;
+		-- '1' in the 5th T of a 5T or 6T M1 (RET cc, INC rr and the like),
+		-- not in an interrupt acknowledge or while the bus is released
+		M1T5		: out std_logic;
+		-- '1' in the 6th T of a 6T M1 (INC rr and the like), as M1T5
+		M1T6		: out std_logic
 	);
 end T80a_ce;
 
@@ -148,6 +153,9 @@ begin
 			end if;
 		end if;
 	end process;
+
+	M1T5 <= '1' when MCycle = "001" and TState = "101" and IntCycle_n = '1' and BUSAK_n_i = '1' else '0';
+	M1T6 <= '1' when MCycle = "001" and TState = "110" and IntCycle_n = '1' and BUSAK_n_i = '1' else '0';
 
 	u0 : T80
 		generic map(
