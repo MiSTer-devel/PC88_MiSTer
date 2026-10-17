@@ -500,17 +500,21 @@ begin
 	fmrxbit<=not WRBITn when WRMFM='0' and WRENn='0' else '0';
 	mfmrxbit<=not WRBITn when WRMFM='1' and WRENn='0' else '0';
 	
+	-- Start the receivers again at each write as well: the density can change after the
+	-- motor has started, and they take the bit length only here.
 	process(clk,rstn)
 	variable lREADY	:std_logic;
+	variable lWRENn	:std_logic;
 	begin
 		if(rstn='0')then
 			lREADY:='0';
+			lWRENn:='1';
 			fmdeminit<='0';
 			mfmdeminit<='0';
 		elsif(clk' event and clk='1')then
 			fmdeminit<='0';
 			mfmdeminit<='0';
-			if(MOTOR='1' and lREADY='0')then
+			if((MOTOR='1' and lREADY='0') or (WRENn='0' and lWRENn='1'))then
 				if(WRMFM='0')then
 					fmdeminit<='1';
 				else
@@ -518,6 +522,7 @@ begin
 				end if;
 			end if;
 			lREADY:=MOTOR;
+			lWRENn:=WRENn;
 		end if;
 	end process;
 	
