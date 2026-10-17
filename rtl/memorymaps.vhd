@@ -43,7 +43,8 @@ port(
 	GADR_MSEL	:out std_logic;
 	
 	--Extended RAM (E2h/E3h): "00" none, "01" 4 banks (E3h 0-3), "10" 16 banks.
-	--A bank that is not there acts as if E2h had the RAM disabled.
+	--A bank that is not there acts as if E2h had the RAM disabled, and E2h/E3h
+	--then read as FFh, as on the MA.
 	EXTTYPE		:in std_logic_vector(1 downto 0);
 
 	clk			:in std_logic;
@@ -241,7 +242,7 @@ begin
 	
 	IO71<=	"1111111" & IEROMn;
 	
-	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71,extwe,extre,extsel,EXTTYPE)begin
+	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71,extwe,extre,extsel,extbank)begin
 		if(CPU_IORQn='1' or CPU_RDn='1')then
 			CPU_RDAT<=(others=>'1');
 			CPU_OE<='0';
@@ -257,7 +258,7 @@ begin
 				CPU_RDAT<=IO71;
 				CPU_OE<='1';
 			when x"e2" =>
-				if(EXTTYPE/="00")then
+				if(extbank='1')then
 					CPU_RDAT<="111" & not extwe & "111" & not extre;
 					CPU_OE<='1';
 				else
@@ -265,8 +266,8 @@ begin
 					CPU_OE<='0';
 				end if;
 			when x"e3" =>
-				if(EXTTYPE/="00")then
-					CPU_RDAT<="0000" & extsel;
+				if(extbank='1')then
+					CPU_RDAT<="1111" & extsel;
 					CPU_OE<='1';
 				else
 					CPU_RDAT<=(others=>'1');
