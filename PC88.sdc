@@ -46,9 +46,8 @@ foreach inst {
 #  - the address and data of the ROM loader, held until the write is
 #    acknowledged.
 # Held values get set_max_delay, not set_false_path, so the limit the RTL
-# relies on stays checked. Hold checks are left as they are. Other crossings
-# (the MiSTer framework) are not covered here and still show up in the
-# report.
+# relies on stays checked. Hold checks are left as they are. The crossings of
+# the MiSTer framework are covered at the end of this file.
 set pc88_rclk  [get_clocks {emu|pll|pll_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}]
 set pc88_clk21 [get_clocks {emu|pll|pll_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}]
 
@@ -146,3 +145,48 @@ foreach {s d} [list \
 	"$pc88_top|CPU_rstn $pc88_top|srstn21" "$pc88_sub|CPUrstnrm $pc88_sub|CPUrstnr"] {
 	set_max_delay -from [pc88_cdc_regs "reset from" $s] -to [pc88_cdc_regs "reset to" $d] 13.333
 }
+
+# MiSTer framework: hps_io and sys_top run on clk_sys, which is clk21m here,
+# and the video side on CLK_VIDEO, which is rclk. Both come from the core PLL
+# (15:4), so the values that cross between them are checked against the
+# closest pair of edges, 3.332 ns. The settings below change only when the OSD
+# or the HPS writes them; the VS inputs and the video measurements go the other
+# way and change with the video. Each receiver
+#  - computes from it again and again (video_freak, the HDMI window in sys_top,
+#    pll_hdmi_adj after cfg_done, ascal's i_mode, marked <ASYNC> there),
+#  - restarts every frame (scanlines) or every line (the OSD window),
+#  - takes a single bit (en400p, gamma_en, osd_en, subcarrier, the VS filters
+#    on clk_sys), or
+#  - is read by the HPS after vid_nres has changed, which happens once the
+#    width and height (vid_hcnt, vid_vcnt in hps_io's video_calc) have
+#    stayed the same for about 15 frames (a forced read that meets a change of
+#    resolution is read again when vid_nres changes). vid_ccnt, vid_pixrep,
+#    vid_de_h and vid_de_v can change between lines or frames at the same
+#    resolution, so they are not covered here.
+# A value that misses a clock is taken at the receiver's next sample: a clock,
+# a line or a frame later (osd_en, on alternate frames). One rclk clock is
+# used.
+# Other paths from hps_io's status go into the core and are not covered here.
+set pc88_hps {emu:emu|hps_io:hps_io}
+set pc88_vc "$pc88_hps|video_calc:video_calc"
+set pc88_adj {pll_hdmi_adj:pll_hdmi_adj}
+foreach {s d} [list \
+	"$pc88_hps|status\[1\] $pc88_hps|status\[2\] $pc88_hps|status\[3\] $pc88_hps|status\[4\]" \
+		"emu:emu|video_freak:video_freak|* emu:emu|video_freak:video_freak|video_scale_int:scale|*" \
+	"$pc88_hps|status\[17\] $pc88_hps|status\[18\] $pc88_hps|status\[19\]" \
+		"emu:emu|en400p scanlines:VGA_scanlines|scanline\[*\]" \
+	"$pc88_hps|gamma_en" "emu:emu|gamma_fast:gamma|RGB_out\[*\]" \
+	"emu:emu|en400p" "$pc88_hps|io_dout\[*\]" \
+	"$pc88_vc|vid_hcnt\[*\] $pc88_vc|vid_vcnt\[*\] $pc88_vc|vid_nres\[*\]" \
+		"$pc88_vc|dout\[*\]" \
+	"osd:vga_osd|info osd:vga_osd|infoh\[*\] osd:vga_osd|osd_h\[*\] osd:vga_osd|osd_w\[*\]" \
+		"osd:vga_osd|osd_hcnt2\[*\] osd:vga_osd|osd_de\[*\]" \
+	"osd:vga_osd|osd_enable" "osd:vga_osd|osd_en\[*\]" \
+	"lowlat LFB_FLT LFB_EN" "ascal:ascal|i_mode\[*\]" \
+	"LFB_EN FREESCALE" "hmini\[*\] hmaxi\[*\] vmini\[*\] vmaxi\[*\] state\[*\]" \
+	"HDMI_PR" "videow\[*\]" \
+	"cfg_done" "$pc88_adj|i_delay\[*\] $pc88_adj|i_de2 $pc88_adj|i_line\[*\] $pc88_adj|i_linecpt\[*\] $pc88_adj|i_vss_delay $pc88_adj|i_vss2" \
+	"subcarrier" "subcarrier_out"] {
+	set_max_delay -from [pc88_cdc_regs "framework from" $s] -to [pc88_cdc_regs "framework to" $d] 13.333
+}
+set_max_delay -from $pc88_rclk -to [pc88_cdc_regs "framework VS" {vs_r vs_old vsd vs_d0 vs_d1}] 13.333
