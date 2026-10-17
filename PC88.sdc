@@ -132,3 +132,16 @@ set ldr_take [pc88_cdc_regs "loader take" [list \
 	"$pc88_ram|CPUADRb\[*\]" "$pc88_ram|CPUWDATb\[*\]" \
 	"$pc88_top|WRPOST:WRP|padr\[*\]" "$pc88_top|WRPOST:WRP|pdat\[*\]"]]
 set_max_delay -from $ldr -to $ldr_take 13.333
+
+# Reset synchronizers: srstn21 (clk21m) from srstn, CPU_rstnr and the sub CPU's
+# CPUrstnr (rclk) from CPU_rstn and srstn21. The reset clears both stages
+# directly and is released through them: the first stage takes '1' and the
+# second takes the first, so only their clear inputs see the other clock
+# (PC88MiSTer.vhd, SUBunitsMiSTer.vhd). A release that misses a clock is seen
+# one clock later; one rclk clock is used. Removal checks are left as they are.
+foreach {s d} [list \
+	"$pc88_top|srstn" "$pc88_top|srstn21m $pc88_top|srstn21" \
+	"$pc88_top|CPU_rstn" "$pc88_top|CPU_rstnrm $pc88_top|CPU_rstnr" \
+	"$pc88_top|CPU_rstn $pc88_top|srstn21" "$pc88_sub|CPUrstnrm $pc88_sub|CPUrstnr"] {
+	set_max_delay -from [pc88_cdc_regs "reset from" $s] -to [pc88_cdc_regs "reset to" $d] 13.333
+}
