@@ -291,6 +291,10 @@ port(
 	
 	drv0int		:out integer range 0 to (BR_300_D*sysclk/1000000);
 	drv1int		:out integer range 0 to (BR_300_D*sysclk/1000000);
+	drv0f		:out integer range 0 to (BR_300_D*sysclk*16+31250)/62500;
+	drv0m		:out integer range 0 to (BR_300_D*sysclk*16+31250)/62500;
+	drv1f		:out integer range 0 to (BR_300_D*sysclk*16+31250)/62500;
+	drv1m		:out integer range 0 to (BR_300_D*sysclk*16+31250)/62500;
 	
 	hmssft		:out std_logic;
 	
@@ -303,6 +307,8 @@ component  FDCs
 generic(
 	maxtrack	:integer	:=85;
 	maxbwidth	:integer	:=88;
+	maxfwidth	:integer	:=88*256;
+	fracin		:boolean	:=false;
 	rdytout		:integer	:=800;
 	preseek		:std_logic	:='0';
 	sysclk		:integer	:=20;
@@ -341,6 +347,14 @@ port(
 	int1	:in integer range 0 to maxbwidth;
 	int2	:in integer range 0 to maxbwidth;
 	int3	:in integer range 0 to maxbwidth;
+	intf0	:in integer range 0 to maxfwidth	:=0;
+	intf1	:in integer range 0 to maxfwidth	:=0;
+	intf2	:in integer range 0 to maxfwidth	:=0;
+	intf3	:in integer range 0 to maxfwidth	:=0;
+	intm0	:in integer range 0 to maxfwidth	:=0;
+	intm1	:in integer range 0 to maxfwidth	:=0;
+	intm2	:in integer range 0 to maxfwidth	:=0;
+	intm3	:in integer range 0 to maxfwidth	:=0;
 	
 	td0		:in std_logic;
 	td1		:in std_logic;
@@ -676,6 +690,7 @@ signal	FD_USEL		:std_logic_vector(1 downto 0);
 signal	FD_hmssft	:std_logic;
 signal	FD_int0		:integer range 0 to (BR_300_D*sysclk/1000000);
 signal	FD_int1		:integer range 0 to (BR_300_D*sysclk/1000000);
+signal	FD_f0,FD_m0,FD_f1,FD_m1	:integer range 0 to (BR_300_D*sysclk*16+31250)/62500;
 signal	PPI_CSn		:std_logic;
 signal	PSEN		:std_logic;
 signal	FDC_BUSY	:std_logic;
@@ -843,6 +858,10 @@ begin
 		
 		drv0int		=>FD_int0,
 		drv1int		=>FD_int1,
+		drv0f		=>FD_f0,
+		drv0m		=>FD_m0,
+		drv1f		=>FD_f1,
+		drv1m		=>FD_m1,
 		
 		hmssft		=>FD_hmssft,
 		
@@ -883,6 +902,8 @@ begin
 	FD	:FDCs generic map(
 	maxtrack	=>85,
 	maxbwidth	=>(BR_300_D*sysclk/1000000),
+	maxfwidth	=>(BR_300_D*sysclk*16+31250)/62500,
+	fracin		=>true,
 	sysclk		=>sysclk/1000,
 	oneclk		=>true
 )
@@ -918,6 +939,14 @@ port map(
 	int1	=>FD_int1,
 	int2	=>FD_int0,
 	int3	=>FD_int1,
+	intf0	=>FD_f0,
+	intf1	=>FD_f1,
+	intf2	=>FD_f0,
+	intf3	=>FD_f1,
+	intm0	=>FD_m0,
+	intm1	=>FD_m1,
+	intm2	=>FD_m0,
+	intm3	=>FD_m1,
 	
 	td0		=>TD0,
 	td1		=>TD1,

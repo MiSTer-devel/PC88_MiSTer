@@ -427,17 +427,23 @@ wire HSync, VSync, ce_pix, vid_de;
 
 // The tape reaches the 8251 as an asynchronous serial line, either from an image in the
 // Tape slot or from the ADC, where only the tone is decoded.
-localparam CLK_SYS_HZ = 20000000;
+localparam CLK_SYS_HZ = 20238095;
 
 wire       cmt_mton;
 wire [1:0] cmt_bs;
 wire [7:0] cmt_mode;   // 8251 mode written by the CPU
 
-// Port 30h is written in the CPU clock domain. Sample the bits twice before they are used.
-reg [2:0] cmt_port30_s1 = 0, cmt_port30_s = 0;
+// Port 30h is written in the CPU clock domain. The bits are synchronized in two
+// stages, and the three are taken as one word only after two equal samples: if
+// the bits written by one OUT arrive one clock apart, a mix of old and new bits
+// (motor on with the old cassette selection) must not reach the tape logic.
+// Writes are at least 1 us apart.
+reg [2:0] cmt_port30_s1 = 0, cmt_port30_s2 = 0, cmt_port30_s3 = 0, cmt_port30_s = 0;
 always @(posedge clk_sys) begin
 	cmt_port30_s1 <= {cmt_mton, cmt_bs};
-	cmt_port30_s  <= cmt_port30_s1;
+	cmt_port30_s2 <= cmt_port30_s1;
+	cmt_port30_s3 <= cmt_port30_s2;
+	if (cmt_port30_s3 == cmt_port30_s2) cmt_port30_s <= cmt_port30_s3;
 end
 
 wire tape_motor = cmt_port30_s[2];      // 30h bit3

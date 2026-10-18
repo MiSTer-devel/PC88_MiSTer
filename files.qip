@@ -89,6 +89,7 @@ set_global_assignment -name VHDL_FILE rtl/LIB/signext.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/CRCGENN.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/sftdiv.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/sftgen.vhd
+set_global_assignment -name VHDL_FILE rtl/LIB/sftfrac.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/sftclk.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/PARITYG.vhd
 set_global_assignment -name VHDL_FILE rtl/LIB/PARGEN.vhd

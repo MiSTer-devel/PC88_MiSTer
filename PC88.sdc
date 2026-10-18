@@ -35,9 +35,10 @@ foreach inst {
 	set_multicycle_path -hold  3 -from $regs -to $regs
 }
 
-# Crossings between rclk (75 MHz, general[0]) and clk21m (20 MHz, general[1]).
+# Crossings between rclk (75.892857 MHz, general[0]) and clk21m (20.238095 MHz,
+# general[1]).
 # Both come from the core PLL, so TimeQuest checks every crossing against the
-# closest pair of edges (3.337 ns), even where the RTL already makes the
+# closest pair of edges (about 3.29 ns), even where the RTL already makes the
 # crossing safe. Only those are listed here, by name:
 #  - the first stage of each cdc_sync2, which takes a single bit and is seen
 #    one clock later at worst,
@@ -86,8 +87,8 @@ foreach p [list "$pc88_top|mainport:MP|cdc_busport:port0" "$pc88_sub|fdcport:FDP
 	lappend pats "$p|cdc_sync2:reqs|s1" "$p|cdc_sync2:acks|s1"
 }
 set regs [pc88_cdc_regs "cdc_sync2 s1" $pats]
-set_max_delay -from $pc88_rclk  -to $regs 13.333
-set_max_delay -from $pc88_clk21 -to $regs 13.333
+set_max_delay -from $pc88_rclk  -to $regs 13.176
+set_max_delay -from $pc88_clk21 -to $regs 13.176
 
 # cdc_busport: the held access must reach the device side within one clk21m
 # clock, and rhold must reach rdatb within two rclk clocks (cdc_busport.vhd).
@@ -95,16 +96,16 @@ set_max_delay -from $pc88_clk21 -to $regs 13.333
 # sound chips and the 8251, so it is not named.
 foreach p [list "$pc88_top|mainport:MP|cdc_busport:port0" "$pc88_sub|fdcport:FDP|cdc_busport:port0"] {
 	set held [pc88_cdc_regs "$p held" [list "$p|hrd" "$p|hadrb\[*\]" "$p|hwd\[*\]"]]
-	set_max_delay -from $held -to $pc88_clk21 50.000
+	set_max_delay -from $held -to $pc88_clk21 49.411
 	set_max_delay -from [pc88_cdc_regs "$p rhold" [list "$p|rhold\[*\]"]] \
-	              -to   [pc88_cdc_regs "$p rdatb" [list "$p|rdatb\[*\]"]] 26.666
+	              -to   [pc88_cdc_regs "$p rdatb" [list "$p|rdatb\[*\]"]] 26.353
 }
 
 # cdc_hs from clk21m to rclk: a_hold must reach b_datab within two rclk clocks
 # plus one clk21m clock (cdc_hs.vhd); two rclk clocks are used.
 foreach h [list "$pc88_top|kbmirror:KBM|cdc_hs:rows" "$pc88_top|cdc_hs:CFGX" "$pc88_top|cdc_hs:FILLCMD"] {
 	set_max_delay -from [pc88_cdc_regs "$h a_hold"  [list "$h|a_hold\[*\]"]] \
-	              -to   [pc88_cdc_regs "$h b_datab" [list "$h|b_datab\[*\]"]] 26.666
+	              -to   [pc88_cdc_regs "$h b_datab" [list "$h|b_datab\[*\]"]] 26.353
 }
 
 # sdrbridge (disk emulation, FEC buffer, ADPCM-B RAM): address, data and kind
@@ -114,9 +115,9 @@ foreach h [list "$pc88_top|kbmirror:KBM|cdc_hs:rows" "$pc88_top|cdc_hs:CFGX" "$p
 set pc88_ram "$pc88_top|SDRAMCde0cvDEMU2:RAM"
 foreach {b c} {FDEB FDE FECB FEC SNDB SND} {
 	set_max_delay -from [pc88_cdc_regs "$b held" [list "$pc88_top|sdrbridge:$b|ADRb\[*\]" "$pc88_top|sdrbridge:$b|WDATb\[*\]" "$pc88_top|sdrbridge:$b|WRb"]] \
-	              -to   [pc88_cdc_regs "$c take" [list "$pc88_ram|${c}ADRb\[*\]" "$pc88_ram|${c}WDATb\[*\]" "$pc88_ram|${c}JOB\[*\]"]] 26.666
+	              -to   [pc88_cdc_regs "$c take" [list "$pc88_ram|${c}ADRb\[*\]" "$pc88_ram|${c}WDATb\[*\]" "$pc88_ram|${c}JOB\[*\]"]] 26.353
 	set_max_delay -from [pc88_cdc_regs "$c read"  [list "$pc88_ram|${c}RDAT\[*\]"]] \
-	              -to   [pc88_cdc_regs "$b RDATb" [list "$pc88_top|sdrbridge:$b|RDATb\[*\]"]] 50.000
+	              -to   [pc88_cdc_regs "$b RDATb" [list "$pc88_top|sdrbridge:$b|RDATb\[*\]"]] 49.411
 }
 
 # ROM loader (the first download after the core is loaded, boot.rom; ldr_done
@@ -131,7 +132,7 @@ set ldr_take [pc88_cdc_regs "loader take" [list \
 	"$pc88_top|SUBMEM:SUBM|*" "$pc88_top|CRTCP:CRT|fontram:GFNT|*" "$pc88_top|CRTCP:CRT|font8ram:FNT8|*" \
 	"$pc88_ram|CPUADRb\[*\]" "$pc88_ram|CPUWDATb\[*\]" \
 	"$pc88_top|WRPOST:WRP|padr\[*\]" "$pc88_top|WRPOST:WRP|pdat\[*\]"]]
-set_max_delay -from $ldr -to $ldr_take 13.333
+set_max_delay -from $ldr -to $ldr_take 13.176
 
 # Reset synchronizers: srstn21 (clk21m) from srstn, CPU_rstnr and the sub CPU's
 # CPUrstnr (rclk) from CPU_rstn and srstn21. The reset clears both stages
@@ -143,13 +144,13 @@ foreach {s d} [list \
 	"$pc88_top|srstn" "$pc88_top|srstn21m $pc88_top|srstn21" \
 	"$pc88_top|CPU_rstn" "$pc88_top|CPU_rstnrm $pc88_top|CPU_rstnr" \
 	"$pc88_top|CPU_rstn $pc88_top|srstn21" "$pc88_sub|CPUrstnrm $pc88_sub|CPUrstnr"] {
-	set_max_delay -from [pc88_cdc_regs "reset from" $s] -to [pc88_cdc_regs "reset to" $d] 13.333
+	set_max_delay -from [pc88_cdc_regs "reset from" $s] -to [pc88_cdc_regs "reset to" $d] 13.176
 }
 
 # MiSTer framework: hps_io and sys_top run on clk_sys, which is clk21m here,
 # and the video side on CLK_VIDEO, which is rclk. Both come from the core PLL
 # (15:4), so the values that cross between them are checked against the
-# closest pair of edges, 3.332 ns. The settings below change only when the OSD
+# closest pair of edges, about 3.29 ns. The settings below change only when the OSD
 # or the HPS writes them; the VS inputs and the video measurements go the other
 # way and change with the video. Each receiver
 #  - computes from it again and again (video_freak, the HDMI window in sys_top,
@@ -187,6 +188,18 @@ foreach {s d} [list \
 	"HDMI_PR" "videow\[*\]" \
 	"cfg_done" "$pc88_adj|i_delay\[*\] $pc88_adj|i_de2 $pc88_adj|i_line\[*\] $pc88_adj|i_linecpt\[*\] $pc88_adj|i_vss_delay $pc88_adj|i_vss2" \
 	"subcarrier" "subcarrier_out"] {
-	set_max_delay -from [pc88_cdc_regs "framework from" $s] -to [pc88_cdc_regs "framework to" $d] 13.333
+	set_max_delay -from [pc88_cdc_regs "framework from" $s] -to [pc88_cdc_regs "framework to" $d] 13.176
 }
-set_max_delay -from $pc88_rclk -to [pc88_cdc_regs "framework VS" {vs_r vs_old vsd vs_d0 vs_d1}] 13.333
+set_max_delay -from $pc88_rclk -to [pc88_cdc_regs "framework VS" {vs_r vs_old vsd vs_d0 vs_d1}] 13.176
+
+# RTC (uPD4990A, rtc4990MiSTer): the command and data bits of port 10h are
+# written by one OUT and taken on clk21m only at the rising edge of STB or CLK,
+# which port 40h writes by another OUT and which passes cdc_sync2 first
+# (RTCSTBs, RTCCKs). One rclk clock is used.
+set_max_delay -from [pc88_cdc_regs "RTC from" [list "$pc88_top|IO_WRS:IOW10|bit0" "$pc88_top|IO_WRS:IOW10|bit1" "$pc88_top|IO_WRS:IOW10|bit2" "$pc88_top|IO_WRS:IOW10|bit3"]] \
+              -to   [pc88_cdc_regs "RTC to" [list "$pc88_top|rtc4990MiSTer:U_RTC|Clat\[*\]" "$pc88_top|rtc4990MiSTer:U_RTC|S_Pn" "$pc88_top|rtc4990MiSTer:U_RTC|sDIN"]] 13.176
+
+# Port 30h for the tape: the first stage of the synchronizer in PC8801SR.sv.
+# The three bits are used only after two equal samples, so a bit that arrives
+# one clock later than the others is not seen as a mix. One rclk clock is used.
+set_max_delay -from $pc88_rclk -to [pc88_cdc_regs "port 30h" {emu:emu|cmt_port30_s1[*]}] 13.176
