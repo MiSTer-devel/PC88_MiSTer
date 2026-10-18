@@ -104,6 +104,9 @@ signal	bitlenw			:integer range 0 to maxbwidth;
 signal	bitlenrf,bitlenrm	:integer range 0 to cellf4000;
 
 signal	curtrack	:std_logic_vector(6 downto 0);
+signal	dstepx		:std_logic;
+signal	pastimg		:std_logic;	-- the head is past the tracks built from the image
+signal	rdatx		:std_logic_vector(15 downto 0);
 signal	curtrack0	:std_logic_vector(6 downto 0);
 signal	curtrack1	:std_logic_vector(6 downto 0);
 signal	curtrack2	:std_logic_vector(6 downto 0);
@@ -412,9 +415,19 @@ begin
 	end process;
 				
 	
-	txdat<=ramrdat(7 downto 0);
-	mcrdat<=ramrdat(8);
-	RDMFM<=ramrdat(9);
+	--past the tracks built from the image (2D: cylinder 43 on, others: cylinder 83 on) nothing was written to the RAM:
+	--play an unformatted MFM track there, as for an unformatted track in the image, not what is left in the RAM
+	dstepx<=	dstep(0) when USEL="00" else
+				dstep(1) when USEL="01" else
+				dstep(2) when USEL="10" else
+				dstep(3);
+	pastimg<=	'1' when dstepx='1' and curtrack>="1010110" else
+				'1' when dstepx='0' and curtrack>="1010011" else
+				'0';
+	rdatx<=x"024e" when pastimg='1' else ramrdat;
+	txdat<=rdatx(7 downto 0);
+	mcrdat<=rdatx(8);
+	RDMFM<=rdatx(9);
 	
 	fmtxwr<=	'0' when RDMFM='1' else
 				'0' when mcrdat='1' else

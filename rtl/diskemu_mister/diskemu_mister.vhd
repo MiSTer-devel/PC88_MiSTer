@@ -1343,7 +1343,7 @@ begin
 					end case;
 					if(haddr=x"00000000")then				-- unformat
 						track_curaddr<=(others=>'0');
-						trackwrdat<=x"00ff";
+						trackwrdat<=x"024e";	-- unformatted: fill with MFM so a turn takes as long as a formatted one (FM words play at half speed)
 						trackwr<='1';
 						fdstate<=fs_gap4;
 					else
@@ -2542,7 +2542,7 @@ begin
 							ovl_we<='1';
 							ovl_wd<='0';
 							track_curaddr<=(others=>'0');
-							trackwrdat<=x"00ff";
+							trackwrdat<=x"024e";	-- unformatted: MFM, as above
 							trackwr<='1';
 							fdstate<=fs_gap4;
 						else
