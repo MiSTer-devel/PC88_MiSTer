@@ -175,7 +175,28 @@ begin
 		end if;
 	end process;
 	RDDAT<=KBROW(conv_integer(WRADR));
-	SCANDAT<=KBROW(conv_integer(SCANADR));
+	--The keys added on the FH set their own cells in rows 12 to 14, and also read as
+	--the older keys that do the same thing, as on the FH: both RETURNs as RETURN,
+	--both SHIFTs as SHIFT, F6 to F10 as SHIFT and F1 to F5, INS as SHIFT and INS/DEL,
+	--BS and DEL as INS/DEL, and the two keys in row 13 bits 0 and 1 as SPACE.
+	process(SCANADR,KBROW)
+	variable r	:std_logic_vector(7 downto 0);
+	begin
+		r:=KBROW(conv_integer(SCANADR));
+		case SCANADR is
+		when x"1" =>
+			r(7):=r(7) and KBROW(14)(0) and KBROW(14)(1);
+		when x"8" =>
+			r(6):=r(6) and KBROW(14)(2) and KBROW(14)(3) and KBROW(12)(0) and KBROW(12)(1) and KBROW(12)(2)
+				and KBROW(12)(3) and KBROW(12)(4) and KBROW(12)(6);
+			r(3):=r(3) and KBROW(12)(5) and KBROW(12)(6) and KBROW(12)(7);
+		when x"9" =>
+			r(5 downto 1):=r(5 downto 1) and KBROW(12)(4 downto 0);
+			r(6):=r(6) and KBROW(13)(0) and KBROW(13)(1);
+		when others =>
+		end case;
+		SCANDAT<=r;
+	end process;
 	INITDONE<=INITDONEb;
 	
 	KBSFT	:sftclk generic map(CLKCYC,SFTCYC,1) port map("1",SFT,clk,rstn);
