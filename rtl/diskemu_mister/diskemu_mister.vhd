@@ -180,6 +180,9 @@ type fdstate_t is (
 	fs_allot,
 	fs_allotchk,
 	fs_reloc,
+	fs_phscan,
+	fs_phclrw,
+	fs_phnext,
 	fs_relocw,
 	fs_putgo,
 	fs_savenexttrack,
@@ -318,6 +321,7 @@ signal	idcnt	:integer range 0 to 4;
 signal	allotidx	:std_logic_vector(7 downto 0);
 signal	wbyte	:integer range 0 to 7;
 signal	sizechg	:std_logic;
+signal	phdone	:std_logic;
 signal	fsize0	:std_logic_vector(31 downto 0);
 signal	fsize1	:std_logic_vector(31 downto 0);
 signal	scanlim	:std_logic_vector(31 downto 0);
@@ -2570,6 +2574,7 @@ begin
 						if(fsize1>=x"00000200" and fsize1<=((haddr+x"000001ff") and x"fffffe00"))then relok<='1'; else relok<='0'; end if;
 					end if;
 					sizechg<='0';
+					phdone<='0';
 					tbladdr<=x"08";
 					track_curaddr<=(others=>'0');
 					trackrd<='1';
@@ -2654,11 +2659,48 @@ begin
 						fdstate<=fs_putgo;
 					end if;
 				when fs_reloc =>
-					cursecthead<=disksize;
-					disksize<=(disksize+newlen+x"000001ff") and x"fffffe00";
-					sizechg<='1';
-					wbyte<=0;
-					fdstate<=fs_relocw;
+					if(phdone='0')then		-- first move in this save: write 0 to the entries that point past the data
+						phdone<='1';
+						allotidx<=(others=>'0');
+						tbladdr<=x"08";
+						swait:=2;
+						fdstate<=fs_phscan;
+					else
+						cursecthead<=disksize;
+						disksize<=(disksize+newlen+x"000001ff") and x"fffffe00";
+						sizechg<='1';
+						wbyte<=0;
+						fdstate<=fs_relocw;
+					end if;
+				when fs_phscan =>		-- tracktable reads entries past the disk size as 0, but the image keeps them,
+										-- and a moved track would land where they point
+					if(haddr=x"00000000" or haddr>=curfsize)then
+						wbyte<=0;
+						fdstate<=fs_phclrw;
+					else
+						fdstate<=fs_phnext;
+					end if;
+				when fs_phclrw =>
+					if(img_busy='0')then
+						img_addr<=(x"00000" & "00" & allotidx & "00")+x"20"+wbyte;
+						img_wrdat<=x"00";
+						img_wr<='1';
+						swait:=2;
+						if(wbyte=3)then
+							fdstate<=fs_phnext;
+						else
+							wbyte<=wbyte+1;
+						end if;
+					end if;
+				when fs_phnext =>
+					if((allotidx+1)<tracks)then
+						allotidx<=allotidx+1;
+						tbladdr<=allotidx+x"09";
+						swait:=2;
+						fdstate<=fs_phscan;
+					else
+						fdstate<=fs_reloc;
+					end if;
 				when fs_relocw =>		-- the new disk size first, then the table entry
 					if(img_busy='0')then
 						if(wbyte<4)then
