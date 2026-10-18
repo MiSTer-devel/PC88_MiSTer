@@ -46,6 +46,10 @@ end FDemu;
 
 architecture rtl of FDemu is
 constant 	maxbwidth	:integer	:=4000*sysclk/1000000;
+-- bit cells in 1/256 clocks, rounded (sysclk in kHz): BR_ns*sysclk*256/10^6
+constant	cellf4000	:integer	:=(4000*sysclk*16+31250)/62500;
+constant	cellf2000	:integer	:=(2000*sysclk*16+31250)/62500;
+constant	cellf1000	:integer	:=(1000*sysclk*16+31250)/62500;
 signal	TRAMRDDAT		:std_logic_vector(8 downto 0);
 signal	RDMFM		:std_logic;
 signal	deminit		:std_logic;
@@ -96,7 +100,8 @@ signal	modbreak	:std_logic;
 signal	curpos		:std_logic_vector(13 downto 0);
 signal	lcurpos		:std_logic_vector(13 downto 0);
 
-signal	bitlenr,bitlenw		:integer range 0 to maxbwidth;
+signal	bitlenw			:integer range 0 to maxbwidth;
+signal	bitlenrf,bitlenrm	:integer range 0 to cellf4000;
 
 signal	curtrack	:std_logic_vector(6 downto 0);
 signal	curtrack0	:std_logic_vector(6 downto 0);
@@ -231,9 +236,9 @@ port(
 );
 end component;
 
-component sftgen
+component sftfrac
 generic(
-	maxlen	:integer	:=100
+	maxlen	:integer	:=100*256
 );
 port(
 	len		:in integer range 0 to maxlen;
@@ -347,7 +352,6 @@ begin
 					fdenbl3	when USEL="11" else
 					'0';
 
-	bitlenr<=	4000*sysclk/1000000	when selfdmode(1)='0' else 2000*sysclk/1000000;
 				
 	bitlenw<=	4000*sysclk/1000000	when WRFDMODE(1)='0' else 2000*sysclk/1000000;
 				
@@ -451,8 +455,12 @@ begin
 			
 	indexn<='0' when curpos="00000000000000" else '1';
 	
-	wsftfm	:sftgen generic map(maxbwidth) port map(bitlenr,modsftfm,clk,rstn);
-	wsftmfm	:sftgen generic map(maxbwidth/2) port map(bitlenr/2,modsftmfm,clk,rstn);
+	-- the read data is clocked by fractional bit cells, so the rotation and the
+	-- data rate follow sysclk exactly
+	bitlenrf<=	cellf4000	when selfdmode(1)='0' else cellf2000;
+	bitlenrm<=	cellf2000	when selfdmode(1)='0' else cellf1000;
+	wsftfm	:sftfrac generic map(cellf4000) port map(bitlenrf,modsftfm,clk,rstn);
+	wsftmfm	:sftfrac generic map(cellf4000) port map(bitlenrm,modsftmfm,clk,rstn);
 	
 	fmtx	:fmmod port map(
 		txdat	=>txdat,

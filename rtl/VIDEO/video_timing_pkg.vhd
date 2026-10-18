@@ -35,9 +35,10 @@ package VIDEO_TIMING_pkg is
 	--the rest of the retrace.
 	constant VFP24	:integer	:=7;
 	constant VSY24	:integer	:=2;
-	--dot clock: 75MHz*16/57 = 21.0526MHz
-	constant DOTNUM24	:integer	:=16;
-	constant DOTDEN24	:integer	:=57;
+	--dot clock: 400/19 MHz = 21.0526MHz from rclk 2125/28 MHz (75.892857MHz,
+	--rtl/pll/pll_0002.v): (400/19)/(2125/28) = 448/1615 exactly
+	constant DOTNUM24	:integer	:=448;
+	constant DOTDEN24	:integer	:=1615;
 	--accepted CRTC parameters: character height 8-20, rows 1-25, retrace 40 lines or more
 	constant CHRLMIN24	:integer	:=8;
 	constant CHRLMAX24	:integer	:=20;
@@ -61,9 +62,10 @@ package VIDEO_TIMING_pkg is
 	constant HIV15	:integer	:=HUWIDTH15-HUVIS;
 	constant VFP15	:integer	:=15;
 	constant VSY15	:integer	:=3;
-	--dot clock: 75MHz*21/110 = 14.3182MHz
-	constant DOTNUM15	:integer	:=21;
-	constant DOTDEN15	:integer	:=110;
+	--dot clock: 315/22 MHz = 14.3182MHz from rclk 2125/28 MHz. The exact ratio
+	--is 882/4675; 223/1182 is 0.96 ppm fast and keeps the accumulator at 11 bits
+	constant DOTNUM15	:integer	:=223;
+	constant DOTDEN15	:integer	:=1182;
 	--accepted CRTC parameters: as in 24kHz, but retrace 19 lines or more
 	--(front porch and sync, and at least one line of back porch)
 	constant VRETMIN15	:integer	:=VFP15+VSY15+1;
@@ -76,7 +78,7 @@ package VIDEO_TIMING_pkg is
 
 	--counter ranges for all timings
 	constant HUWMAX	:integer	:=HUWIDTH15;
-	constant DOTDENMAX	:integer	:=DOTDEN15;
+	constant DOTDENMAX	:integer	:=DOTDEN24;
 	constant VWMAX	:integer	:=(ROWSMAX24+8)*CHRLMAX24;
 
 end VIDEO_TIMING_pkg;

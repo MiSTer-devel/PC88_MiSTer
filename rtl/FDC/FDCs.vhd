@@ -9,6 +9,8 @@ entity FDCs is
 generic(
 	maxtrack	:integer	:=85;
 	maxbwidth	:integer	:=88;
+	maxfwidth	:integer	:=88*256;	--bit cells in 1/256 clocks
+	fracin		:boolean	:=false;	--true: intf*/intm* time the writes; false: int* as before
 	rdytout		:integer	:=800;
 	preseek		:std_logic	:='0';
 	sysclk		:integer	:=20;
@@ -48,6 +50,15 @@ port(
 	int1	:in integer range 0 to maxbwidth;
 	int2	:in integer range 0 to maxbwidth;
 	int3	:in integer range 0 to maxbwidth;
+	--the same bit cells in 1/256 clocks, for FM and for MFM: they time the writes
+	intf0	:in integer range 0 to maxfwidth	:=0;
+	intf1	:in integer range 0 to maxfwidth	:=0;
+	intf2	:in integer range 0 to maxfwidth	:=0;
+	intf3	:in integer range 0 to maxfwidth	:=0;
+	intm0	:in integer range 0 to maxfwidth	:=0;
+	intm1	:in integer range 0 to maxfwidth	:=0;
+	intm2	:in integer range 0 to maxfwidth	:=0;
+	intm3	:in integer range 0 to maxfwidth	:=0;
 	
 	td0		:in std_logic;
 	td1		:in std_logic;
@@ -385,7 +396,7 @@ signal	incRs		:std_logic;
 signal	resRs		:std_logic;
 signal	setNs		:std_logic;
 signal	bitwidth	:integer range 0 to maxbwidth*2;
-signal	sftwidth	:integer range 0 to maxbwidth*2;
+signal	sftwidth	:integer range 0 to maxfwidth;
 signal	setHD		:std_logic;
 signal	resHD		:std_logic;
 signal	setHDs	:std_logic;
@@ -611,9 +622,9 @@ port(
 );
 end component;
 
-component sftgen
+component sftfrac
 generic(
-	maxlen	:integer	:=100
+	maxlen	:integer	:=100*256
 );
 port(
 	len		:in integer range 0 to maxlen;
@@ -4972,9 +4983,22 @@ port map(
 	rstn	=>rstn
 );
 
-	sftwidth<= bitwidth when MF='0' else bitwidth/2;
+	fr:if fracin generate
+	sftwidth<=
+				intf0	when US="00" and MF='0' else
+				intf1	when US="01" and MF='0' else
+				intf2	when US="10" and MF='0' else
+				intf3	when MF='0' else
+				intm0	when US="00" else
+				intm1	when US="01" else
+				intm2	when US="10" else
+				intm3;
+	end generate;
+	nfr:if not fracin generate
+	sftwidth<= bitwidth*256 when MF='0' else (bitwidth/2)*256;
+	end generate;
 	
-	sgen:sftgen generic map(maxbwidth*2) port map(
+	sgen:sftfrac generic map(maxfwidth) port map(
 		len		=>sftwidth,
 		sft		=>modsft,
 		

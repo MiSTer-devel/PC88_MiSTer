@@ -6,9 +6,9 @@ LIBRARY	IEEE,work;
 	
 entity PC88MiSTer is
 generic(
-	SYSCLK		:integer	:=20000;		--kHz
-	VIDCLK		:integer	:=75000;		--kHz
-	RAMCLK		:integer	:=75000;		--kHz
+	SYSCLK		:integer	:=20238;		--kHz
+	VIDCLK		:integer	:=75892;		--kHz
+	RAMCLK		:integer	:=75892;		--kHz
 	USE_OPN		:integer	:=5;
 	RAMAWIDTH	:integer	:=24;
 	RAMCAWIDTH	:integer	:=9	
@@ -3563,7 +3563,8 @@ end process;
 		PSG_OE	<= '0';
 		IDAT_PSG<= (others=>'1');
 
-		FMDDS: DDS_OPN generic map(1248,3125) port map (
+		-- 7.9872MHz from clk21m = 425/21 MHz (20.238095MHz): 414/1049 is 0.16 ppm slow
+		FMDDS: DDS_OPN generic map(414,1049) port map (
 			rst		=>not srstna,
 			clk		=>clk21m,
 			enable	=>cen_opna
