@@ -1399,7 +1399,7 @@ begin
 					if(numsect=x"0000")then				-- a header with no sectors: unformatted, like haddr=0
 						usestd<='0';
 						track_curaddr<=(others=>'0');
-						trackwrdat<=x"00ff";
+						trackwrdat<=x"024e";	-- unformatted: MFM, as above
 						trackwr<='1';
 						fdstate<=fs_gap4;
 					else

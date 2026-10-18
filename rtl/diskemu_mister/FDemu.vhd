@@ -415,14 +415,14 @@ begin
 	end process;
 				
 	
-	--past the tracks built from the image (2D: cylinder 43 on, others: cylinder 83 on) nothing was written to the RAM:
+	--past the tracks built from the image (2D: cylinder 42 on, others: cylinder 82 on) nothing was written to the RAM:
 	--play an unformatted MFM track there, as for an unformatted track in the image, not what is left in the RAM
 	dstepx<=	dstep(0) when USEL="00" else
 				dstep(1) when USEL="01" else
 				dstep(2) when USEL="10" else
 				dstep(3);
-	pastimg<=	'1' when dstepx='1' and curtrack>="1010110" else
-				'1' when dstepx='0' and curtrack>="1010011" else
+	pastimg<=	'1' when dstepx='1' and curtrack>="1010100" else
+				'1' when dstepx='0' and curtrack>="1010010" else
 				'0';
 	rdatx<=x"024e" when pastimg='1' else ramrdat;
 	txdat<=rdatx(7 downto 0);
