@@ -17,9 +17,9 @@ use IEEE.numeric_std.all;
 --7.8 times per T against 7.2), so K is smaller while IOC is high.
 --At 8MHz a FH charges the 5th and 6th T of a 5T or 6T M1 cycle (RET cc,
 --INC rr and the like) differently from other T-states, mostly less, so K is
---set separately in them. The values were fitted to a FH for each timing and
---text DMA state; why the FH charges them differently is not known. 4MHz is
---not changed.
+--set separately in them. At 4MHz BUSWAIT adds nothing in those T-states, so
+--K is set separately there too. The values were fitted to a FH for each
+--timing and text DMA state; why the FH charges them differently is not known.
 --Only the original ce_r/ce_f ticks are passed or dropped, and the passed ones
 --always alternate ce_r, ce_f, ce_r, ... so every user of the enables sees a
 --slower CPU clock. While STR is low all of them pass.
@@ -91,6 +91,21 @@ begin
 				K<=142;
 			elsif(FAST='1')then
 				K<=206;
+			--4MHz M1 5th/6th T: 24kHz with and without the text DMA, then 15kHz.
+			elsif(FAST='0' and T24='1' and (T5='1' or T6='1') and TXA='1')then
+				K<=163;
+			elsif(FAST='0' and T24='1' and T5='1')then
+				K<=131;
+			elsif(FAST='0' and T24='1' and T6='1')then
+				K<=119;
+			elsif(FAST='0' and T5='1' and TXA='1')then
+				K<=496;
+			elsif(FAST='0' and T6='1' and TXA='1')then
+				K<=163;
+			elsif(FAST='0' and T5='1')then
+				K<=317;
+			elsif(FAST='0' and T6='1')then
+				K<=162;
 			elsif(T24='1')then
 				K<=188;
 			else
