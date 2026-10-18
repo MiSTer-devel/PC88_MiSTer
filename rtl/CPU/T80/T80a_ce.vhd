@@ -97,7 +97,12 @@ entity T80a_ce is
 		-- not in an interrupt acknowledge or while the bus is released
 		M1T5		: out std_logic;
 		-- '1' in the 6th T of a 6T M1 (INC rr and the like), as M1T5
-		M1T6		: out std_logic
+		M1T6		: out std_logic;
+		-- '1' in a memory read cycle other than an M1, while the bus is not
+		-- released
+		MRD			: out std_logic;
+		-- the M cycle (MCycle of T80), to tell one cycle from the next
+		MCYC		: out std_logic_vector(2 downto 0)
 	);
 end T80a_ce;
 
@@ -156,6 +161,9 @@ begin
 
 	M1T5 <= '1' when MCycle = "001" and TState = "101" and IntCycle_n = '1' and BUSAK_n_i = '1' else '0';
 	M1T6 <= '1' when MCycle = "001" and TState = "110" and IntCycle_n = '1' and BUSAK_n_i = '1' else '0';
+
+	MRD <= '1' when MCycle /= "001" and NoRead = '0' and Write = '0' and IORQ = '0' and BUSAK_n_i = '1' else '0';
+	MCYC <= MCycle;
 
 	u0 : T80
 		generic map(

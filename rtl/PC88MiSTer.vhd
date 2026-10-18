@@ -281,7 +281,9 @@ component T80a_ce
         CE_R        : in std_logic;
         CE_F        : in std_logic;
         M1T5        : out std_logic;
-        M1T6        : out std_logic
+        M1T6        : out std_logic;
+        MRD         : out std_logic;
+        MCYC        : out std_logic_vector(2 downto 0)
     );
 end component;
 
@@ -694,7 +696,9 @@ port(
 	IOC		:in std_logic;
 	T5		:in std_logic;
 	T6		:in std_logic;
-	TXA		:in std_logic
+	TXA		:in std_logic;
+	MRD		:in std_logic;
+	MCYC	:in std_logic_vector(2 downto 0)
 );
 end component;
 
@@ -1712,6 +1716,8 @@ signal	G_PLANESEL	:std_logic;
 signal	GVSTR		:std_logic;
 signal	CPUM1T5		:std_logic;
 signal	CPUM1T6		:std_logic;
+signal	CPUMRD		:std_logic;
+signal	CPUMCYC		:std_logic_vector(2 downto 0);
 signal	GVSTXA		:std_logic;
 signal	GVSTRr		:std_logic;
 signal	GVS_WAITn	:std_logic;
@@ -2176,7 +2182,9 @@ begin
 		CE_R	=>cpuce_r,
 		CE_F	=>cpuce_f,
 		M1T5	=>CPUM1T5,
-		M1T6	=>CPUM1T6
+		M1T6	=>CPUM1T6,
+		MRD		=>CPUMRD,
+		MCYC	=>CPUMCYC
 	);
 
 	IORQ_n	<=IORQ_np	when BUSACK_n='1' else '1';
@@ -3072,7 +3080,7 @@ port map(
 		end if;
 	end process;
 	GVSIOC<='1' when IORQ_n='0' and M1_n='1' and GVSACK='0' and FMWSEL='0' else '0';
-	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr,T24,GVSIOC,CPUM1T5,CPUM1T6,GVSTXA);
+	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr,T24,GVSIOC,CPUM1T5,CPUM1T6,GVSTXA,CPUMRD,CPUMCYC);
 	GVSTXA<=CRTCen and TDMAEN;
 	--TRAMCONV takes GVSTR from this register, as for VRTCr.
 	process(rclk)begin
