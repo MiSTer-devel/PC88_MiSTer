@@ -16,8 +16,10 @@ use IEEE.std_logic_1164.all;
 --These counts come on top of the wait of a main RAM access (1 at 8MHz, none
 --at 4MHz), and the sum is the whole wait of the access: every ce_f sample of
 --the access is counted, also while another wait holds the CPU, so the access
---takes the larger of the two. A real FH writes graphic VRAM as fast as it
---reads it, while the SDRAM of the core takes one more state on a write.
+--takes the larger of the two. On a real FH a write to graphic VRAM waits as
+--long as a read, while the SDRAM of the core takes one more state on a write.
+--One FH case is not modeled: at 8MHz in 24kHz timing, writes 7 states apart
+--wait about one state more.
 --The opcode fetch wait of M1WAIT is the exception: those samples are not
 --counted, so it still adds to these waits as before.
 --Once the CPU has seen WAIT_n high in an access, the wait stays off until the
