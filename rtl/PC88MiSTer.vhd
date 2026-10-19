@@ -677,6 +677,23 @@ port(
 );
 end component;
 
+component TRAMWAIT
+port(
+	SEL		:in std_logic;
+	RDn		:in std_logic;
+	M1n		:in std_logic;
+	CPUMD	:in std_logic;
+	HS		:in std_logic;
+	V1S		:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component GVSTRETCH
 port(
 	ce_r_in	:in std_logic;
@@ -1698,6 +1715,9 @@ signal	SB2_WRn		:std_logic;
 signal	SB2_RDn		:std_logic;
 signal	M1_WAITn	:std_logic;
 signal	V1S4M		:std_logic;
+signal	TRAM_WAITn	:std_logic;
+signal	TRWSEL		:std_logic;
+signal	TRWV1S		:std_logic;
 signal	WAIT_nb		:std_logic;
 signal	WAIT_other	:std_logic;
 signal	GV_WAITn	:std_logic;
@@ -2832,6 +2852,7 @@ port map(
 
 
 	WAIT_nb<=	not RAM_WAIT when RAM_CE='1' else
+				TRAM_WAITn when TRAM_CE='1' else
 				not RAM_WAIT when KANJI1RD='1' else
 				not RAM_WAIT when KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
@@ -3037,6 +3058,12 @@ port map(
 	-- One wait state on every opcode fetch in V1S and N at 4MHz, as measured on a real FH.
 	V1S4M<='1' when cV1S='1' and CPUMD='0' else '0';
 	WAIT_other<=not WAIT_nb;
+	-- Wait states on the high-speed RAM (F000h-, block RAM), as measured on a
+	-- real FH. They are put in WAIT_nb as for SDRAM, so the other waits count
+	-- them or come after them.
+	TRWSEL<='1' when TRAM_CE='1' and (RD_n='0' or WR_n='0') else '0';
+	TRWV1S<='1' when MODE=MOD_V1S else '0';
+	TRW		:TRAMWAIT port map(TRWSEL,RD_n,M1_n,CPUMD,cHS,TRWV1S,TRAM_WAITn,rclk,cpuce_f,CPU_rstnr);
 	M1W		:M1WAIT port map(M1_n,MREQ_n,WAIT_other,V1S4M,M1_WAITn,rclk,cpuce_f,CPU_rstnr);
 	-- Wait states on graphic VRAM reads and writes, as measured on a real FH:
 	-- V1H and V2, and V1S when the ALU is in use or in the high-speed mode.
