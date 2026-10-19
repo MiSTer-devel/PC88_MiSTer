@@ -121,8 +121,15 @@ the scaler is enabled in MiSTer.ini (`vga_scaler=1` or `vga_fb=1`), so a VGA mon
 takes 31kHz needs `vga_scaler=1` and a `video_mode` the monitor accepts.
 On HDMI, Scale set to V-Integer keeps the lines the same thickness.
 
-## Known Issues
-- Gamma correction doesn't seem to change anything (?)
+## Color levels
+
+The Color levels option on the OSD sets the brightness of the 8 levels of each color.
+
+- Linear (default): even steps from black to full, as the core has always done.
+- Real PC-88: the levels measured on a real PC-8801FH. Level 0 is black and levels 1 to 7 rise
+  in even steps from about 30% of full, so dark colors are brighter than with Linear.
+
+Gamma correction is applied after this, with either setting.
 
 ## TODO
 - Update T80 cpu

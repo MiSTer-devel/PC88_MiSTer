@@ -157,7 +157,8 @@ foreach {s d} [list \
 #    pll_hdmi_adj after cfg_done, ascal's i_mode, marked <ASYNC> there),
 #  - restarts every frame (scanlines) or every line (the OSD window),
 #  - takes a single bit (en400p, gamma_en, osd_en, subcarrier, the VS filters
-#    on clk_sys), or
+#    on clk_sys),
+#  - is the first stage of a synchronizer (the color levels option), or
 #  - is read by the HPS after vid_nres has changed, which happens once the
 #    width and height (vid_hcnt, vid_vcnt in hps_io's video_calc) have
 #    stayed the same for about 15 frames (a forced read that meets a change of
@@ -177,6 +178,7 @@ foreach {s d} [list \
 	"$pc88_hps|status\[17\] $pc88_hps|status\[18\] $pc88_hps|status\[19\]" \
 		"emu:emu|en400p scanlines:VGA_scanlines|scanline\[*\]" \
 	"$pc88_hps|gamma_en" "emu:emu|gamma_fast:gamma|RGB_out\[*\]" \
+	"$pc88_hps|status\[28\]" "emu:emu|color_real_s1" \
 	"emu:emu|en400p" "$pc88_hps|io_dout\[*\]" \
 	"$pc88_vc|vid_hcnt\[*\] $pc88_vc|vid_vcnt\[*\] $pc88_vc|vid_nres\[*\]" \
 		"$pc88_vc|dout\[*\]" \

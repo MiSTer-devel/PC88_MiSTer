@@ -209,6 +209,7 @@ parameter CONF_STR = {
 	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"OHJ,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"OOP,Video timing,31kHz,24kHz,15kHz;",
+	"OS,Color levels,Linear,Real PC-88;",
 	"-;",
 	"O78,Mode,N88V2,N88V1H,N88V1S,N;",
 	"O9,Speed,4MHz,8MHz;",
@@ -421,6 +422,32 @@ assign AUDIO_S = 1;
 wire disk_led;
 
 wire [7:0] red, green, blue;
+
+// Color levels: the core gives each of R, G and B as a 3-bit level repeated to 8 bits.
+// "Real PC-88" maps the levels to what a PC-8801FH puts out, measured through the same
+// capture chain as the core: level 0 is black and levels 1-7 rise in even steps from 75.
+// The OSD bit is on clk_sys and the colors on CLK_VIDEO, so the bit passes two registers
+// first; only color_real is used.
+reg color_real_s1 = 0, color_real = 0;
+always @(posedge CLK_VIDEO) begin
+	color_real_s1 <= status[28];
+	color_real    <= color_real_s1;
+end
+function [7:0] real_level(input [7:0] c);
+	case (c[7:5])
+		3'd0: real_level = 8'd0;
+		3'd1: real_level = 8'd75;
+		3'd2: real_level = 8'd105;
+		3'd3: real_level = 8'd135;
+		3'd4: real_level = 8'd167;
+		3'd5: real_level = 8'd197;
+		3'd6: real_level = 8'd227;
+		default: real_level = 8'd255;
+	endcase
+endfunction
+wire [7:0] red_o   = color_real ? real_level(red)   : red;
+wire [7:0] green_o = color_real ? real_level(green) : green;
+wire [7:0] blue_o  = color_real ? real_level(blue)  : blue;
 wire HSync, VSync, ce_pix, vid_de;
 
 //////////////////  CASSETTE (CMT) INPUT  ///////////////////
@@ -864,7 +891,7 @@ gamma_fast gamma
     .HSync(HSync),
     .VSync(VSync),
     .DE(vid_de),
-    .RGB_in( {red,green,blue}),
+    .RGB_in( {red_o,green_o,blue_o}),
    
 
     .HSync_out(VGA_HS),
