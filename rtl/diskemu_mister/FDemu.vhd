@@ -99,6 +99,14 @@ signal	modbreak	:std_logic;
 
 signal	curpos		:std_logic_vector(13 downto 0);
 signal	lcurpos		:std_logic_vector(13 downto 0);
+signal	tpos		:std_logic_vector(13 downto 0);
+signal	tposinc		:std_logic_vector(13 downto 0);
+signal	tposnext	:std_logic_vector(13 downto 0);
+signal	tposbase	:std_logic_vector(13 downto 0);
+signal	tsel		:std_logic_vector(10 downto 0);
+signal	ltsel		:std_logic_vector(10 downto 0);
+signal	rebase		:std_logic;
+signal	tposrb		:std_logic;
 
 signal	bitlenw			:integer range 0 to maxbwidth;
 signal	bitlenrf,bitlenrm	:integer range 0 to cellf4000;
@@ -400,16 +408,42 @@ begin
 		end if;
 	end process;
 	
+	--one turn is counted in time, not in words: an FM word takes the time of 2 MFM words
+	--when another drive, side or track is selected or the image is replaced, restart the time from the word position, as the position was kept in words before;
+	--the first word after it counts as MFM (its density may still be that of the word before), so that the turn never ends early
+	tsel<=USEL & curtrack & siden & txenable;
+	tposrb<='1' when tsel/=ltsel or rebase='1' else '0';
+	tposinc<=	"00000000000001" when tposrb='1' else
+				"00000000000001" when txwr='1' and RDMFM='1' else
+				"00000000000001" when txwr='0' and WRMFM='1' else
+				"00000000000010";
+	tposbase<=curpos when tposrb='1' else tpos;
+	tposnext<=tposbase+tposinc;
+
 	process(clk,rstn)begin
 		if(rstn='0')then
 			curpos<=(others=>'0');
+			tpos<=(others=>'0');
+			ltsel<=(others=>'0');
+			rebase<='0';
 		elsif(clk' event and clk='1')then
+			ltsel<=tsel;
+			if(tsel/=ltsel)then
+				rebase<='1';
+			end if;
 			if(txwr='1' or (WRENn='0' and rxed='1'))then
-				if(curpos>=tracklenx-1)then
+				if(tsel=ltsel)then
+					rebase<='0';
+				end if;
+				if(tposnext>=tracklenx)then
 					curpos<=(others=>'0');
+					tpos<=(others=>'0');
 				else
 					curpos<=curpos+1;
+					tpos<=tposnext;
 				end if;
+			elsif(tsel/=ltsel)then
+				tpos<=curpos;
 			end if;
 		end if;
 	end process;
