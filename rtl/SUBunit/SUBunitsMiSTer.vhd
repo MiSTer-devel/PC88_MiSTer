@@ -113,7 +113,9 @@ component T80a_ce
         CE_R        : in std_logic;
         CE_F        : in std_logic;
         M1T5        : out std_logic;
-        M1T6        : out std_logic
+        M1T6        : out std_logic;
+        MRD         : out std_logic;
+        MCYC        : out std_logic_vector(2 downto 0)
     );
 end component;
 
@@ -770,7 +772,9 @@ begin
         CE_R        =>CE_R,
         CE_F        =>CE_F,
         M1T5        =>open,
-        M1T6        =>open
+        M1T6        =>open,
+        MRD         =>open,
+        MCYC        =>open
 	);
 
 	mmap	:mmapsub generic map(awidth) port map(

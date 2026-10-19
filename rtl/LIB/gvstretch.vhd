@@ -18,8 +18,12 @@ use IEEE.numeric_std.all;
 --At 8MHz a FH charges the 5th and 6th T of a 5T or 6T M1 cycle (RET cc,
 --INC rr and the like) differently from other T-states, mostly less, so K is
 --set separately in them. At 4MHz BUSWAIT adds nothing in those T-states, so
---K is set separately there too. The values were fitted to a FH for each
---timing and text DMA state; why the FH charges them differently is not known.
+--K is set separately there too. In 24kHz timing at 8MHz a FH also charges a
+--memory read that directly follows another memory read (the 2nd operand byte
+--of LD BC,nn or JP nn) more than one that follows an M1, so K is smaller in
+--such a read (rre, made from MRD and MCYC of the CPU). The values were fitted
+--to a FH for each timing and text DMA state; why the FH charges them
+--differently is not known.
 --Only the original ce_r/ce_f ticks are passed or dropped, and the passed ones
 --always alternate ce_r, ce_f, ce_r, ... so every user of the enables sees a
 --slower CPU clock. While STR is low all of them pass.
@@ -44,14 +48,17 @@ port(
 	IOC		:in std_logic;	-- '1' in an I/O read or write cycle (IORQ_n low)
 	T5		:in std_logic;	-- '1' in the 5th T of a 5T or 6T M1
 	T6		:in std_logic;	-- '1' in the 6th T of a 6T M1
-	TXA		:in std_logic	-- '1' while the text DMA runs (CRTC and DMAC started)
+	TXA		:in std_logic;	-- '1' while the text DMA runs (CRTC and DMAC started)
+	MRD		:in std_logic;	-- '1' in a memory read cycle other than an M1
+	MCYC	:in std_logic_vector(2 downto 0)	-- the M cycle of the CPU
 );
 end GVSTRETCH;
 
 architecture rtl of GVSTRETCH is
--- ratio K/N: 260/1024 = 1/3.938 at 4MHz, 206/1024 = 1/4.971 at 8MHz,
--- 188/1024 = 1/5.447 and 142/1024 = 1/7.211 in 24kHz timing (121/1024 =
--- 1/8.463 in I/O cycles at 8MHz)
+-- ratio K/N: 260/1024 = 1/3.938 at 4MHz, 204/1024 = 1/5.020 at 8MHz,
+-- 188/1024 = 1/5.447 and 143/1024 = 1/7.161 in 24kHz timing (121/1024 =
+-- 1/8.463 in I/O cycles and 123/1024 = 1/8.325 with the text DMA, 128/1024 =
+-- 1/8.000 without it, in a read right after a read at 8MHz)
 constant N		:integer := 1024;
 signal	K		:integer range 0 to 511;
 signal	acc		:integer range 0 to 2047;
@@ -64,7 +71,25 @@ signal	acc_nx	:integer range 0 to 2047;
 signal	expf_nx	:std_logic;
 signal	known_nx	:std_logic;
 signal	sum		:integer range 0 to 2303;
+signal	mcyc_d	:std_logic_vector(2 downto 0);
+signal	seen_rd	:std_logic;	-- MRD was high in this M cycle (kept while the bus is released)
+signal	prev_rd	:std_logic;	-- the M cycle before was a memory read other than an M1
+signal	rre		:std_logic;	-- this cycle is a memory read right after another one
 begin
+	--a memory read right after a memory read, with no M1 between
+	process(clk)begin
+		if(clk' event and clk='1')then
+			mcyc_d<=MCYC;
+			if(MCYC/=mcyc_d)then
+				prev_rd<=seen_rd;
+				seen_rd<=MRD;
+			elsif(MRD='1')then
+				seen_rd<='1';
+			end if;
+		end if;
+	end process;
+	rre<='1' when MRD='1' and prev_rd='1' else '0';
+
 	--K one clock late (keeps FAST, T24 and the CPU strobes out of the pass path)
 	process(clk)begin
 		if(clk' event and clk='1')then
@@ -85,12 +110,20 @@ begin
 				K<=216;
 			elsif(FAST='1' and T6='1')then
 				K<=211;
+			--8MHz memory read right after a memory read: 24kHz with and without
+			--the text DMA, then 15kHz.
+			elsif(FAST='1' and T24='1' and rre='1' and TXA='1')then
+				K<=123;
+			elsif(FAST='1' and T24='1' and rre='1')then
+				K<=128;
+			elsif(FAST='1' and rre='1')then
+				K<=206;
 			elsif(FAST='1' and T24='1' and IOC='1')then
 				K<=121;
 			elsif(FAST='1' and T24='1')then
-				K<=142;
+				K<=143;
 			elsif(FAST='1')then
-				K<=206;
+				K<=204;
 			--4MHz M1 5th/6th T: 24kHz with and without the text DMA, then 15kHz.
 			elsif(FAST='0' and T24='1' and (T5='1' or T6='1') and TXA='1')then
 				K<=163;
