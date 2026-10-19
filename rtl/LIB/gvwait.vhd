@@ -13,13 +13,19 @@ use IEEE.std_logic_1164.all;
 --Whether an access counts as drawn or retrace is taken from VRTC when it
 --starts. The same rule is used in 31kHz timing. At 8MHz an odd count can be
 --lost to the SDRAM slot, so only even counts are used there.
---Only ce_f samples where no other wait holds the CPU are counted, so these
---waits add to the others. Once the CPU has seen WAIT_n high in an access, the
---wait stays off until the access ends, even if FAST or en changes.
+--These counts come on top of the wait of a main RAM access (1 at 8MHz, none
+--at 4MHz), and the sum is the whole wait of the access: every ce_f sample of
+--the access is counted, also while another wait holds the CPU, so the access
+--takes the larger of the two. A real FH writes graphic VRAM as fast as it
+--reads it, while the SDRAM of the core takes one more state on a write.
+--The opcode fetch wait of M1WAIT is the exception: those samples are not
+--counted, so it still adds to these waits as before.
+--Once the CPU has seen WAIT_n high in an access, the wait stays off until the
+--access ends, even if FAST or en changes.
 entity GVWAIT is
 port(
 	SEL		:in std_logic;	-- GVRAM read or write strobe is out
-	OTHERWAIT	:in std_logic;	-- '1' while any other wait holds the CPU
+	M1W		:in std_logic;	-- '1' while the M1WAIT opcode fetch wait holds the CPU
 	FAST	:in std_logic;	-- '1' at 8MHz
 	en		:in std_logic;
 
@@ -38,6 +44,7 @@ signal	kd		:integer range 0 to 10;	-- access number while drawn
 signal	kr		:integer range 0 to 9;	-- access number in the retrace
 signal	cnt		:integer range 0 to 7;	-- waits taken in this access
 signal	target	:integer range 0 to 7;
+signal	base	:integer range 0 to 1;	-- the wait of a main RAM access
 signal	tgtd	:integer range 0 to 7;
 signal	tgtr	:integer range 0 to 7;
 signal	lsel	:std_logic;
@@ -54,7 +61,8 @@ begin
 			0 when kr=2 else
 			1;
 	ret<=VRTC when SEL='1' and lsel='0' else lret;
-	target<=tgtr when ret='1' else tgtd;
+	target<=tgtr+base when ret='1' else tgtd+base;
+	base<=1 when FAST='1' else 0;
 
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -87,7 +95,7 @@ begin
 						end if;
 					end if;
 				end if;
-			elsif(ce_f='1' and OTHERWAIT='0')then
+			elsif(ce_f='1' and M1W='0')then
 				if(en='1' and cnt<target and done='0')then
 					cnt<=cnt+1;
 				else
@@ -97,6 +105,6 @@ begin
 		end if;
 	end process;
 
-	WAITn<='0' when SEL='1' and en='1' and OTHERWAIT='0' and cnt<target and done='0' else '1';
+	WAITn<='0' when SEL='1' and en='1' and cnt<target and done='0' else '1';
 
 end rtl;

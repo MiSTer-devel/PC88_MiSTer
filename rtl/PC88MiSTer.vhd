@@ -719,10 +719,23 @@ port(
 );
 end component;
 
+component KNJWAIT
+port(
+	SEL		:in std_logic;
+	CPUMD	:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component GVWAIT
 port(
 	SEL		:in std_logic;
-	OTHERWAIT	:in std_logic;
+	M1W		:in std_logic;
 	FAST	:in std_logic;
 	en		:in std_logic;
 
@@ -1720,6 +1733,8 @@ signal	SB2_RDn		:std_logic;
 signal	M1_WAITn	:std_logic;
 signal	V1S4M		:std_logic;
 signal	TRAM_WAITn	:std_logic;
+signal	KNJ_WAITn	:std_logic;
+signal	KNJWSEL		:std_logic;
 signal	TRWSEL		:std_logic;
 signal	TRWV1S		:std_logic;
 signal	WAIT_nb		:std_logic;
@@ -1728,6 +1743,7 @@ signal	GV_WAITn	:std_logic;
 signal	GVSEL		:std_logic;
 signal	GVEN		:std_logic;
 signal	GV_other	:std_logic;
+signal	GV_M1W		:std_logic;
 signal	MEM_WAITn	:std_logic;
 signal	MEMSEL		:std_logic;
 signal	MEMEN		:std_logic;
@@ -2861,8 +2877,7 @@ port map(
 
 	WAIT_nb<=	not RAM_WAIT when RAM_CE='1' else
 				TRAM_WAITn when TRAM_CE='1' else
-				not RAM_WAIT when KANJI1RD='1' else
-				not RAM_WAIT when KANJI2RD='1' else
+				(not RAM_WAIT) and KNJ_WAITn when KANJI1RD='1' or KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
 	WAIT_n<=WAIT_nb and M1_WAITn and MEM_WAITn and GV_WAITn and GVS_WAITn and BUS_WAITn;
 
@@ -3072,6 +3087,9 @@ port map(
 	TRWSEL<='1' when TRAM_CE='1' and (RD_n='0' or WR_n='0') else '0';
 	TRWV1S<='1' when MODE=MOD_V1S else '0';
 	TRW		:TRAMWAIT port map(TRWSEL,RD_n,M1_n,CPUMD,cHS,TRWV1S,TRAM_WAITn,rclk,cpuce_f,CPU_rstnr);
+	-- Wait states on the kanji ROM ports, as measured on a real FH: 2 at 8MHz.
+	KNJWSEL<=KANJI1RD or KANJI2RD;
+	KNJW	:KNJWAIT port map(KNJWSEL,CPUMD,KNJ_WAITn,rclk,cpuce_f,CPU_rstnr);
 	M1W		:M1WAIT port map(M1_n,MREQ_n,WAIT_other,V1S4M,M1_WAITn,rclk,cpuce_f,CPU_rstnr);
 	-- Wait states on graphic VRAM reads and writes, as measured on a real FH:
 	-- V1H and V2, and V1S when the ALU is in use or in the high-speed mode.
@@ -3085,7 +3103,8 @@ port map(
 		'1' when GHSMv='1' and GVAM='0' else
 		'0';
 	GV_other<=not (WAIT_nb and M1_WAITn and MEM_WAITn);
-	GVW		:GVWAIT port map(GVSEL,GV_other,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,VRTCr);
+	GV_M1W<=not M1_WAITn;
+	GVW		:GVWAIT port map(GVSEL,GV_M1W,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,VRTCr);
 	-- V1S and N slow down the whole CPU while graphic VRAM is selected for
 	-- direct access (5Ch-5Eh) and the graphic screen is being displayed,
 	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
