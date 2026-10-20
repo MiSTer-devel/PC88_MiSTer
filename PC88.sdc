@@ -162,9 +162,18 @@ foreach {s d} [list \
 #  - is read by the HPS after vid_nres has changed, which happens once the
 #    width and height (vid_hcnt, vid_vcnt in hps_io's video_calc) have
 #    stayed the same for about 15 frames (a forced read that meets a change of
-#    resolution is read again when vid_nres changes). vid_ccnt, vid_pixrep,
-#    vid_de_h and vid_de_v can change between lines or frames at the same
-#    resolution, so they are not covered here.
+#    resolution is read again when vid_nres changes). vid_fclks counts
+#    CLK_VIDEO only in the first frame after such a change and then holds,
+#    about 14 frames before vid_nres changes. This does not make every read
+#    of it safe: a forced read in that frame or a change that comes before
+#    the HPS has read both of its halves can give an unfinished count or bits
+#    from different times, and frames without a picture or vsync while it
+#    counts keep it running, so that it can stop on several frames' worth of
+#    clocks, a count that stays until the next change of resolution. The HPS
+#    uses it for the color subcarrier of the YC output (S-Video, composite or
+#    RGB with subcarrier, also on HDMI with Direct Video).
+#    vid_ccnt, vid_pixrep, vid_de_h and vid_de_v can change between lines
+#    or frames at the same resolution, so they are not covered here.
 # A value that misses a clock is taken at the receiver's next sample: a clock,
 # a line or a frame later (osd_en, on alternate frames). One rclk clock is
 # used.
@@ -180,7 +189,7 @@ foreach {s d} [list \
 	"$pc88_hps|gamma_en" "emu:emu|gamma_fast:gamma|RGB_out\[*\]" \
 	"$pc88_hps|status\[28\]" "emu:emu|color_real_s1" \
 	"emu:emu|en400p" "$pc88_hps|io_dout\[*\]" \
-	"$pc88_vc|vid_hcnt\[*\] $pc88_vc|vid_vcnt\[*\] $pc88_vc|vid_nres\[*\]" \
+	"$pc88_vc|vid_hcnt\[*\] $pc88_vc|vid_vcnt\[*\] $pc88_vc|vid_nres\[*\] $pc88_vc|vid_fclks\[*\]" \
 		"$pc88_vc|dout\[*\]" \
 	"osd:vga_osd|info osd:vga_osd|infoh\[*\] osd:vga_osd|osd_h\[*\] osd:vga_osd|osd_w\[*\]" \
 		"osd:vga_osd|osd_hcnt2\[*\] osd:vga_osd|osd_de\[*\]" \
