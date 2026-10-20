@@ -1742,6 +1742,7 @@ signal	WAIT_other	:std_logic;
 signal	GV_WAITn	:std_logic;
 signal	GVSEL		:std_logic;
 signal	GVEN		:std_logic;
+signal	GVRET		:std_logic;
 signal	GV_other	:std_logic;
 signal	GV_M1W		:std_logic;
 signal	MEM_WAITn	:std_logic;
@@ -3104,7 +3105,10 @@ port map(
 		'0';
 	GV_other<=not (WAIT_nb and M1_WAITn and MEM_WAITn);
 	GV_M1W<=not M1_WAITn;
-	GVW		:GVWAIT port map(GVSEL,GV_M1W,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,VRTCr);
+	-- With the graphic screen off, a real FH gives graphic VRAM accesses the
+	-- retrace wait also while the screen is drawn.
+	GVRET<=VRTCr or not GRAPHEN;
+	GVW		:GVWAIT port map(GVSEL,GV_M1W,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,GVRET);
 	-- V1S and N slow down the whole CPU while graphic VRAM is selected for
 	-- direct access (5Ch-5Eh) and the graphic screen is being displayed,
 	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
