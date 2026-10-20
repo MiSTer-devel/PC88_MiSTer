@@ -2,7 +2,7 @@
 // hps_io.v
 //
 // Copyright (c) 2014 Till Harbaum <till@harbaum.org>
-// Copyright (c) 2017-2020 Alexey Melnikov
+// Copyright (c) 2017-2026 Alexey Melnikov
 //
 // This source file is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published
@@ -35,7 +35,7 @@
 module hps_io #(parameter CONF_STR, CONF_STR_BRAM=0, PS2DIV=0, WIDE=0, VDNUM=1, BLKSZ=2, PS2WE=0, STRLEN=$size(CONF_STR)>>3, F12KEYMOD=0)
 (
 	input             clk_sys,
-	inout      [48:0] HPS_BUS,
+	inout      [45:0] HPS_BUS,
 
 	// buttons up to 32
 	output reg [31:0] joystick_0,
@@ -330,18 +330,10 @@ always@(posedge clk_sys) begin : uio_block
 				'h0X17,
 				'h0X18: begin sd_ack <= disk[VD:0]; sdn_ack <= io_din[11:8]; end
 				  'h29: io_dout <= {4'hA, stflg};
-`ifdef MISTER_DISABLE_ADAPTIVE
-				  'h2B: io_dout <= {HPS_BUS[48:46],4'b0110};
-`else
-				  'h2B: io_dout <= {HPS_BUS[48:46],4'b0111};
-`endif
-				  'h2F: io_dout <= 1;
 				  'h32: io_dout <= gamma_bus[21];
 				  'h36: begin io_dout <= info_n; info_n <= 0; end
-				  'h39: io_dout <= 1;
 				  'h3C: if(upload_req) begin io_dout <= {ioctl_upload_index, 8'd1}; upload_req <= 0; end				  
 				  'h43: io_dout <= |F12KEYMOD;
-				  'h3E: io_dout <= 1; // shadow mask
 				'h003F: io_dout <= joystick_0_rumble;
 				'h013F: io_dout <= joystick_1_rumble;
 				'h023F: io_dout <= joystick_2_rumble;
@@ -644,7 +636,7 @@ always@(posedge clk_sys) begin : fio_block
 	if(~fp_enable) begin
 		if(has_cmd && (cmd == FIO_FILE_TX)) begin
 			{ioctl_upload, ioctl_download} <= req_io;
-			skip_add <= req_io[0];
+			{ioctl_rd, skip_add} <= req_io;
 		end
 		has_cmd <= 0;
 	end
@@ -898,6 +890,8 @@ always @(posedge clk_sys) begin
 	  16: dout <= vid_pixrep;
 	  17: dout <= vid_de_h;
 	  18: dout <= vid_de_v;
+	  19: dout <= vid_fclks[15:0];
+	  20: dout <= {8'd0, vid_fclks[23:16]};
 	  default dout <= 0;
 	endcase
 end
@@ -911,6 +905,10 @@ reg  [7:0] vid_pixrep;
 reg [15:0] vid_de_h;
 reg  [7:0] vid_de_v;
 
+// Exact clk_vid edges in one complete frame.
+// Count once after startup or a timing change, then hold the result.
+reg [23:0] vid_fclks = 0;
+
 always @(posedge clk_vid) begin
 	integer hcnt;
 	integer vcnt;
@@ -922,6 +920,7 @@ always @(posedge clk_vid) begin
 	reg [3:0] resto = 0;
 	reg calch = 0;
 
+	if(resto == 1) vid_fclks <= vid_fclks + 1'd1;
 	if(calch & de) ccnt <= ccnt + 1;
 	pcnt <= pcnt + 1'd1;
 
@@ -949,12 +948,16 @@ always @(posedge clk_vid) begin
 		if(old_vs & ~vs) begin
 			vid_int <= {vid_int[0],f1};
 			if(~f1) begin
+				// !f1 selects the same boundary once per complete frame.
 				if(hcnt && vcnt) begin
 					old_vmode <= new_vmode;
 
 					//report new resolution after timeout
 					if(resto) resto <= resto + 1'd1;
-					if(vid_hcnt != hcnt || vid_vcnt != vcnt || old_vmode != new_vmode) resto <= 1;
+					if(vid_hcnt != hcnt || vid_vcnt != vcnt || old_vmode != new_vmode) begin
+						resto <= 1;
+						vid_fclks <= 0;
+					end
 					if(&resto) vid_nres <= vid_nres + 1'd1;
 					vid_hcnt <= hcnt;
 					vid_vcnt <= vcnt;
