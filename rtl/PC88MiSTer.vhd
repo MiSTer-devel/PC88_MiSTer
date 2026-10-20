@@ -2652,9 +2652,10 @@ port map(
 
 	-- CPU writes outside graphic VRAM are posted: a real FH has no wait state on
 	-- them at 4MHz and one at 8MHz (MEMWAIT), with the SDRAM write done later.
-	-- Graphic VRAM writes are not, as the port reads the ALU and plane enables
-	-- while it writes.
-	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and GVSEL='0' else '0';
+	-- Graphic VRAM writes through the ALU are not, as the port reads the ALU
+	-- while it writes. Direct graphic VRAM writes in V1S and N are posted too:
+	-- a real FH waits on them as long as on a read.
+	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and (GVSEL='0' or GVSEN='1') else '0';
 	-- A direct graphic VRAM write in V1S or N writes the CPU byte on the planes
 	-- latched in WRPOST. While such a write is posted, GraphALU is kept in that
 	-- mode, so a later OUT to the ALU registers does not change what it writes.
