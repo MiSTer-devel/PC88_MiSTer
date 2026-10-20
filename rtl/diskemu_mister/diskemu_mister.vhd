@@ -277,6 +277,8 @@ signal	sbufwr		:std_logic;
 
 signal	trackno	:std_logic_vector(7 downto 0);
 signal	track_curaddr	:std_logic_vector(13 downto 0);
+signal	track_fmwords	:std_logic_vector(13 downto 0);
+signal	scan_fmwords	:std_logic_vector(13 downto 0);
 signal	tracklen	:std_logic_vector(31 downto 0);
 signal	tracks		:std_logic_Vector(7 downto 0);
 
@@ -452,6 +454,7 @@ signal	psaddr	:std_logic_vector(31 downto 0);
 signal	pslen	:std_logic_vector(15 downto 0);
 signal	pssum	:std_logic_vector(17 downto 0);
 signal	pslimit	:std_logic_vector(17 downto 0);
+signal	fdeturn	:std_logic_vector(17 downto 0);
 function stdgap(len :std_logic_vector(15 downto 0)) return integer is
 begin
 	if(len<=x"0080")then		-- 0 is written as 128
@@ -1871,11 +1874,11 @@ begin
 						fp_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(bj mod 64,6));
 						swait:=1;
 						fdstate<=fs_ovn0;
-					elsif(ovlcopy='1' and trackbusy='0' and img_busy='0' and track_curaddr>="01100001101001")then
-						--the long sector's data runs over its own start on the real disk: stop at the end of the turn
+					elsif(ovlcopy='1' and trackbusy='0' and img_busy='0' and (track_curaddr>="01100001101001" or (track_fmwords/=0 and ("0" & track_curaddr)+track_fmwords>="01100001101001")))then
+						--the long sector's data runs over its own start on the real disk: stop at the end of the turn (in time, with FM words)
 						trackwrdat<=x"024e";
 						fdstate<=fs_gap4;
-						if(track_curaddr>=tracklen)then
+						if(track_curaddr>=tracklen or (track_fmwords/=0 and ("0" & track_curaddr)+track_fmwords>=fdeturn))then
 							--the last sector behind it did not fit in the turn: a long track, as for other tracks
 							diskmode(0)<='1';
 							if(img_unit='0')then
@@ -1965,7 +1968,7 @@ begin
 								if(ovmode='1' and (track_curaddr+1)<"01100001101010")then
 									--the rest of the track after it is GAP, from the end of the turn at least
 									track_curaddr<="01100001101010";	-- 6250
-								elsif(track_curaddr>tracklen)then
+								elsif((track_fmwords=0 and track_curaddr>tracklen) or (track_fmwords/=0 and ("0" & track_curaddr)+track_fmwords>fdeturn))then	-- with FM words, in time (an FM word takes the time of 2 MFM words) against the turn of FDemu (fdeturn)
 									diskmode(0)<='1';
 									if(img_unit='0')then
 										diskmode0(0)<='1';
@@ -2564,6 +2567,7 @@ begin
 					fdstate<=fs_svsize;
 				when fs_svsize =>
 					scanlim<=tracklen;
+					scan_fmwords<=(others=>'0');
 					disksize<=(haddr+x"000001ff") and x"fffffe00";
 					disksize0<=haddr;
 					if(emustate=es_fsave0)then
@@ -2589,7 +2593,7 @@ begin
 					fdstate<=fs_scantrack;
 				when fs_scantrack =>
 					if(trackbusy='0')then
-						if(track_curaddr<scanlim)then
+						if((scan_fmwords=0 and track_curaddr<scanlim) or (scan_fmwords/=0 and ("0" & track_curaddr)+scan_fmwords<fdeturn))then	-- with FM words, stop at the end of the turn in time, as FDemu does
 							ambuf3:=ambuf2;
 							ambuf2:=ambuf1;
 							ambuf1:=ambuf0;
@@ -2608,6 +2612,9 @@ begin
 								idcnt<=idcnt+1;
 							end if;
 							trackwrote<=trackwrote or trackrddat(10);
+							if(trackrddat(9)='0')then
+								scan_fmwords<=scan_fmwords+1;
+							end if;
 							track_curaddr<=track_curaddr+1;
 							trackrd<='1';
 							swait:=2;
@@ -3019,6 +3026,7 @@ begin
 						newlen<=(others=>'0');
 						idcnt<=0;
 						scanlim<=tracklen;
+						scan_fmwords<=(others=>'0');
 						swait:=2;
 						fdstate<=fs_scantrack;
 					else
@@ -3054,6 +3062,24 @@ begin
 				std_logic_vector(ieee.numeric_std.to_unsigned( 7000,18)) when diskmode="01" else
 				std_logic_vector(ieee.numeric_std.to_unsigned(10416,18)) when diskmode="10" else
 				std_logic_vector(ieee.numeric_std.to_unsigned(12500,18));
+	-- one turn of FDemu in MFM words (its tracklen0..3): the limit in time for a track with FM words
+	fdeturn<=	std_logic_vector(ieee.numeric_std.to_unsigned( 6250,18)) when diskmode="00" else
+				std_logic_vector(ieee.numeric_std.to_unsigned( 8000,18)) when diskmode="01" else
+				std_logic_vector(ieee.numeric_std.to_unsigned(10416,18)) when diskmode="10" else
+				std_logic_vector(ieee.numeric_std.to_unsigned(12500,18));
+	-- FM words written to the track being built, to tell if it fits in one turn in time
+	process(sclk,rstn)begin
+		if(rstn='0')then
+			track_fmwords<=(others=>'0');
+		elsif(sclk' event and sclk='1')then
+			if(fdstate=fs_loadsheadw)then
+				track_fmwords<=(others=>'0');
+			elsif(trackwr='1' and trackwrdat(9)='0')then
+				track_fmwords<=track_fmwords+1;
+			end if;
+		end if;
+	end process;
+
 	tracks<=	x"54" when ddmode='0' else
 				x"a4" when ddmode='1' else
 				x"00";
