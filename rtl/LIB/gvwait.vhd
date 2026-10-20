@@ -6,10 +6,10 @@ use IEEE.std_logic_1164.all;
 
 --Adds wait states to CPU reads and writes of graphic VRAM.
 --A real FH waits longer while the screen is drawn than in the vertical
---retrace: 3.947 states on average at 8MHz and 1.770 at 4MHz in 24kHz timing,
---3.662 and 1.628 in 15kHz timing. The count follows 4 (eight times),6 drawn
---and 2 (nine times),0 in the retrace at 8MHz, and 2 (ten times),1 drawn and
---1,1,0 in the retrace at 4MHz, each with its own step, one step per access.
+--retrace: 3.947 states on average at 8MHz in 24kHz timing and 3.662 in 15kHz
+--timing. The count follows 4 (eight times),6 drawn and 2 (nine times),0 in
+--the retrace at 8MHz, each with its own step, one step per access. At 4MHz it
+--is 2 drawn and none in the retrace, as measured part by part.
 --Whether an access counts as drawn or retrace is taken from VRTC when it
 --starts. The same rule is used in 31kHz timing. At 8MHz an odd count can be
 --lost to the SDRAM slot, so only even counts are used there.
@@ -42,7 +42,7 @@ port(
 end GVWAIT;
 
 architecture rtl of GVWAIT is
-signal	kd		:integer range 0 to 10;	-- access number while drawn
+signal	kd		:integer range 0 to 8;	-- access number while drawn
 signal	kr		:integer range 0 to 9;	-- access number in the retrace
 signal	cnt		:integer range 0 to 7;	-- waits taken in this access
 signal	target	:integer range 0 to 7;
@@ -56,12 +56,10 @@ signal	ret		:std_logic;
 begin
 	tgtd<=	6 when FAST='1' and kd=8 else
 			4 when FAST='1' else
-			1 when kd=10 else
 			2;
 	tgtr<=	0 when FAST='1' and kr=9 else
 			2 when FAST='1' else
-			0 when kr=2 else
-			1;
+			0;
 	ret<=VRTC when SEL='1' and lsel='0' else lret;
 	target<=tgtr+base when ret='1' else tgtd+base;
 	base<=1 when FAST='1' else 0;
@@ -84,13 +82,13 @@ begin
 				done<='0';
 				if(lsel='1' and en='1')then
 					if(lret='0')then
-						if((FAST='1' and kd>=8) or kd=10)then
+						if(kd>=8)then
 							kd<=0;
 						else
 							kd<=kd+1;
 						end if;
 					else
-						if((FAST='1' and kr>=9) or (FAST='0' and kr>=2))then
+						if(kr>=9)then
 							kr<=0;
 						else
 							kr<=kr+1;
