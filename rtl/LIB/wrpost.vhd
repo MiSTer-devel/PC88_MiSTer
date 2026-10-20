@@ -20,6 +20,8 @@ use IEEE.std_logic_1164.all;
 --one that rises on the same clock the port finishes. The strobe of a request
 --the port has already done is not passed on again.
 --Other requests go straight through, as before.
+--KIND is latched with the address and data of each request taken here, and
+--oKIND gives it back only while a posted write is at the port.
 entity WRPOST is
 generic(
 	AWIDTH	:integer	:=25
@@ -31,6 +33,7 @@ port(
 	ADR		:in std_logic_vector(AWIDTH-1 downto 0);
 	WDAT	:in std_logic_vector(7 downto 0);
 	WE		:in std_logic_vector(3 downto 0);
+	KIND	:in std_logic	:='0';
 	WAITo	:out std_logic;
 
 	oRD		:out std_logic;
@@ -38,6 +41,7 @@ port(
 	oADR	:out std_logic_vector(AWIDTH-1 downto 0);
 	oWDAT	:out std_logic_vector(7 downto 0);
 	oWE		:out std_logic_vector(3 downto 0);
+	oKIND	:out std_logic;	-- KIND of the posted write at the port, else '0'
 	WAITi	:in std_logic;	-- busy from the SDRAM port
 
 	clk		:in std_logic;
@@ -55,6 +59,7 @@ signal	newreq	:std_logic;
 signal	padr	:std_logic_vector(AWIDTH-1 downto 0);
 signal	pdat	:std_logic_vector(7 downto 0);
 signal	pwe		:std_logic_vector(3 downto 0);
+signal	pkind	:std_logic;
 signal	posting	:std_logic;
 signal	late	:std_logic;	-- S_FREQ or S_FRUN
 signal	frd,fwr	:std_logic;	-- the request handed over late
@@ -75,6 +80,7 @@ begin
 			padr<=(others=>'0');
 			pdat<=(others=>'0');
 			pwe<=(others=>'0');
+			pkind<='0';
 		elsif(clk' event and clk='1')then
 			lRD<=RD;
 			lWR<=WR;
@@ -87,6 +93,7 @@ begin
 					padr<=ADR;
 					pdat<=WDAT;
 					pwe<=WE;
+					pkind<=KIND;
 					own<='1';
 					STATE<=S_PREQ;
 				end if;
@@ -110,12 +117,14 @@ begin
 					padr<=ADR;
 					pdat<=WDAT;
 					pwe<=WE;
+					pkind<=KIND;
 					own<='1';
 					STATE<=S_PREQ;
 				elsif((RD='1' or WR='1') and own='0')then
 					padr<=ADR;
 					pdat<=WDAT;
 					pwe<=WE;
+					pkind<=KIND;
 					frd<=RD;
 					fwr<=WR;
 					own<='1';
@@ -145,6 +154,7 @@ begin
 	oADR<=	padr when posting='1' or late='1' else ADR;
 	oWDAT<=	pdat when posting='1' or late='1' else WDAT;
 	oWE<=	pwe when posting='1' or late='1' else WE;
+	oKIND<=	pkind when posting='1' else '0';
 
 	WAITo<=	'1' when posting='1' and (held='1' or newreq='1') else
 			'0' when posting='1' else

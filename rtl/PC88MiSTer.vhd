@@ -631,6 +631,7 @@ port(
 	ADR		:in std_logic_vector(AWIDTH-1 downto 0);
 	WDAT	:in std_logic_vector(7 downto 0);
 	WE		:in std_logic_vector(3 downto 0);
+	KIND	:in std_logic	:='0';
 	WAITo	:out std_logic;
 
 	oRD		:out std_logic;
@@ -638,6 +639,7 @@ port(
 	oADR	:out std_logic_vector(AWIDTH-1 downto 0);
 	oWDAT	:out std_logic_vector(7 downto 0);
 	oWE		:out std_logic_vector(3 downto 0);
+	oKIND	:out std_logic;
 	WAITi	:in std_logic;
 
 	clk		:in std_logic;
@@ -1846,6 +1848,9 @@ signal	ALU2		:std_logic_vector(1 downto 0);
 signal	GDM			:std_logic_vector(1 downto 0);
 signal	PLN			:std_logic_vector(2 downto 0);
 signal	GVAM		:std_logic;
+signal	GVAMw		:std_logic;	-- GVAM for GraphALU: '0' while a posted direct write is at the port
+signal	GVDW		:std_logic;	-- this request is a direct graphic VRAM write
+signal	GVDWp		:std_logic;
 signal	NG_RAMSEL	:integer range 0 to 3;
 signal	GR_RSEL		:integer range 0 to 3;
 signal	GWME		:std_logic;
@@ -2415,7 +2420,7 @@ port map(
 	
 	PLN		=>PLN,
 
-	GVAM	=>GVAM,
+	GVAM	=>GVAMw,
 	GAM		=>GAM,
 	NSEL	=>NG_RAMSEL,
 
@@ -2650,6 +2655,11 @@ port map(
 	-- Graphic VRAM writes are not, as the port reads the ALU and plane enables
 	-- while it writes.
 	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and GVSEL='0' else '0';
+	-- A direct graphic VRAM write in V1S or N writes the CPU byte on the planes
+	-- latched in WRPOST. While such a write is posted, GraphALU is kept in that
+	-- mode, so a later OUT to the ALU registers does not change what it writes.
+	GVDW<=GVSEL and GVSEN;
+	GVAMw<=GVAM and not GVDWp;
 	-- Text DMA reads keep to window 1, so the text timing does not change.
 	RAM_RDV2<=not TCNV_BUSUSE;
 	WRP	:WRPOST generic map(RAMAWIDTH) port map(
@@ -2659,6 +2669,7 @@ port map(
 		ADR		=>RAMADR,
 		WDAT	=>RAM_WDAT,
 		WE		=>VRAMWE,
+		KIND	=>GVDW,
 		WAITo	=>RAM_WAIT,
 
 		oRD		=>RAM_RDo,
@@ -2666,6 +2677,7 @@ port map(
 		oADR	=>RAMADRo,
 		oWDAT	=>RAM_WDATo,
 		oWE		=>VRAMWEo,
+		oKIND	=>GVDWp,
 		WAITi	=>RAM_WAITi,
 
 		clk		=>rclk,
