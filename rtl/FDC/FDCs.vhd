@@ -372,6 +372,7 @@ signal	track0s		:std_logic;
 signal	TCclr		:std_logic;
 signal	sTC			:std_logic;
 signal	TCen		:std_logic;
+signal	skipsect	:std_logic;	--SK=1: a sector whose data mark does not match is skipped
 
 signal	INT		:std_logic;		--interrupt start
 signal	INTs		:std_logic;		--interrput at seek/re-carib.
@@ -1358,6 +1359,7 @@ begin
 			rxN<=(others=>'0');
 			-- contdata<='0';
 			TCclr<='0';
+			skipsect<='0';
 			INT<='0';
 			INTs<='0';
 			DMARQ<='0';
@@ -1546,6 +1548,8 @@ begin
 					-- contdata<='0';
 					sRQM<='0';
 					sCM<='0';
+					skipsect<='0';
+					TCclr<='1';	-- a TC from the previous command does not carry over
 					DETSECT<='0';
 					NRDSTART<='1';
 					ecommand<=command;
@@ -1978,6 +1982,12 @@ begin
 								TCclr<='1';
 								sMD<='0';
 								execstate<=es_DATA;
+							elsif((ecommand=cmd_READDATA or ecommand=cmd_READDELETEDDATA) and SK='1' and (fmmf8det='1' or fmmfbdet='1'))then
+								-- SK=1: skip this sector and go on as if it was read (CM is set above)
+								dembreak<='1';
+								sMD<='0';
+								skipsect<='1';
+								execstate<=es_CRCdc;
 							elsif(fmmf8det='1' or fmmfbdet='1'or fmmfcdet='1' or fmmfedet='1' or fmrxed='1')then
 								dembreak<='1';
 								crcclr<='1';
@@ -2050,6 +2060,12 @@ begin
 							TCclr<='1';
 							sMD<='0';
 							execstate<=es_DATA;
+						elsif(mfmrxed='1' and (ecommand=cmd_READDATA or ecommand=cmd_READDELETEDDATA) and SK='1' and (mfmrxdat=x"f8" or mfmrxdat=x"fb"))then
+							-- SK=1: skip this sector and go on as if it was read (CM is set above)
+							dembreak<='1';
+							sMD<='0';
+							skipsect<='1';
+							execstate<=es_CRCdc;
 						elsif(mfmma1det='1' or mfmmc2det='1' or mfmrxed='1')then
 							dembreak<='1';
 							crcclr<='1';
@@ -2163,8 +2179,9 @@ begin
 							end if;
 						end if;
 					when es_CRCdc =>
-						if(crcdone='1')then
-							if((crczero='1') or (ecommand=cmd_READATRACK))then
+						if(crcdone='1' or skipsect='1')then
+							if((crczero='1') or (ecommand=cmd_READATRACK) or (skipsect='1'))then
+								skipsect<='0';
 								lastsect:='0';
 								if(R/=EOT)then
 									incR<='1';
@@ -2198,6 +2215,25 @@ begin
 									-- iSE<='0';									INT<='1';
 									execstate<=es_IDLE;
 									end_EXEC<='1';
+								elsif(SK='0' and sCM='1' and (ecommand=cmd_READDATA or ecommand=cmd_READDELETEDDATA))then
+									-- SK=0: end after the sector whose data mark does not match, without advancing
+									incR<='0';
+									resR<='0';
+									setH<='0';
+									setHD<='0';
+									resH<='0';
+									resHD<='0';
+									incC<='0';
+									execstate<=es_IDLE;
+									sIC<="00";
+									sNR<=readyv(iUS);
+									sEC<='0';
+									sSE<='0';
+									sHD<=HD;
+									sUS<=US;
+									PCN<=cPCN;
+									INT<='1';
+									end_EXEC<='1';
 								elsif(TCen='1')then
 									execstate<=es_IDLE;
 									sIC<="00";
@@ -2211,10 +2247,13 @@ begin
 									-- iSE<='1';
 									end_EXEC<='1';
 								elsif(lastsect='1')then
-									-- reached EOT without TC: end the command here with EN set, like the uPD765
-									-- (it used to look for sector EOT+1 for two turns and end with IC=01 and ND)
+									-- reached EOT without TC: end the command here with IC=01 and EN, keeping C, H and R
+									-- (as measured on a PC-8801FH; it used to look for sector EOT+1 for two turns and end with ND)
+									resR<='0';
+									resH<='0';
+									incC<='0';
 									execstate<=es_IDLE;
-									sIC<="00";
+									sIC<="01";
 									sEN<='1';
 									sNR<=readyv(iUS);
 									sEC<='0';
@@ -2850,9 +2889,12 @@ begin
 									-- iSE<='1';
 									end_EXEC<='1';
 								elsif(lastsect='1')then
-									-- reached EOT without TC: end the command here with EN set, like the reads
+									-- reached EOT without TC: end the command here with IC=01 and EN, keeping C, H and R, like the reads
+									resR<='0';
+									resH<='0';
+									incC<='0';
 									execstate<=es_IDLE;
-									sIC<="00";
+									sIC<="01";
 									sEN<='1';
 									sHD<=HD;
 									sUS<=US;
