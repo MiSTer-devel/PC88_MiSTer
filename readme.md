@@ -73,6 +73,8 @@ The Sound Board option on the OSD selects the sound chips.
 
 Some software only supports one of these. You could find more information on this issue ticket https://github.com/MiSTer-devel/PC88_MiSTer/issues/11.
 
+The YM2608 can put each FM sound on the left, the right or both channels. The Stereo Mix option on the OSD mixes some of each channel into the other (None, 25%, 50%, or 100% for mono). With Normal(SR) the sound is already mono.
+
 ## Write-Protection of D88 files
 
 The D88 format has a status to know if the file is write protected or not. The core checks this status and not write on D88 file if protected.
@@ -133,6 +135,5 @@ Gamma correction is applied after this, with either setting.
 
 ## TODO
 - Update T80 cpu
-- Add Audio Mix
 - Add support of other models like PC8801MC
 - ...
