@@ -18,8 +18,11 @@ use IEEE.std_logic_1164.all;
 --the access is counted, also while another wait holds the CPU, so the access
 --takes the larger of the two. On a real FH a write to graphic VRAM waits as
 --long as a read, while the SDRAM of the core takes one more state on a write.
---One FH case is not modeled: at 8MHz in 24kHz timing, writes 7 states apart
---wait about one state more.
+--At 8MHz in 24kHz timing, writes that follow each other closely wait more
+--while the screen is drawn. GVWQ gives that part: while QWAIT is high, no
+--sample is counted, so the write waits and the two waits add up. QWAIT can
+--only rise before the first wait is taken there, as the counts start at 0
+--and every count is at least 1 at 8MHz.
 --The opcode fetch wait of M1WAIT is the exception: those samples are not
 --counted, so it still adds to these waits as before.
 --Once the CPU has seen WAIT_n high in an access, the wait stays off until the
@@ -37,7 +40,8 @@ port(
 	ce_f	:in std_logic;
 	rstn	:in std_logic;
 
-	VRTC	:in std_logic	-- '1' in the vertical retrace
+	VRTC	:in std_logic;	-- '1' in the vertical retrace
+	QWAIT	:in std_logic	-- '1' while GVWQ holds a write back
 );
 end GVWAIT;
 
@@ -96,7 +100,9 @@ begin
 					end if;
 				end if;
 			elsif(ce_f='1' and M1W='0')then
-				if(en='1' and cnt<target and done='0')then
+				if(QWAIT='1')then
+					null;
+				elsif(en='1' and cnt<target and done='0')then
 					cnt<=cnt+1;
 				else
 					done<='1';
