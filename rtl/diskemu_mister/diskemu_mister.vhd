@@ -1994,7 +1994,7 @@ begin
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
 						else
-							if(trackno<tracks)then
+							if(trackno<tracks and trackno<x"a3")then	-- the D88 table has 164 entries (0 to 163)
 								trackno<=trackno+1;
 								tbladdr<=trackno+x"09";
 								swait:=2;
