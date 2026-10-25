@@ -34,7 +34,7 @@ assign VGA_SCALER = 0; // 24kHz, 15kHz: VGA as set in MiSTer.ini (vga_scaler)
 
 assign LED_POWER = 0;
 assign BUTTONS = 0;
-assign AUDIO_MIX = 0;
+assign AUDIO_MIX = status[30:29];
 assign USER_OUT = 0;
 assign HDMI_FREEZE = 0;
 assign HDMI_BLACKOUT = 0;
@@ -76,6 +76,7 @@ parameter CONF_STR = {
 	"-;",
 	"OK,Input,Joypad,Mouse;",
 	"OLM,Sound Board,Normal(SR),OnBoard(FA/MA+),Add-on (SB2);",
+	"OTU,Stereo Mix,None,25%,50%,100%;",
 	"OQR,RAM,Fx (SR/FR/FH/FA),Mx (MR/MH/MA/MC),512KB;",
 	"-;",
 	"R6,Reset;",
