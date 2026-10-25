@@ -134,6 +134,5 @@ The Color levels option on the OSD sets the brightness of the 8 levels of each c
 Gamma correction is applied after this, with either setting.
 
 ## TODO
-- Update T80 cpu
 - Add support of other models like PC8801MC
 - ...
