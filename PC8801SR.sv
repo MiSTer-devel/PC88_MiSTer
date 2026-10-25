@@ -303,7 +303,7 @@ wire HSync, VSync, ce_pix, vid_de;
 
 // The tape reaches the 8251 as an asynchronous serial line, either from an image in the
 // Tape slot or from the ADC, where only the tone is decoded.
-localparam CLK_SYS_HZ = 20238095;
+localparam CLK_SYS_HZ = 18973214;
 
 wire       cmt_mton;
 wire [1:0] cmt_bs;

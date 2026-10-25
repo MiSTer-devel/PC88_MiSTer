@@ -6,7 +6,8 @@ LIBRARY	IEEE,work;
 	
 entity PC88MiSTer is
 generic(
-	SYSCLK		:integer	:=20238;		--kHz
+	SYSCLK		:integer	:=18973;		--kHz
+	SYSCLK_HZ	:integer	:=18973214;	--Hz, for the counts that add up over time (RTC, 600Hz)
 	VIDCLK		:integer	:=75892;		--kHz
 	RAMCLK		:integer	:=75892;		--kHz
 	USE_OPN		:integer	:=5;
@@ -3314,7 +3315,7 @@ port map(
 	-- The RTC finds the edges of STB and CCK on clk21m: bring both in first.
 	RTCSTBs	:cdc_sync2 port map(CSTB,CSTB21,clk21m);
 	RTCCKs	:cdc_sync2 port map(CCK,CCK21,clk21m);
-	U_RTC	:rtc4990MiSTer generic map(sysclk*1000,x"00") port map(
+	U_RTC	:rtc4990MiSTer generic map(SYSCLK_HZ,x"00") port map(
 		DCLK	=>CCK21,
 		DIN		=>C_DO,
 		DOUT	=>CDIo,
@@ -3339,7 +3340,7 @@ port map(
 
 	PCLKG	:unchchata port map(not pjoya(1),pclk,rclk,srstn,cpuce_r);
 	
-	TIMP600	:sftclk generic map(sysclk*1000,600,1) port map("0",RTI,clk21m,srstn21);
+	TIMP600	:sftclk generic map(SYSCLK_HZ,600,1) port map("0",RTI,clk21m,srstn21);
 	
 	-- The fill writes the sub CPU RAM through the same port while the sub CPU is in
 	-- reset (CPU_rstn waits for the fill).
@@ -3658,8 +3659,8 @@ end process;
 		PSG_OE	<= '0';
 		IDAT_PSG<= (others=>'1');
 
-		-- 7.9872MHz from clk21m = 425/21 MHz (20.238095MHz): 414/1049 is 0.16 ppm slow
-		FMDDS: DDS_OPN generic map(414,1049) port map (
+		-- 7.9872MHz from clk21m = 2125/112 MHz (18.973214MHz): 1654/3929 is 0.39 ppm slow
+		FMDDS: DDS_OPN generic map(1654,3929) port map (
 			rst		=>not srstna,
 			clk		=>clk21m,
 			enable	=>cen_opna
