@@ -1333,6 +1333,7 @@ port(
 	mondat	:out std_logic_vector(7 downto 0);
 	
 	EMUINITDONE		:out std_logic;
+	EMULOADING		:out std_logic;
 	EMUBUSY			:out std_logic;
 	FDCBUSY			:out std_logic;
 	CPUCLK			:in std_logic;
@@ -1647,6 +1648,7 @@ signal	INT_n		:std_logic;
 signal	NMI_n		:std_logic;
 signal	M1_n		:std_logic;
 signal	CPU_rstn	:std_logic;
+signal	CPU_relcnt	:integer range 0 to SYSCLK*100;
 signal	CPU_clk		:std_logic;
 signal	BUSRQ_n		:std_logic;
 signal	BUSRQ_nf	:std_logic;
@@ -2061,6 +2063,7 @@ signal	RAM_WAITr	:std_logic;
 
 --DISK emulation
 signal	EMUINITDONE	:std_logic;
+signal	EMULOADING	:std_logic;
 -- signal	KBRX		:std_logic;
 
 signal	FDE_ADDR	:std_logic_vector(22 downto 0);
@@ -2722,6 +2725,8 @@ port map(
 	-- They are released only when a transfer of the OSD settings has just been taken
 	-- on rclk with the video timing set now, so VTm takes that timing before the
 	-- release. cfg_vt is the timing CFGX takes when it starts a transfer.
+	-- They wait 100ms with no disk image loading first, so an image mounted at
+	-- start-up is in the drive before the boot reads it.
 	process(clk21m)begin
 		if(clk21m' event and clk21m='1')then
 			if(cfg_busy='0')then
@@ -2732,9 +2737,16 @@ port map(
 	process(clk21m,rstn,srstna)begin
 		if(rstn='0' or srstna='0')then
 			CPU_rstn<='0';
+			CPU_relcnt<=0;
 		elsif(clk21m' event and clk21m='1')then
-			if(LOADER_DONE='1' and EMUINITDONE='1' and RTC_RELOK='1' and cfg_done='1' and cfg_vt=cfg_a(10 downto 9))then
-				CPU_rstn<='1';
+			if(LOADER_DONE='1' and EMUINITDONE='1' and RTC_RELOK='1' and EMULOADING='0')then
+				if(CPU_relcnt/=SYSCLK*100)then
+					CPU_relcnt<=CPU_relcnt+1;
+				elsif(cfg_done='1' and cfg_vt=cfg_a(10 downto 9))then
+					CPU_rstn<='1';
+				end if;
+			else
+				CPU_relcnt<=0;
 			end if;
 		end if;
 	end process;
@@ -3414,6 +3426,7 @@ port map(
 		mondat	=>subdat,
 
 		EMUINITDONE		=>EMUINITDONE,
+		EMULOADING		=>EMULOADING,
 		EMUBUSY			=>open,
 		FDCBUSY			=>pLed,
 		CPUCLK			=>SUBCLK,

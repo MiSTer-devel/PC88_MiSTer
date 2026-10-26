@@ -71,6 +71,7 @@ port(
 	mondat	:out std_logic_vector(7 downto 0);
 	
 	EMUINITDONE		:out std_logic;
+	EMULOADING		:out std_logic;
 	EMUBUSY			:out std_logic;
 	FDCBUSY			:out std_logic;
 	CPUCLK			:in std_logic;
@@ -612,6 +613,7 @@ port(
 	
 --common
 	initdone	:out std_logic;
+	fdloading	:out std_logic;
 	busy		:out std_logic;
 	fclk		:in std_logic;
 	sclk		:in std_logic;
@@ -1055,6 +1057,7 @@ port map(
 
 	--common
 		initdone	=>EMUINITDONEb,
+		fdloading	=>EMULOADING,
 		busy		=>EMUBUSY,
 		fclk		=>clk21m,
 		sclk		=>clk21m,
