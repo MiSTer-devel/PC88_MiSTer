@@ -88,6 +88,7 @@ port(
 	
 --common
 	initdone	:out std_logic;
+	fdloading	:out std_logic;	-- an image is waiting to be loaded or being loaded
 	busy		:out std_logic;
 	fclk		:in std_logic;
 	sclk		:in std_logic;
@@ -786,6 +787,7 @@ begin
 	variable sasirpend	:std_logic;
 	variable sasispend	:std_logic;
 	variable newmount	:std_logic_vector(1 downto 0);
+	variable fdstart	:std_logic;
 	begin
 		if(rstn='0')then
 			lmount:=(others=>'0');
@@ -796,6 +798,7 @@ begin
 			sstore:='0';
 			sload:='0';
 			fdc_indiskb<="00";
+			fdloading<='0';
 			sasiwpend:='0';
 			sasirpend:='0';
 			sasispend:='0';
@@ -815,6 +818,7 @@ begin
 			sasi_syreq2<='0';
 			sram_ldreq<='0';
 			sram_streq<='0';
+			fdstart:='0';
 			newmount:=mist_mounted(bit_fd1 downto bit_fd0) and not lmount(bit_fd1 downto bit_fd0);
 			if(mist_mounted(bit_fd0)='1' and lmount(bit_fd0)='0')then
 				if(mist_imgsize(63 downto 32)=x"00000000")then
@@ -918,10 +922,12 @@ begin
 					emustate<=es_fload0;
 					proc_begin<='1';
 					fdload(0):='0';
+					fdstart:='1';
 				elsif(fdload(1)='1')then
 					emustate<=es_fload1;
 					proc_begin<='1';
 					fdload(1):='0';
+					fdstart:='1';
 				elsif(fdstore(0)='1' and fdc_indiskb(0)='1')then
 					emustate<=es_fsave0;
 					proc_begin<='1';
@@ -971,6 +977,11 @@ begin
 			when others =>
 				emustate<=es_IDLE;
 			end case;
+			if(fdload/="00" or fdstart='1' or emustate=es_fload0 or emustate=es_fload1)then
+				fdloading<='1';
+			else
+				fdloading<='0';
+			end if;
 		end if;
 	end process;
 	
@@ -1994,7 +2005,7 @@ begin
 							track_curaddr<=track_curaddr+1;
 							trackwr<='1';
 						else
-							if(trackno<tracks)then
+							if(trackno<tracks and trackno<x"a3")then	-- the D88 table has 164 entries (0 to 163)
 								trackno<=trackno+1;
 								tbladdr<=trackno+x"09";
 								swait:=2;
