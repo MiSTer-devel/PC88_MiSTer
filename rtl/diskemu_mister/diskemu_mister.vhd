@@ -410,7 +410,8 @@ signal	bpos	:std_logic_vector(13 downto 0);	-- where the next d88 sector behind 
 signal	bcapn	:std_logic_vector(13 downto 0);	-- where the one after it goes
 signal	bcap	:std_logic_vector(13 downto 0);	-- end of the sector being built
 --a track with no sector of 4096 bytes or more that does not fit even in the long track in order: sectors with a
---data CRC error may hold the ID marks of the sectors written over them on the real disk, as the FDC read them.
+--data CRC error, or recorded as good, may hold the ID marks of the sectors written over them on the real disk, as
+--the FDC read them.
 --The track is planned first and each sector's ID goes where its marks are recorded, the same idea as for the long
 --sector above (rules 1 to 3 below, where the sectors are placed)
 signal	ovmode	:std_logic;	-- this track is built at the planned places
@@ -2421,8 +2422,8 @@ begin
 						pset<='1';
 						pany<='1';
 					end if;
-					--a sector with a data CRC error may hold the marks of sectors written over it: scan its data
-					if(pst=x"b0")then
+					--a sector with a data CRC error, or one the d88 records as good, may hold the marks of sectors written over it: scan its data
+					if(pst=x"b0" or pst=x"00")then
 						ptstart<=ctn;
 						csoff<=(others=>'0');
 						csr<=(others=>'0');
