@@ -120,6 +120,21 @@ component T80a_ce
     );
 end component;
 
+component M1WAIT
+port(
+	M1n		:in std_logic;
+	MREQn	:in std_logic;
+	OTHERWAIT	:in std_logic;
+	en		:in std_logic;
+
+	WAITn	:out std_logic;
+
+	clk		:in std_logic;
+	ce_f	:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component mmapsub
 generic(
 	awidth	:integer	:=25
@@ -675,6 +690,8 @@ signal	WRn			:std_logic;
 signal	RAMCE		:std_logic;
 signal	INTn		:std_logic;
 signal	FDC_WAITn	:std_logic;
+signal	M1_WAITn	:std_logic;
+signal	M1_other	:std_logic;
 signal	fFDC_CSn	:std_logic;
 signal	fFDC_RDn	:std_logic;
 signal	fFDC_WRn	:std_logic;
@@ -755,7 +772,7 @@ begin
 	cpu:T80a_ce generic map(0)port map(
        RESET_n		=>CPUrstnr,
         CLK_n		=>ramclk,
-        WAIT_n		=>not RAMWAIT and FDC_WAITn,
+        WAIT_n		=>not RAMWAIT and FDC_WAITn and M1_WAITn,
         INT_n       =>INTn,
 --        INT_n       =>'1',
         NMI_n       =>'1',
@@ -778,6 +795,10 @@ begin
         MRD         =>open,
         MCYC        =>open
 	);
+
+	-- A FH's sub CPU takes one wait state in every opcode fetch.
+	M1_other<=RAMWAIT or not FDC_WAITn;
+	M1W		:M1WAIT port map(M1n,MREQn,M1_other,'1',M1_WAITn,ramclk,CE_F,CPUrstnr);
 
 	mmap	:mmapsub generic map(awidth) port map(
 		CPU_ADR		=>ADR,
