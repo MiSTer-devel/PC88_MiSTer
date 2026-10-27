@@ -50,6 +50,7 @@ signal	DAT_A	:std_logic_vector(7 downto 0);
 signal	DAT_B	:std_logic_vector(7 downto 0);
 signal	DAT_C	:std_logic_vector(7 downto 0);
 signal	lWR		:std_logic;
+signal	PCW		:std_logic_vector(7 downto 0);
 -- signal	MODE	:std_logic_vector(1 downto 0);
 begin
 	RD<='1' when CSn='0' and RDn='0' else '0';
@@ -133,8 +134,22 @@ begin
 	
 	PAo<=ODAT_A;
 	PBo<=ODAT_B;
-	PCHo<=ODAT_C(7 downto 4);
-	PCLo<=ODAT_C(3 downto 0);
+	-- Port C follows a write while WR is low, so the other CPU sees a
+	-- handshake bit about 3 T sooner than at the end of the write. With the
+	-- sub CPU clock offset this matches the handshake timing measured on a FH
+	process(WR,ADR,DATIN,DAT_C)
+		variable v :std_logic_vector(7 downto 0);
+	begin
+		v:=DAT_C;
+		if WR='1' and ADR="11" and DATIN(7)='0' then
+			v(conv_integer(DATIN(3 downto 1))):=DATIN(0);
+		elsif WR='1' and ADR="10" then
+			v:=DATIN;
+		end if;
+		PCW<=v;
+	end process;
+	PCHo<=PCW(7 downto 4);
+	PCLo<=PCW(3 downto 0);
 	
 	PAoe<=OE_A;
 	PBoe<=OE_B;

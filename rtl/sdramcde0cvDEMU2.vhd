@@ -1513,8 +1513,11 @@ begin
 					CLKSFT<=CLKSFT(17 downto 0) & CLKSFT(18);
 				end if;
 				if(clkcount=18)then
-					-- Sub CPU: one rising edge per round = 75/19 = 3.947 MHz
-					SUBCSFT<="0000011111111100000";
+					-- Sub CPU: one rising edge per round = 75/19 = 3.947 MHz, 9 ticks
+					-- (about half a clock) after the 4 MHz main CPU clock, which matches
+					-- the handshake timing measured on a FH (at 8 MHz it rises with the
+					-- second main CPU rising edge)
+					SUBCSFT<="1111000000000011111";
 				else
 					SUBCSFT<=SUBCSFT(17 downto 0) & SUBCSFT(18);
 				end if;
@@ -1530,7 +1533,7 @@ begin
 	-- during SDRAM init, reloaded at clkcount=18, rotated otherwise).
 	nextsubc<=	(others=>'0')				when rstn='0' else
 				SUBCSFT						when (STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL) else
-				"0000011111111100000"		when clkcount=18 else
+				"1111000000000011111"		when clkcount=18 else
 				SUBCSFT(17 downto 0) & SUBCSFT(18);
 	SUBCE_R<='1' when SUBCSFT(18)='0' and nextsubc(18)='1' else '0';
 	SUBCE_F<='1' when SUBCSFT(18)='1' and nextsubc(18)='0' else '0';
