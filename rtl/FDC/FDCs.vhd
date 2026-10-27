@@ -91,8 +91,13 @@ signal	EOT		:std_logic_vector(7 downto 0);
 signal	GPL		:std_logic_vector(7 downto 0);
 signal	HD		:std_logic;
 signal	H		:std_logic_vector(7 downto 0);
--- signal	HLT		:std_logic_vector(6 downto 0);
--- signal	HUT		:std_logic_vector(3 downto 0);
+signal	HLT		:std_logic_vector(6 downto 0);
+signal	HUT		:std_logic_vector(3 downto 0);
+-- the head load: hdld is 1 while the head is loaded, HLT is waited before the head is loaded, HUT after the last execution
+signal	hdld	:std_logic;
+signal	hlrun	:std_logic;
+signal	hlcnt	:integer range 0 to 128*8;
+signal	hucnt	:integer range 0 to 16*64;
 signal	MF		:std_logic;
 signal	MT		:std_logic;
 signal	N		:std_logic_vector(7 downto 0);
@@ -794,8 +799,8 @@ begin
 			EOT		<=(others=>'0');
 			GPL		<=(others=>'0');
 			HD		<='0';
-			-- HLT		<=(others=>'0');
-			-- HUT		<=(others=>'0');
+			HLT		<=(others=>'0');
+			HUT		<=(others=>'0');
 			MF		<='0';
 			MT		<='0';
 			N		<=(others=>'0');
@@ -1199,13 +1204,13 @@ begin
 					case datnum is
 					when 1 =>
 						if(CPUWR_DAT='1')then
-							-- HUT<=CPUWRDAT(3 downto 0);
+							HUT<=CPUWRDAT(3 downto 0);
 							SRT<=CPUWRDAT(7 downto 4);
 							datnum<=datnum+1;
 						end if;
 					when 2 =>
 						if(CPUWR_DAT='1')then
-							-- HLT<=CPUWRDAT(7 downto 1);
+							HLT<=CPUWRDAT(7 downto 1);
 							ND<=CPUWRDAT(0);
 							RD_CMD<='1';
 							datnum<=0;
@@ -1651,7 +1656,7 @@ begin
 			else
 				case ecommand is
 				when cmd_READDATA | cmd_READDELETEDDATA | cmd_READATRACK  =>
-					if(execstate/=es_seek and lindex='1' and indexb='0')then
+					if(execstate/=es_seek and not(execstate=es_wseek and hdld='0') and lindex='1' and indexb='0')then
 --						if(contdata='1')then
 --							if(MT='1' and HD='0')then
 --								nturns<=0;
@@ -1732,7 +1737,7 @@ begin
 							execstate<=es_idle;
 						end if;
 					when es_wseek =>
-						if(seekbusy='0')then
+						if(seekbusy='0' and hdld='1')then
 							if(ecommand=cmd_READATRACK)then
 								execstate<=es_windex;
 							else
@@ -2302,7 +2307,7 @@ begin
 						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
-					elsif(execstate/=es_seek and lindex='1' and indexb='0')then
+					elsif(execstate/=es_seek and not(execstate=es_wseek and hdld='0') and lindex='1' and indexb='0')then
 --						if(contdata='1')then
 --							if(MT='1' and HD='0')then
 --								nturns<=0;
@@ -2382,7 +2387,7 @@ begin
 							execstate<=es_idle;
 						end if;
 					when es_wseek =>
-						if(seekbusy='0')then
+						if(seekbusy='0' and hdld='1')then
 							execstate<=es_IAM0;
 						end if;
 					when es_windex =>
@@ -3189,7 +3194,7 @@ begin
 --						execstate<=es_idle;
 --					end case;
 				when cmd_READID =>
-					if(execstate/=es_seek and lindex='1' and indexb='0')then
+					if(execstate/=es_seek and not(execstate=es_wseek and hdld='0') and lindex='1' and indexb='0')then
 						if(nturns=0)then
 --							if(nturns=2 and MT='1' and HD='0')then
 --								nturns<=0;
@@ -3235,7 +3240,7 @@ begin
 					end if;
 					case execstate is
 					when es_wseek =>
-						if(seekbusy='0')then
+						if(seekbusy='0' and hdld='1')then
 							execstate<=es_IAM0;
 						end if;
 					when es_IAM0 =>
@@ -3463,7 +3468,7 @@ begin
 					end case;
 
 				when cmd_SCANEQUAL | cmd_SCANLOWEQUAL| cmd_SCANHIGHEQUAL =>
-					if(execstate/=es_seek and lindex='1' and indexb='0')then
+					if(execstate/=es_seek and not(execstate=es_wseek and hdld='0') and lindex='1' and indexb='0')then
 						if(nturns=0)then
 							nturns<=1;
 						else
@@ -3518,7 +3523,7 @@ begin
 							execstate<=es_idle;
 						end if;
 					when es_wseek =>
-						if(seekbusy='0')then
+						if(seekbusy='0' and hdld='1')then
 							execstate<=es_IAM0;
 						end if;
 					when es_windex =>
@@ -4060,7 +4065,7 @@ begin
 						-- iSE<='0';
 						end_EXEC<='1';
 						execstate<=es_IDLE;
-					elsif(lindex='1' and indexb='0')then
+					elsif(execstate/=es_wseek and lindex='1' and indexb='0')then
 						if(sOR='1')then
 							modbreak<='1';
 							sHD<=HD;
@@ -4105,7 +4110,7 @@ begin
 					end if;
 					case execstate is
 					when es_wseek =>
-						if(seekbusy='0')then
+						if(seekbusy='0' and hdld='1')then
 							execstate<=es_windex;
 						end if;
 					when es_windex =>
@@ -4771,6 +4776,49 @@ begin
 --	sDxB(1)<=seek_busy1;
 --	sDxB(2)<=seek_busy2;
 --	sDxB(3)<=seek_busy3;
+
+	-- the head load and unload times of the SPECIFY, at the 4MHz FDC clock of the PC-8801 (HLT in 4ms, HUT in 32ms, 0 is the largest)
+	process(fclk,rstn)begin
+		if(rstn='0')then
+			hdld<='0';
+			hlrun<='0';
+			hlcnt<=0;
+			hucnt<=0;
+		elsif(fclk' event and fclk='1')then
+			if(execstate=es_wseek and hdld='0')then
+				if(hlrun='0')then
+					hlrun<='1';
+					if(HLT="0000000")then
+						hlcnt<=128*8;
+					else
+						hlcnt<=conv_integer(HLT)*8;
+					end if;
+				elsif(hmssft='1')then
+					if(hlcnt<=1)then
+						hdld<='1';
+						hlrun<='0';
+					else
+						hlcnt<=hlcnt-1;
+					end if;
+				end if;
+			else
+				hlrun<='0';
+			end if;
+			-- SEEK and RECALIBRATE do not restart the unload time; it counts from the end of a read or write
+			if(hdld='1' and (execstate=es_idle or ecommand=cmd_SEEK or ecommand=cmd_RECALIBRATE))then
+				if(hmssft='1')then
+					if((HUT="0000" and hucnt>=16*64-1) or (HUT/="0000" and hucnt>=conv_integer(HUT)*64-1))then
+						hdld<='0';
+						hucnt<=0;
+					else
+						hucnt<=hucnt+1;
+					end if;
+				end if;
+			else
+				hucnt<=0;
+			end if;
+		end if;
+	end process;
 
 	sksft	:sftdiv generic map(4) port map(
 		sel		=>not SRT,
