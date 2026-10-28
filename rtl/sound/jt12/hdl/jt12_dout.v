@@ -21,7 +21,9 @@
 
 module jt12_dout(
     // input             rst_n,
+    input             rst,
     input             clk,        // CPU clock
+    input             rd,         // read strobe (!cs_n && !rd_n)
     input             flag_A,
     input             flag_B,
     input             busy,
@@ -40,6 +42,37 @@ module jt12_dout(
 
 parameter use_ssg=0, use_adpcm=0, use_chipid=0;
 parameter read_bus=0; // 1: bits a register does not drive read as the last byte written to the chip (YM2203, YM2608)
+// Status remnant (YM2203, YM2608): bits 6-2 of a status read show bits 6-2 of the value
+// last read from another address. They clear rd_hold clk cycles after that read.
+// rd_refresh>0 (YM2203): a status read within rd_refresh cycles of the last
+// (re)start restarts the time. 0 disables each.
+parameter rd_hold=0, rd_refresh=0;
+
+localparam [21:0] RD_HOLD = rd_hold, RD_KEEP = rd_hold-rd_refresh;
+
+reg  [ 4:0] rd_bits;
+reg  [21:0] rd_cnt;
+reg         rd_l;
+wire        rd_first = rd && !rd_l;
+
+always @(posedge clk) begin
+    if( rst ) begin
+        rd_bits <= 5'd0;
+        rd_cnt  <= 22'd0;
+        rd_l    <= 1'b0;
+    end else begin
+        rd_l <= rd;
+        if( rd_hold!=0 && rd_first && addr!=2'b00 ) begin
+            rd_bits <= dout[6:2]; // the value the CPU takes on this cycle
+            rd_cnt  <= RD_HOLD;
+        end else if( rd_refresh!=0 && rd_first && addr==2'b00 && rd_cnt!=22'd0 && rd_cnt>=RD_KEEP ) begin
+            rd_cnt  <= RD_HOLD;
+        end else if( rd_cnt!=22'd0 ) begin
+            rd_cnt  <= rd_cnt-22'd1;
+            if( rd_cnt==22'd1 ) rd_bits <= 5'd0;
+        end
+    end
+end
 
 reg [7:0] psg_used; // bits driven by SSG register ssg_sel[3:0]
 always @(*)
@@ -54,7 +87,7 @@ wire [7:0] bus_dout = (use_chipid==1 && id_sel) ? 8'h1 :
 
 always @(posedge clk) begin
     casez( addr )
-        2'b00: dout <= {busy, 5'd0, flag_B, flag_A }; // YM2203
+        2'b00: dout <= {busy, rd_hold!=0 ? rd_bits : 5'd0, flag_B, flag_A }; // YM2203
         2'b01: dout <= (read_bus==1) ? bus_dout :
             (use_chipid==0) ? 
             {(use_ssg==1) ? psg_dout : {busy, 5'd0, flag_B, flag_A }} :

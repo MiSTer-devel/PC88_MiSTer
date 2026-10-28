@@ -87,6 +87,7 @@ parameter mask_div=1;
 parameter use_chipid=0;
 parameter busy_len=32;
 parameter read_bus=0;
+parameter rd_hold=0, rd_refresh=0;
 
 wire flag_A, flag_B, busy;
 
@@ -440,9 +441,12 @@ if( use_adpcm==0 ) begin: gen_adpcm_no
 end
 endgenerate
 
-jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid),.read_bus(read_bus)) u_dout(
+jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid),.read_bus(read_bus),
+    .rd_hold(rd_hold),.rd_refresh(rd_refresh)) u_dout(
 //    .rst_n          ( rst_n         ),
+    .rst            ( rst           ),
     .clk            ( clk           ),        // CPU clock
+    .rd             ( !cs_n && !rd_n ),
     .flag_A         ( flag_A        ),
     .flag_B         ( flag_B        ),
     .busy           ( busy          ),
