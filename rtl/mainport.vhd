@@ -50,6 +50,7 @@ port(
 	FM_WDAT	:out std_logic_vector(7 downto 0);
 	FM_CEN	:in std_logic	:='0';	--the board OPNA's clock enable
 	FM1_WRn	:out std_logic;			--internal OPN (cs_n and wr_n)
+	FM1_RDn	:out std_logic;			--internal OPN read
 	FM1_ADR	:out std_logic;
 	FM1_RDAT:in std_logic_vector(7 downto 0)	:=(others=>'1');
 	FM2_CSn	:out std_logic;			--board OPNA
@@ -166,6 +167,7 @@ begin
 
 	FM_WDAT<=f_wdat;
 	FM1_WRn<=not(f_sel and f_fm1 and not f_rd);
+	FM1_RDn<=not(f_sel and f_fm1 and f_rd);
 	FM1_ADR<=f_adr(0);
 
 	process(fclk,frstn)begin
