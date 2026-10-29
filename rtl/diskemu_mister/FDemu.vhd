@@ -158,7 +158,7 @@ signal	wrstate	:wrstate_t;
 --after a STEP, stop the disk for stoptime and give no read data for settletime
 --(the disk turns again after the stop), both in 0.1 ms from the last STEP;
 --an index hole that comes round in that time is not given either
-constant stoptime		:integer	:=98;
+constant stoptime		:integer	:=113;
 constant settletime	:integer	:=550;
 type settle_t is array(0 to 3) of integer range 0 to settletime;
 signal	settle	:settle_t;
