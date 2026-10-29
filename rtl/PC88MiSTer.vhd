@@ -1946,6 +1946,11 @@ signal	SUB_HTM2S	:std_logic_vector(3 downto 0);
 signal	SUB_HTS2M	:std_logic_vector(3 downto 0);
 signal	SUB_HRM2S	:std_logic_vector(3 downto 0);
 signal	SUB_HRS2M	:std_logic_vector(3 downto 0);
+signal	SUB_S2Mdl	:std_logic_vector(24*8-1 downto 0);
+signal	SUB_TXS2Md	:std_logic_vector(7 downto 0);
+signal	SUB_RXS2Md	:std_logic_vector(7 downto 0);
+signal	SUB_HTS2Md	:std_logic_vector(3 downto 0);
+signal	SUB_HRS2Md	:std_logic_vector(3 downto 0);
 
 signal	IORQ_np		:std_logic;
 signal	MREQ_np		:std_logic;
@@ -3047,6 +3052,19 @@ port map(
 	
 	LOWRES<=L200 or GCOLOR;
 	
+	-- The main CPU sees the lines from the sub CPU's 8255 eight rclk cycles
+	-- (about 105 ns) late. At 8MHz this matches the handshake timing measured
+	-- on a FH (5 to 12 cycles do); at 4MHz the timing does not change.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			SUB_S2Mdl<=SUB_S2Mdl(24*7-1 downto 0) & SUB_RXS2M & SUB_TXS2M & SUB_HTS2M & SUB_HRS2M;
+		end if;
+	end process;
+	SUB_RXS2Md<=SUB_S2Mdl(24*8-1 downto 24*8-8);
+	SUB_TXS2Md<=SUB_S2Mdl(24*8-9 downto 24*8-16);
+	SUB_HTS2Md<=SUB_S2Mdl(24*8-17 downto 24*8-20);
+	SUB_HRS2Md<=SUB_S2Mdl(24*8-21 downto 24*8-24);
+
 	PPIFD_CSn<='0' when IORQ_n='0' and CPUADR(7 downto 2)="111111" else '1';
 	PPIFD	:e8255 port map(
 		CSn		=>PPIFD_CSn,
@@ -3057,16 +3075,16 @@ port map(
 		DATOUT	=>IDAT_PPIFD,
 		DATOE	=>PPIFD_OE,
 		
-		PAi		=>SUB_RXS2M,
+		PAi		=>SUB_RXS2Md,
 		PAo		=>SUB_RXM2S,
 		PAoe		=>open,
-		PBi		=>SUB_TXS2M,
+		PBi		=>SUB_TXS2Md,
 		PBo		=>SUB_TXM2S,
 		PBoe		=>open,
-		PCHi		=>SUB_HTS2M,
+		PCHi		=>SUB_HTS2Md,
 		PCHo		=>SUB_HTM2S,
 		PCHoe		=>open,
-		PCLi		=>SUB_HRS2M,
+		PCLi		=>SUB_HRS2Md,
 		PCLo		=>SUB_HRM2S,
 		PCLoe		=>open,
 		
