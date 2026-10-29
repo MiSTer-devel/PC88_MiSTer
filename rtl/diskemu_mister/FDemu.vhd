@@ -412,11 +412,11 @@ begin
 			txwr<='0';
 		elsif(clk' event and clk='1')then
 			txwr<='0';
-			if(MOTOR='1' and rotstop='0')then
+			--the disk keeps turning while the motor is off, as on a FH
+			--(the read data and the index are given only while the motor is on)
+			if(rotstop='0')then
 				if(WRENn='1' and txemp='1' and txenable='1')then
-					if(WRENn='1')then
-						txwr<='1';
-					end if;
+					txwr<='1';
 				end if;
 			end if;
 		end if;
@@ -514,7 +514,7 @@ begin
 				'1' when txdat=x"c2" and txwr='1' else
 				'0';
 			
-	indexn<='0' when curpos="00000000000000" and ((lidxz='0' and nodata='0') or (lidxz='1' and idxmask='0')) else '1';
+	indexn<='0' when curpos="00000000000000" and MOTOR='1' and ((lidxz='0' and nodata='0') or (lidxz='1' and idxmask='0')) else '1';
 	
 	-- the read data is clocked by fractional bit cells, so the rotation and the
 	-- data rate follow sysclk exactly
@@ -564,7 +564,7 @@ begin
 	txwrbit<=fmwrbit or mfmwrbit;
 	wdatext	:signext generic map(extcount) port map(extcount,txwrbit,txwrbitex,clk,rstn);
 	
-	RDBITn<='1' when nodata='1' else not txwrbitex;
+	RDBITn<='1' when nodata='1' or MOTOR='0' else not txwrbitex;
 	
 	fmrxbit<=not WRBITn when WRMFM='0' and WRENn='0' else '0';
 	mfmrxbit<=not WRBITn when WRMFM='1' and WRENn='0' else '0';
@@ -851,7 +851,8 @@ begin
 	rotstop<='1' when settlex>settletime-stoptime else '0';
 	nodata<='1' when settlex/=0 else '0';
 	
-	--decided when the disk turns to the index, so only the rotation makes index edges
+	--decided when the disk turns to the index, so only the rotation makes index edges;
+	--an index the motor has hidden stays hidden until the disk turns past it
 	process(clk,rstn)
 	begin
 		if(rstn='0')then
@@ -859,7 +860,9 @@ begin
 			lidxz<='1';
 		elsif(clk' event and clk='1')then
 			if(curpos="00000000000000" and lidxz='0')then
-				idxmask<=nodata;
+				idxmask<=nodata or not MOTOR;
+			elsif(curpos="00000000000000" and MOTOR='0')then
+				idxmask<='1';
 			end if;
 			if(curpos="00000000000000")then
 				lidxz<='1';
