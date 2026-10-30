@@ -55,9 +55,10 @@ assign      rom_addr    = adpcma_addr[12:0];
 assign      rden        = ~adpcma_roe_n;
 
 parameter rd_hold=0, rd_refresh=0;
+parameter bus_hold=0, read_bus_hi=0;
 
 // JT08 module
-jt08 #(.rd_hold(rd_hold), .rd_refresh(rd_refresh)) u_jt08(
+jt08 #(.rd_hold(rd_hold), .rd_refresh(rd_refresh), .bus_hold(bus_hold), .read_bus_hi(read_bus_hi)) u_jt08(
     .rst            ( rst          ),
     .clk            ( clk          ),
     .cen            ( cen          ),

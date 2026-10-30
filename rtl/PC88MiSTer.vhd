@@ -1428,7 +1428,9 @@ end component;
 component JT03 
 	generic(
 		rd_hold		:integer	:=0;
-		rd_refresh	:integer	:=0
+		rd_refresh	:integer	:=0;
+		bus_hold	:integer	:=0;
+		bus_hold5	:integer	:=0
 	);
 	port(
 		rst		:in std_logic;
@@ -1466,7 +1468,9 @@ end component;
 component JTOPNA
 	generic(
 		rd_hold		:integer	:=0;
-		rd_refresh	:integer	:=0
+		rd_refresh	:integer	:=0;
+		bus_hold	:integer	:=0;
+		read_bus_hi	:integer	:=0
 	);
 	port(
 		rst		:in std_logic;
@@ -3721,7 +3725,8 @@ end process;
 		cen_opn <= cen_opna and cen_4m;
 
 		-- 44h status remnant: 125 ms (2371652 clk21m), restarted by a 44h read within 10 ms (189732)
-		FMSB1: JT03 generic map (rd_hold=>2371652, rd_refresh=>189732) port map (
+		-- bus remnant: bit 5 fades 60 ms (1138393) and the other bits 4.0 s (75892857) after the last write
+		FMSB1: JT03 generic map (rd_hold=>2371652, rd_refresh=>189732, bus_hold=>75892857, bus_hold5=>1138393) port map (
 			rst		=>not CPU_rstn,
 			clk		=>clk21m,
 			cen		=>cen_opn,
@@ -3755,7 +3760,8 @@ end process;
 		sndPSG(2 downto 0)<="000";
 
 		-- 44h status remnant: 110 ms (2087054 clk21m)
-		FMSB2: JTOPNA generic map (rd_hold=>2087054, rd_refresh=>0) port map (
+		-- bus remnant: fades 0.85 s (16127232) after the last write; 47h follows the register selected at 46h
+		FMSB2: JTOPNA generic map (rd_hold=>2087054, rd_refresh=>0, bus_hold=>16127232, read_bus_hi=>1) port map (
 			rst		=>not CPU_rstn,
 			clk		=>clk21m, 
 			cen		=>cen_opna,
