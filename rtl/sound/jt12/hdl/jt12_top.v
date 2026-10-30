@@ -88,6 +88,10 @@ parameter use_chipid=0;
 parameter busy_len=32;
 parameter read_bus=0;
 parameter rd_hold=0, rd_refresh=0;
+// Bus remnant decay (YM2203, YM2608): the last byte written reads as 0 bus_hold clk cycles
+// after the last write (bit 5 after bus_hold5 if that is nonzero). 0 keeps it, as before.
+// read_bus_hi (YM2608): 47h reads follow the register last selected at 46h (see jt12_dout).
+parameter bus_hold=0, bus_hold5=0, read_bus_hi=0;
 
 wire flag_A, flag_B, busy;
 
@@ -110,6 +114,27 @@ always @(posedge clk)
             id_sel <= !addr[1] && din==8'hff;
         end
     end
+
+localparam [26:0] BUS_HOLD = bus_hold, BUS_HOLD5 = bus_hold5;
+reg  [26:0] bus_cnt, bus_cnt5;
+reg  [ 7:0] sel_hi;     // register last selected at the second address port (46h)
+always @(posedge clk)
+    if( rst ) begin
+        bus_cnt  <= 27'd0;
+        bus_cnt5 <= 27'd0;
+        sel_hi   <= 8'd0;
+    end else if( write ) begin
+        bus_cnt  <= BUS_HOLD;
+        bus_cnt5 <= BUS_HOLD5;
+        if( addr==2'b10 ) sel_hi <= din;
+    end else begin
+        if( bus_cnt !=27'd0 ) bus_cnt  <= bus_cnt -27'd1;
+        if( bus_cnt5!=27'd0 ) bus_cnt5 <= bus_cnt5-27'd1;
+    end
+
+wire       bus_live  = bus_hold==0 || bus_cnt!=27'd0;
+wire       bus_live5 = bus_hold5==0 ? bus_live : bus_cnt5!=27'd0;
+wire [7:0] last_dec  = last_din & { {2{bus_live}}, bus_live5, {5{bus_live}} };
 
 wire clk_en, clk_en_ssg;
 
@@ -396,7 +421,8 @@ if( use_adpcm==2 ) begin: gen_adpcm
         .pcm55_l    ( adpcmB_l      ),
         .pcm55_r    ( adpcmB_r      )
     );
-    assign sel_ram = (~cs_n & sel_ram_dat);
+    // read_bus_hi: a 47h read takes the ADPCM data (and steps the memory) when 46h last selected 08h
+    assign sel_ram = ~cs_n & ((read_bus_hi!=0 && !rd_n) ? (addr==2'b11 && sel_hi==8'h08) : sel_ram_dat);
     assign adpcmb_flag = 1'b0;
     
     assign snd_sample   = zero;
@@ -442,7 +468,7 @@ end
 endgenerate
 
 jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid),.read_bus(read_bus),
-    .rd_hold(rd_hold),.rd_refresh(rd_refresh)) u_dout(
+    .rd_hold(rd_hold),.rd_refresh(rd_refresh),.read_bus_hi(read_bus_hi)) u_dout(
 //    .rst_n          ( rst_n         ),
     .rst            ( rst           ),
     .clk            ( clk           ),        // CPU clock
@@ -457,7 +483,8 @@ jt12_dout #(.use_ssg(use_ssg),.use_adpcm(use_adpcm),.use_chipid(use_chipid),.rea
     .psg_dout       ( psg_dout      ),
     .ssg_sel        ( ssg_sel       ),
     .id_sel         ( id_sel        ),
-    .last_din       ( last_din      ),
+    .last_din       ( last_dec      ),
+    .sel_hi         ( sel_hi        ),
     .dout_b         ( dout_b        ),
     .addr           ( addr          ),
     .dout           ( dout          )

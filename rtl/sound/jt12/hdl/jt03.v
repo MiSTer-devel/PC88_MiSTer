@@ -56,11 +56,13 @@ module jt03(
 
 parameter YM2203_LUMPED=0; // set to 1 if all PSG outputs are shorted together without any resistor
 parameter rd_hold=0, rd_refresh=0;
+parameter bus_hold=0, bus_hold5=0;
 
 jt12_top #(
     .use_lfo(0),.use_ssg(1), .num_ch(3), .use_pcm(0), .use_adpcm(0), .mask_div(0),
     .JT49_COMP(3'd0),.YM2203_LUMPED(YM2203_LUMPED),
-    .busy_len(18), .read_bus(1), .rd_hold(rd_hold), .rd_refresh(rd_refresh) )
+    .busy_len(18), .read_bus(1), .rd_hold(rd_hold), .rd_refresh(rd_refresh),
+    .bus_hold(bus_hold), .bus_hold5(bus_hold5) )
 u_jt12(
     .rst            ( rst          ),        // rst should be at least 6 clk&cen cycles long
     .clk            ( clk          ),        // CPU clock
