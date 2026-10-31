@@ -48,8 +48,8 @@ module jt08_adpcmb_cnt(
     input               acmd_ad_b,
     input               stb_rd,
     input               stb_wr,
-    input               fwd_en,
-    input               cpu_rd,
+    input               acmd_mem_b,
+    input               acmd_rec_b,
     input               ram_busy,
     input               ram_stb,
     output              ram_write,
@@ -84,6 +84,8 @@ always @(posedge clk or negedge rst_n)
 reg set_flag, last_set;
 reg [1:0] restart;
 reg [1:0] end_hold;
+// CPU read form: START=0, MEMDATA=1, REC=0
+wire cpu_rd = ~on & acmd_mem_b & ~acmd_rec_b;
 
 always @(posedge clk or negedge rst_n)
     if(!rst_n) begin
@@ -168,6 +170,10 @@ reg pre_wr, pre_rd;
 reg reg_write, reg_read;
 
 // detect register access
+// with START=0, as measured on a PC-8801MA: a write in the read form is
+// taken as a read when it ends, and a read moves the latch only in the read form
+wire stb_rd_any = stb_rd | (stb_wr & cpu_rd);
+
 always @(posedge clk or negedge rst_n)
     if(!rst_n) begin
         reg_write   <= 1'b0;
@@ -176,13 +182,13 @@ always @(posedge clk or negedge rst_n)
         pre_rd      <= 1'b0;
     end else if (cen) begin
         pre_wr      <= stb_wr;
-        pre_rd      <= stb_rd;
+        pre_rd      <= stb_rd_any;
         if (!pre_wr & stb_wr) begin
-            reg_write   <= 1'b1;
+            reg_write   <= acmd_rec_b;
             reg_read    <= 1'b0;
-        end else if (pre_rd & !stb_rd) begin
+        end else if (pre_rd & !stb_rd_any) begin
             reg_write   <= 1'b0;
-            reg_read    <= 1'b1;
+            reg_read    <= on | acmd_mem_b;
         end else begin
             reg_write   <= 1'b0;
             reg_read    <= 1'b0;
@@ -201,7 +207,7 @@ always @(posedge clk or negedge rst_n)
         end else begin
             ram_read <= 1'b0;
         end
-        if ((reg_read && fwd_en) || (cen55 && chon && adv && nibble_sel) || (ram_stb && restart[0])) begin
+        if ((reg_read && (on | ~acmd_rec_b)) || (cen55 && chon && adv && nibble_sel) || (ram_stb && restart[0])) begin
             forward <= 1'b1;
         end else begin
             forward <= 1'b0;

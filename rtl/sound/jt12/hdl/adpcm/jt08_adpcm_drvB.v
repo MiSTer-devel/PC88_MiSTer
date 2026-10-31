@@ -94,13 +94,6 @@ wire [20:0] alimit  = (gran_8b) ? {alimit_b, 5'h1F} : {3'h0, alimit_b, 2'h3} ;
 
 
 
-// CPU access to the memory with START=0, as measured on a PC-8801MA:
-// a read moves the latch only in the read form (MEMDATA=1, REC=0),
-// and a write in the read form is taken as a read (the forward then
-// replaces the written byte before it can be read)
-wire cpu_rd_mode = ~acmd_on_b & acmd_mem_b & ~acmd_rec_b;
-wire fwd_en      = acmd_on_b | (acmd_mem_b & ~acmd_rec_b);
-
 // memory data pipeline
 reg   [7:0] mem_L1;
 reg   [7:0] mem_L2;
@@ -185,9 +178,9 @@ jt08_adpcmb_cnt u_cnt(
     // Memory
     .acmd_ad_b   ( acmd_ad_b       ),
     .stb_wr      ( stb_wr          ),
-    .stb_rd      ( stb_rd | (stb_wr & cpu_rd_mode) ),
-    .fwd_en      ( fwd_en          ),
-    .cpu_rd      ( cpu_rd_mode     ),
+    .stb_rd      ( stb_rd          ),
+    .acmd_mem_b  ( acmd_mem_b      ),
+    .acmd_rec_b  ( acmd_rec_b      ),
     .ram_busy    ( ram_busy        ),
     .ram_stb     ( ram_stb         ),
     .ram_read    ( ram_read        ),
