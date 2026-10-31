@@ -102,9 +102,9 @@ reg   [7:0] mem_L4;
 
 always @(posedge clk or negedge rst_n)
     if(!rst_n) begin
-        mem_L1 <= 8'h00;
+        mem_L1 <= 8'hff;    // moved to mem_L2 by a write before any read
         mem_L2 <= 8'h00;
-        mem_L3 <= 8'h00;
+        mem_L3 <= 8'hff;    // the latch reads FFh after power-on
         mem_L4 <= 8'h00;
     end else if (cen) begin
         if (!ram_oe_n)
@@ -179,6 +179,8 @@ jt08_adpcmb_cnt u_cnt(
     .acmd_ad_b   ( acmd_ad_b       ),
     .stb_wr      ( stb_wr          ),
     .stb_rd      ( stb_rd          ),
+    .acmd_mem_b  ( acmd_mem_b      ),
+    .acmd_rec_b  ( acmd_rec_b      ),
     .ram_busy    ( ram_busy        ),
     .ram_stb     ( ram_stb         ),
     .ram_read    ( ram_read        ),
