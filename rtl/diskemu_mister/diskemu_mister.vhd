@@ -1188,6 +1188,8 @@ begin
 	
 	process(sclk,rstn)
 	variable swait	:integer range 0 to 3;
+	variable ia_b,ia_o	:std_logic_vector(31 downto 0);	-- the next image address: a base and an offset
+	variable ia_s	:boolean;
 	variable ovb	:std_logic_vector(16 downto 0);
 	variable csb	:std_logic_vector(63 downto 0);
 	variable vpos,vcand	:std_logic_vector(15 downto 0);
@@ -1253,6 +1255,7 @@ begin
 			trackwrote<='0';
 			fde_modeset<="00";
 		elsif(sclk' event and sclk='1')then
+			ia_s:=false;
 			img_rd<='0';
 			img_wr<='0';
 			img_sync<='0';
@@ -1279,12 +1282,12 @@ begin
 					if(proc_begin='1')then
 						case emustate is
 						when es_fload0 | es_fsave0 =>
-							img_addr<=x"00000000";
+							ia_b:=x"00000000"; ia_o:=x"00000000"; ia_s:=true;
 							img_unit<='0';
 							img_rd<='1';
 							fdstate<=fs_loadtbl0;
 						when es_fload1 | es_fsave1 =>
-							img_addr<=x"00000000";
+							ia_b:=x"00000000"; ia_o:=x"00000000"; ia_s:=true;
 							img_unit<='1';
 							img_rd<='1';
 							fdstate<=fs_loadtbl0;
@@ -1293,7 +1296,7 @@ begin
 					end if;
 				when fs_loadtbl0 =>
 					if(img_busy='0')then
-						img_addr<=x"00000200";
+						ia_b:=x"00000000"; ia_o:=x"00000200"; ia_s:=true;
 						trackno<=(others=>'0');
 						img_rd<='1';
 						fdstate<=fs_loadtbl1;
@@ -1362,7 +1365,7 @@ begin
 						trackwr<='1';
 						fdstate<=fs_gap4;
 					else
-						img_addr<=haddr+x"06";
+						ia_b:=haddr; ia_o:=x"00000006"; ia_s:=true;
 						img_rd<='1';
 						fdstate<=fs_loadsheadw;
 					end if;
@@ -1386,14 +1389,14 @@ begin
 						end if;
 						trackwr<='1';
 						swait:=1;
-						img_addr<=haddr+x"04";
+						ia_b:=haddr; ia_o:=x"00000004"; ia_s:=true;
 						img_rd<='1';
 						fdstate<=fs_loadsectorsl;
 					end if;
 				when fs_loadsectorsl =>
 					if(img_busy='0')then
 						numsect(7 downto 0)<=img_rddat;
-						img_addr<=haddr+x"05";
+						ia_b:=haddr; ia_o:=x"00000005"; ia_s:=true;
 						swait:=1;
 						fdstate<=fs_loadsectorsh;
 					end if;
@@ -1419,7 +1422,7 @@ begin
 						fdstate<=fs_gap4;
 					else
 						usestd<='1';
-						img_addr<=cursecthead+x"06";
+						ia_b:=cursecthead; ia_o:=x"00000006"; ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_psden;
@@ -1430,7 +1433,7 @@ begin
 							usestd<='0';
 							fdstate<=fs_gap0;
 						else
-							img_addr<=psaddr+x"0e";
+							ia_b:=psaddr; ia_o:=x"0000000e"; ia_s:=true;
 							img_rd<='1';
 							swait:=1;
 							fdstate<=fs_pslenl;
@@ -1439,7 +1442,7 @@ begin
 				when fs_pslenl =>
 					if(img_busy='0')then
 						pslen(7 downto 0)<=img_rddat;
-						img_addr<=psaddr+x"0f";
+						ia_b:=psaddr; ia_o:=x"0000000f"; ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_pslenh;
@@ -1476,7 +1479,7 @@ begin
 							fdstate<=fs_gap0;
 						end if;
 					else
-						img_addr<=psaddr+x"06";
+						ia_b:=psaddr; ia_o:=x"00000006"; ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_psden;
@@ -1591,7 +1594,7 @@ begin
 							end if;
 							trackwr<='1';
 							crcwr<='1';
-							img_addr<=cursecthead+x"00";
+							ia_b:=cursecthead; ia_o:=x"00000000"; ia_s:=true;
 							img_rd<='1';
 							swait:=1;
 						end if;
@@ -1636,7 +1639,7 @@ begin
 						crcwrdat<=img_rddat;
 						crcwr<='1';
 						fdstate<=fs_H;
-						img_addr<=cursecthead+x"01";
+						ia_b:=cursecthead; ia_o:=x"00000001"; ia_s:=true;
 						swait:=1;
 					end if;
 				when fs_H =>
@@ -1649,7 +1652,7 @@ begin
 						crcwrdat<=img_rddat;
 						crcwr<='1';
 						fdstate<=fs_R;
-						img_addr<=cursecthead+x"02";
+						ia_b:=cursecthead; ia_o:=x"00000002"; ia_s:=true;
 						swait:=1;
 					end if;
 				when fs_R =>
@@ -1662,7 +1665,7 @@ begin
 						crcwrdat<=img_rddat;
 						crcwr<='1';
 						fdstate<=fs_N;
-						img_addr<=cursecthead+x"03";
+						ia_b:=cursecthead; ia_o:=x"00000003"; ia_s:=true;
 						swait:=1;
 					end if;
 				when fs_N =>
@@ -1675,7 +1678,7 @@ begin
 						crcwrdat<=img_rddat;
 						crcwr<='1';
 						fdstate<=fs_crci0;
-						img_addr<=cursecthead+x"08";
+						ia_b:=cursecthead; ia_o:=x"00000008"; ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 					end if;
@@ -1691,7 +1694,7 @@ begin
 							trackwrdat(7 downto 0)<=crcdat(15 downto 8);
 						end if;
 						trackwr<='1';
-						img_addr<=cursecthead+x"07";
+						ia_b:=cursecthead; ia_o:=x"00000007"; ia_s:=true;
 						fdstate<=fs_crci1;
 						swait:=1;
 					end if;
@@ -1707,7 +1710,7 @@ begin
 							trackwrdat(7 downto 0)<=crcdat(7 downto 0);
 						end if;
 						trackwr<='1';
-						img_addr<=cursecthead+x"0e";
+						ia_b:=cursecthead; ia_o:=x"0000000e"; ia_s:=true;
 						img_rd<='1';
 						fdstate<=fs_ssizel;
 						swait:=1;
@@ -1715,7 +1718,7 @@ begin
 				when fs_ssizel =>
 					if(img_busy='0')then
 						sectlen(7 downto 0)<=img_rddat;
-						img_addr<=cursecthead+x"0f";
+						ia_b:=cursecthead; ia_o:=x"0000000f"; ia_s:=true;
 						img_rd<='1';
 						fdstate<=fs_ssizeh;
 					end if;
@@ -1724,7 +1727,7 @@ begin
 					--the buffer stores it only after the block move, with the address and data set here
 					if(img_busy='0' and trackbusy='0')then
 						sectlen(15 downto 8)<=img_rddat;
-						img_addr<=cursecthead+x"10";
+						ia_b:=cursecthead; ia_o:=x"00000010"; ia_s:=true;
 						img_rd<='1';
 						nxtsecthead<=cursecthead+(img_rddat & sectlen(7 downto 0))+x"10";
 						if(ovlseen='0' and (img_rddat & sectlen(7 downto 0))>=x"1800")then
@@ -1877,7 +1880,7 @@ begin
 						nxtsecthead<=fh_q;
 						sectcount<=numsect-std_logic_vector(ieee.numeric_std.to_unsigned(fn-bj+1,16));
 						bj<=bj+1;
-						img_addr<=fh_q+6;
+						ia_b:=fh_q; ia_o:=x"00000006"; ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_nxtsector;
@@ -1911,7 +1914,7 @@ begin
 						crcwr<='1';
 						if(sectlen>x"0001")then
 							sectlen<=sectlen-1;
-							img_addr<=img_addr+1;
+							ia_b:=img_addr; ia_o:=x"00000001"; ia_s:=true;
 							img_rd<='1';
 						else
 							fdstate<=fs_crcd0;
@@ -1994,7 +1997,7 @@ begin
 								if(ovmode='1')then
 									track_curaddr<=csp_q(22 downto 9)-12;	-- the sync before its planned ID
 								end if;
-								img_addr<=nxtsecthead+6;
+								ia_b:=nxtsecthead; ia_o:=x"00000006"; ia_s:=true;
 								img_rd<='1';
 								fdstate<=fs_nxtsector;
 							end if;
@@ -2047,7 +2050,7 @@ begin
 						ovlbad<='0';
 						fdstate<=fs_ovm0;
 					else
-						img_addr<=ovlimg+(x"0000" & soff);
+						ia_b:=ovlimg; ia_o:=(x"0000"&soff); ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_ovs1;
@@ -2082,36 +2085,36 @@ begin
 						fh_wa<=std_logic_vector(ieee.numeric_std.to_unsigned(mj mod 64,6));
 						fh_wd<=mhead;
 						fh_we<='1';
-						img_addr<=mhead;
+						ia_b:=mhead; ia_o:=x"00000000"; ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_ovm1;
 					end if;
 				when fs_ovm1 =>
 					if(img_busy='0')then
-						mchrn(31 downto 24)<=img_rddat; img_addr<=mhead+1; img_rd<='1'; swait:=1; fdstate<=fs_ovm2;
+						mchrn(31 downto 24)<=img_rddat; ia_b:=mhead; ia_o:=x"00000001"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_ovm2;
 					end if;
 				when fs_ovm2 =>
 					if(img_busy='0')then
-						mchrn(23 downto 16)<=img_rddat; img_addr<=mhead+2; img_rd<='1'; swait:=1; fdstate<=fs_ovm3;
+						mchrn(23 downto 16)<=img_rddat; ia_b:=mhead; ia_o:=x"00000002"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_ovm3;
 					end if;
 				when fs_ovm3 =>
 					if(img_busy='0')then
-						mchrn(15 downto 8)<=img_rddat; img_addr<=mhead+3; img_rd<='1'; swait:=1; fdstate<=fs_ovm4;
+						mchrn(15 downto 8)<=img_rddat; ia_b:=mhead; ia_o:=x"00000003"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_ovm4;
 					end if;
 				when fs_ovm4 =>
 					if(img_busy='0')then
-						mchrn(7 downto 0)<=img_rddat; img_addr<=mhead+x"0e"; img_rd<='1'; swait:=1; fdstate<=fs_ovm5;
+						mchrn(7 downto 0)<=img_rddat; ia_b:=mhead; ia_o:=x"0000000e"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_ovm5;
 					end if;
 				when fs_ovm5 =>
 					if(img_busy='0')then
-						mlen<=img_rddat; img_addr<=mhead+x"0f"; img_rd<='1'; swait:=1; fdstate<=fs_ovm6;
+						mlen<=img_rddat; ia_b:=mhead; ia_o:=x"0000000f"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_ovm6;
 					end if;
 				when fs_ovm6 =>
 					if(img_busy='0')then
 						mhead<=mhead+(img_rddat & mlen)+x"10";
 						mlen16<=img_rddat & mlen;
-						img_addr<=mhead+x"08"; img_rd<='1'; swait:=1;
+						ia_b:=mhead; ia_o:=x"00000008"; ia_s:=true; img_rd<='1'; swait:=1;
 						fdstate<=fs_ovm6s;
 					end if;
 				when fs_ovm6s =>
@@ -2166,7 +2169,7 @@ begin
 						ovl_wd<=ovlkeep or (not ovlsmall) or fany;
 						ovlkeep<=ovlkeep or (not ovlsmall) or fany;
 						ovlcopy<='0';
-						img_addr<=ovlimg;
+						ia_b:=ovlimg; ia_o:=x"00000000"; ia_s:=true;
 						img_rd<='1';
 						sectlen<=ovllen;
 						swait:=1;
@@ -2303,7 +2306,7 @@ begin
 					if(img_busy='0')then
 						ovlcopy<='1';
 						mfm<='1';	-- the sector built behind it may have been FM
-						img_addr<=ovlimg+(x"0000" & "00" & (track_curaddr+1-ovlstart));
+						ia_b:=ovlimg; ia_o:=(x"0000"&"00"&(track_curaddr+1-ovlstart)); ia_s:=true;
 						img_rd<='1';
 						sectlen<=x"7FFF";
 						fh_ra<=std_logic_vector(ieee.numeric_std.to_unsigned(bj mod 64,6));	-- the header of the sector built next
@@ -2325,34 +2328,34 @@ begin
 						plast<=(others=>'0');
 						fdstate<=fs_plf0;
 					else
-						img_addr<=phead;
+						ia_b:=phead; ia_o:=x"00000000"; ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_plh1;
 					end if;
 				when fs_plh1 =>
 					if(img_busy='0')then
-						pchrn(31 downto 24)<=img_rddat; img_addr<=phead+1; img_rd<='1'; swait:=1; fdstate<=fs_plh2;
+						pchrn(31 downto 24)<=img_rddat; ia_b:=phead; ia_o:=x"00000001"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_plh2;
 					end if;
 				when fs_plh2 =>
 					if(img_busy='0')then
-						pchrn(23 downto 16)<=img_rddat; img_addr<=phead+2; img_rd<='1'; swait:=1; fdstate<=fs_plh3;
+						pchrn(23 downto 16)<=img_rddat; ia_b:=phead; ia_o:=x"00000002"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_plh3;
 					end if;
 				when fs_plh3 =>
 					if(img_busy='0')then
-						pchrn(15 downto 8)<=img_rddat; img_addr<=phead+3; img_rd<='1'; swait:=1; fdstate<=fs_plh4;
+						pchrn(15 downto 8)<=img_rddat; ia_b:=phead; ia_o:=x"00000003"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_plh4;
 					end if;
 				when fs_plh4 =>
 					if(img_busy='0')then
-						pchrn(7 downto 0)<=img_rddat; img_addr<=phead+8; img_rd<='1'; swait:=1; fdstate<=fs_plh5;
+						pchrn(7 downto 0)<=img_rddat; ia_b:=phead; ia_o:=x"00000008"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_plh5;
 					end if;
 				when fs_plh5 =>
 					if(img_busy='0')then
-						pst<=img_rddat; img_addr<=phead+x"0e"; img_rd<='1'; swait:=1; fdstate<=fs_plh6;
+						pst<=img_rddat; ia_b:=phead; ia_o:=x"0000000e"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_plh6;
 					end if;
 				when fs_plh6 =>
 					if(img_busy='0')then
-						plen(7 downto 0)<=img_rddat; img_addr<=phead+x"0f"; img_rd<='1'; swait:=1; fdstate<=fs_plh7;
+						plen(7 downto 0)<=img_rddat; ia_b:=phead; ia_o:=x"0000000f"; ia_s:=true; img_rd<='1'; swait:=1; fdstate<=fs_plh7;
 					end if;
 				when fs_plh7 =>
 					if(img_busy='0')then
@@ -2436,7 +2439,7 @@ begin
 					if(csoff>=plen)then
 						fdstate<=fs_plf6;
 					else
-						img_addr<=phead+x"10"+(x"0000" & csoff);
+						ia_b:=phead; ia_o:=x"00000010"+(x"0000"&csoff); ia_s:=true;
 						img_rd<='1';
 						swait:=1;
 						fdstate<=fs_pls1;
@@ -2701,7 +2704,7 @@ begin
 					end if;
 				when fs_phclrw =>
 					if(img_busy='0')then
-						img_addr<=(x"00000" & "00" & allotidx & "00")+x"20"+wbyte;
+						ia_b:=(x"00000"&"00"&allotidx&"00"); ia_o:=x"00000020"+wbyte; ia_s:=true;
 						img_wrdat<=x"00";
 						img_wr<='1';
 						swait:=2;
@@ -2723,10 +2726,10 @@ begin
 				when fs_relocw =>		-- the new disk size first, then the table entry
 					if(img_busy='0')then
 						if(wbyte<4)then
-							img_addr<=x"0000001c"+wbyte;
+							ia_b:=x"00000000"; ia_o:=x"0000001c"+wbyte; ia_s:=true;
 							img_wrdat<=byteof(disksize,wbyte);
 						else
-							img_addr<=(x"00000" & "00" & trackno & "00")+x"20"+(wbyte-4);
+							ia_b:=(x"00000"&"00"&trackno&"00"); ia_o:=x"00000020"+(wbyte-4); ia_s:=true;
 							img_wrdat<=byteof(cursecthead,wbyte-4);
 						end if;
 						img_wr<='1';
@@ -2786,7 +2789,7 @@ begin
 					end if;
 				when fs_stC =>
 					if(trackbusy='0' and img_busy='0' and crcbusy='0')then
-						img_addr<=cursecthead+x"00";
+						ia_b:=cursecthead; ia_o:=x"00000000"; ia_s:=true;
 						img_wrdat<=trackrddat(7 downto 0);
 						img_wr<='1';
 						crcwrdat<=trackrddat(7 downto 0);
@@ -2798,7 +2801,7 @@ begin
 					end if;
 				when fs_stH =>
 					if(trackbusy='0' and img_busy='0' and crcbusy='0')then
-						img_addr<=cursecthead+x"01";
+						ia_b:=cursecthead; ia_o:=x"00000001"; ia_s:=true;
 						img_wrdat<=trackrddat(7 downto 0);
 						img_wr<='1';
 						crcwrdat<=trackrddat(7 downto 0);
@@ -2810,7 +2813,7 @@ begin
 					end if;
 				when fs_stR =>
 					if(trackbusy='0' and img_busy='0' and crcbusy='0')then
-						img_addr<=cursecthead+x"02";
+						ia_b:=cursecthead; ia_o:=x"00000002"; ia_s:=true;
 						img_wrdat<=trackrddat(7 downto 0);
 						img_wr<='1';
 						crcwrdat<=trackrddat(7 downto 0);
@@ -2822,7 +2825,7 @@ begin
 					end if;
 				when fs_stN =>
 					if(trackbusy='0' and img_busy='0' and crcbusy='0')then
-						img_addr<=cursecthead+x"03";
+						ia_b:=cursecthead; ia_o:=x"00000003"; ia_s:=true;
 						img_wrdat<=trackrddat(7 downto 0);
 						img_wr<='1';
 						crcwrdat<=trackrddat(7 downto 0);
@@ -2859,7 +2862,7 @@ begin
 						else
 							sectstatus<=x"00";
 						end if;
-						img_addr<=cursecthead+x"04";
+						ia_b:=cursecthead; ia_o:=x"00000004"; ia_s:=true;
 						img_wrdat<=numsect(7 downto 0);
 						img_wr<='1';
 						track_curaddr<=track_curaddr+1;
@@ -2872,7 +2875,7 @@ begin
 						if(trackrddat(7 downto 0)/=crcdat(7 downto 0))then
 							sectstatus<=x"a0";
 						end if;
-						img_addr<=cursecthead+x"05";
+						ia_b:=cursecthead; ia_o:=x"00000005"; ia_s:=true;
 						img_wrdat<=numsect(15 downto 8);
 						img_wr<='1';
 						track_curaddr<=track_curaddr+1;
@@ -2882,7 +2885,7 @@ begin
 					end if;
 				when fs_stmod =>
 					if(img_busy='0')then
-						img_addr<=cursecthead+x"06";
+						ia_b:=cursecthead; ia_o:=x"00000006"; ia_s:=true;
 						if(trackrddat(9)='1')then
 							img_wrdat<=x"00";
 						else
@@ -2894,7 +2897,7 @@ begin
 					end if;
 				when fs_stsectsizel =>
 					if(img_busy='0')then
-						img_addr<=cursecthead+x"0e";
+						ia_b:=cursecthead; ia_o:=x"0000000e"; ia_s:=true;
 						img_wrdat<=sectlen(7 downto 0);
 						img_wr<='1';
 						swait:=2;
@@ -2902,7 +2905,7 @@ begin
 					end if;
 				when fs_stsectsizeh =>
 					if(img_busy='0')then
-						img_addr<=cursecthead+x"0f";
+						ia_b:=cursecthead; ia_o:=x"0000000f"; ia_s:=true;
 						img_wrdat<=sectlen(15 downto 8);
 						img_wr<='1';
 						swait:=2;
@@ -2970,7 +2973,7 @@ begin
 				when fs_stdat =>
 					if(trackbusy='0' and img_busy='0' and crcbusy='0')then
 						if(sectlen>x"0000")then
-							img_addr<=img_addr+1;
+							ia_b:=img_addr; ia_o:=x"00000001"; ia_s:=true;
 							img_wrdat<=trackrddat(7 downto 0);
 							img_wr<='1';
 							crcwrdat<=trackrddat(7 downto 0);
@@ -2993,7 +2996,7 @@ begin
 						if(trackrddat(7 downto 0)/=crcdat(7 downto 0))then
 							sectstatus<=x"b0";
 						end if;
-						img_addr<=cursecthead+x"07";
+						ia_b:=cursecthead; ia_o:=x"00000007"; ia_s:=true;
 						if(deleted='1')then
 							img_wrdat<=x"10";
 						else
@@ -3005,7 +3008,7 @@ begin
 					end if;
 				when fs_ststatus =>
 					if(img_busy='0')then
-						img_addr<=cursecthead+x"08";
+						ia_b:=cursecthead; ia_o:=x"00000008"; ia_s:=true;
 						img_wrdat<=sectstatus;
 						img_wr<='1';
 						
@@ -3053,6 +3056,9 @@ begin
 					end if;
 				when others =>
 				end case;
+			end if;
+			if(ia_s)then
+				img_addr<=ia_b+ia_o;	-- one adder for every image address the FSM sets
 			end if;
 		end if;
 	end process;
