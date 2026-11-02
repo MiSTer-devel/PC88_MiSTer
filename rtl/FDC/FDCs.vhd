@@ -380,6 +380,17 @@ signal	TCen		:std_logic;
 signal	skipsect	:std_logic;	--SK=1: a sector whose data mark does not match is skipped
 
 signal	INT		:std_logic;		--interrupt start
+--a FH enters the result phase of a read command about 0.09 ms after its end:
+--the end of the execution and its interrupt wait resdly fclk, RQM low
+constant resdly	:integer	:=sysclk*93;
+signal	resdcnt	:integer range 0 to resdly;
+signal	resdrd	:std_logic;
+signal	resdstart	:std_logic;
+signal	resdhold	:std_logic;
+signal	resdint	:std_logic;
+signal	end_EXECd	:std_logic;
+signal	end_EXECo	:std_logic;
+signal	INTd		:std_logic;
 signal	INTs		:std_logic;		--interrput at seek/re-carib.
 signal	sINT		:std_logic;		--interrupt start
 signal	sINTs		:std_logic;		--interrput at seek/re-carib.
@@ -788,7 +799,7 @@ begin
 	setNtx	:clktx generic map(oneclk) port map(setN,setNs,fclk,sclk,rstn,sce,rstns);
 	setHDtx	:clktx generic map(oneclk) port map(setHD,setHDs,fclk,sclk,rstn,sce,rstns);
 	resHDtx	:clktx generic map(oneclk) port map(resHD,resHDs,fclk,sclk,rstn,sce,rstns);
-	endEXECtx	:clktx generic map(oneclk) port map(end_EXEC,end_EXECs,fclk,sclk,rstn,sce,rstns);
+	endEXECtx	:clktx generic map(oneclk) port map(end_EXECo,end_EXECs,fclk,sclk,rstn,sce,rstns);
 	
 	process(sclk,rstns)begin
 		if(rstns='0')then
@@ -4667,7 +4678,31 @@ begin
 		end if;
 	end process;
 	
-	inttx	:clktx generic map(oneclk) port map(INT,sINT,fclk,sclk,rstn,sce,rstns);
+	process(fclk,rstn)begin
+		if(rstn='0')then
+			resdcnt<=0;
+			resdint<='0';
+			end_EXECd<='0';
+		elsif(fclk' event and fclk='1')then
+			end_EXECd<='0';
+			if(resdstart='1')then
+				resdcnt<=resdly;
+				resdint<=INT;
+			elsif(resdcnt=1)then
+				resdcnt<=0;
+				end_EXECd<='1';
+			elsif(resdcnt/=0)then
+				resdcnt<=resdcnt-1;
+			end if;
+		end if;
+	end process;
+	--only the reads were measured; the interrupt for a data byte (non-DMA) goes at once
+	resdrd<='1' when ecommand=cmd_READDATA or ecommand=cmd_READDELETEDDATA or ecommand=cmd_READID or ecommand=cmd_READATRACK else '0';
+	resdstart<=end_EXEC and resdrd;
+	end_EXECo<=(end_EXEC and not resdrd) or end_EXECd;
+	INTd<=(INT and not resdstart) or (end_EXECd and resdint);
+	resdhold<='1' when resdstart='1' or resdcnt/=0 or end_EXECd='1' else '0';
+	inttx	:clktx generic map(oneclk) port map(INTd,sINT,fclk,sclk,rstn,sce,rstns);
 	intstx:clktx generic map(oneclk) port map(INTs,sINTs,fclk,sclk,rstn,sce,rstns);
 	INTEV<=sINTs or sINT;
 	
@@ -4691,7 +4726,7 @@ begin
 			"10" when sisvld(2)='1' else
 			"11";
 
-	sEXM<='1' when (execstate/=es_IDLE and ND='1') else '0';
+	sEXM<='1' when ((execstate/=es_IDLE or resdhold='1') and ND='1') else '0';
 	ST0<=sIC &sSE & sEC & sNR & sHD & sUS;
 	ST1<=sEN & '0' & sDE & sOR & '0' & sND & sNW & sMA;
 	ST2<='0' & sCM & sDD & sWC & sSH & sSN & sBC & sMD;
@@ -4702,7 +4737,7 @@ begin
 	--RY: the READY pin is tied active on this board, so the real machine reports
 	--ready for every drive, even drives 2 and 3 that are not there.
 	ST3<='0' & not WPRT & '1' & not track0s & TWOSIDE(conv_integer(uselb)) & sideb & uselb;
-	MSR<=sRQM & sDIO & sEXM & sCB & sDxB;
+	MSR<=(sRQM and not resdhold) & sDIO & sEXM & sCB & sDxB;
 	
 	RDAT<=	RDDAT_DAT when DACKn='0' else
 			MSR when A0='0' else
