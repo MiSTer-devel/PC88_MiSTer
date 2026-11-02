@@ -101,7 +101,7 @@ begin
 				WRDAT1<=RDDAT1;
 				WRDAT2<=RDDAT2;
 			when others=>
-				WRDAT0<=RDDAT1;
+				WRDAT0<=RDDAT0;
 				WRDAT1<=LASTD0;
 				WRDAT2<=RDDAT2;
 			end case;
