@@ -43,6 +43,8 @@ port(
 	SETR	:out std_logic_vector(4 downto 0);
 	SETV	:out std_logic_vector(2 downto 0);
 	SETOK	:out std_logic;
+	--Toggles on each RESET command
+	CRTRST	:out std_logic;
 	
 	mon0	:out std_logic_vector(7 downto 0);
 	mon1	:out std_logic_vector(7 downto 0);
@@ -63,6 +65,7 @@ signal	IOWRn	:std_logic;
 signal	lWRn	:std_logic;
 signal	INTen	:std_logic;
 signal	DSPen	:std_logic;
+signal	RSTTOG	:std_logic;
 signal	sL		:std_logic_vector(5 downto 0);
 signal	sR		:std_logic_vector(4 downto 0);
 signal	sV		:std_logic_vector(2 downto 0);
@@ -82,6 +85,7 @@ begin
 			REVERSE<='0';
 			INTen<='0';
 			DSPen<='0';
+			RSTTOG<='0';
 			SETOK<='0';
 			mon1<=x"00";
 			mon2<=x"00";
@@ -105,6 +109,7 @@ begin
 						CRTCen<='0';
 						DSPen<='0';
 						INTen<='0';
+						RSTTOG<=not RSTTOG;
 					when "001" =>	--Start display
 						CRTCen<='1';
 						DSPen<='1';
@@ -191,6 +196,7 @@ begin
 		end if;
 	end process;
 	
+	CRTRST<=RSTTOG;
 	DATOUT<="000" & DSPen & "00" & (INTen and DSPen) & '0';
 	DATOE<='1' when ADR=CMDADR and IORQn='0' and RDn='0' else '0';
 	
