@@ -84,6 +84,7 @@ always @(posedge clk or negedge rst_n)
 reg set_flag, last_set;
 reg [1:0] restart;
 reg [1:0] end_hold;
+reg eos_wait;
 // CPU read form: START=0, MEMDATA=1, REC=0
 wire cpu_rd = ~on & acmd_mem_b & ~acmd_rec_b;
 
@@ -107,16 +108,19 @@ always @(posedge clk or negedge rst_n)
         restart    <= 'd0;
 		clr_dec    <= 'b1;
         end_hold   <= 'd0;
+        eos_wait   <= 'd0;
     end else if (cen) begin
         if (!on || clr) begin
             restart  <= 'd0;
             set_flag <= 'd0;
             chon     <= 'd0;
 		    clr_dec  <= 'd1;
+            eos_wait <= 'd0;
         end else if (acmd_up_b && on) begin
             addr <= astart;
             nibble_sel <= 1'b0;
             restart <= 'd1;
+            eos_wait <= 'd0;
         end
         if (!on && acmd_ad_b) begin
             addr <= astart;
@@ -155,14 +159,20 @@ always @(posedge clk or negedge rst_n)
             end else if(arepeat) begin
                 addr <= astart;
                 nibble_sel <= 1'b0;
-                set_flag <= 'd1;
+                if (on && !acmd_rec_b && !acmd_up_b && !clr) eos_wait <= 'd1; else set_flag <= 'd1;
                 restart <= 'd1;
                 clr_dec <= 'd1;
             end else begin
-                set_flag <= 'd1;
+                if (on && !acmd_rec_b && !acmd_up_b && !clr) eos_wait <= 'd1; else set_flag <= 'd1;
                 chon <= 'd0;
                 clr_dec <= 'd1;
             end
+        end
+        // playback (START=1, REC=0): EOS one sample after the end address is fetched,
+        // as on a PC-8801MA; the end of a CPU write or of a record pass stays immediate
+        if (cen55 && adv && eos_wait && on && !clr && !acmd_up_b) begin
+            set_flag <= 'd1;
+            eos_wait <= 'd0;
         end
     end // cen
 
