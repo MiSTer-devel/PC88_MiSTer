@@ -1888,6 +1888,7 @@ signal	PLN			:std_logic_vector(2 downto 0);
 signal	GVAM		:std_logic;
 signal	GVAMw		:std_logic;	-- GVAM for GraphALU: '0' while a posted direct write is at the port
 signal	GVDW		:std_logic;	-- this request is a direct graphic VRAM write
+signal	GVDP		:std_logic;	-- a direct graphic VRAM write here may be posted
 signal	GVDWp		:std_logic;
 signal	NG_RAMSEL	:integer range 0 to 3;
 signal	GR_RSEL		:integer range 0 to 3;
@@ -2697,13 +2698,17 @@ port map(
 	-- CPU writes outside graphic VRAM are posted: a real FH has no wait state on
 	-- them at 4MHz and one at 8MHz (MEMWAIT), with the SDRAM write done later.
 	-- Graphic VRAM writes through the ALU are not, as the port reads the ALU
-	-- while it writes. Direct graphic VRAM writes in V1S and N are posted too:
-	-- a real FH waits on them as long as on a read.
-	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and (GVSEL='0' or GVSEN='1') else '0';
-	-- A direct graphic VRAM write in V1S or N writes the CPU byte on the planes
-	-- latched in WRPOST. While such a write is posted, GraphALU is kept in that
-	-- mode, so a later OUT to the ALU registers does not change what it writes.
-	GVDW<=GVSEL and GVSEN;
+	-- while it writes. Direct graphic VRAM writes are posted too (GVDP): a real
+	-- FH waits on them as long as on a read. In V1H, V2 and the V1S high-speed
+	-- mode only at 4MHz, where the FH waits no state on them in the retrace or
+	-- with the graphic screen off; the 8MHz counts of GVWAIT were measured with
+	-- the write held by SDRAM.
+	GVDP<='1' when GVAM='0' and (GVSEN='1' or CPUMD='0') else '0';
+	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and (GVSEL='0' or GVDP='1') else '0';
+	-- A direct graphic VRAM write writes the CPU byte on the planes latched in
+	-- WRPOST. While such a write is posted, GraphALU is kept in that mode, so a
+	-- later OUT to the ALU registers does not change what it writes.
+	GVDW<=GVSEL and GVDP;
 	GVAMw<=GVAM and not GVDWp;
 	-- Text DMA reads keep to window 1, so the text timing does not change.
 	RAM_RDV2<=not TCNV_BUSUSE;
