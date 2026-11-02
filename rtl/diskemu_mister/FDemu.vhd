@@ -157,13 +157,19 @@ signal	wrstate	:wrstate_t;
 
 --after a STEP, stop the disk for stoptime and give no read data for settletime
 --(the disk turns again after the stop), both in 0.1 ms from the last STEP;
---an index hole that comes round in that time is not given either
-constant stoptime		:integer	:=113;
+--an index hole that comes round in that time is not given either;
+--after the stop, each STEP holds the disk 0.08 ms more (xstop, in 0.02 ms, up to 255)
+constant stoptime		:integer	:=119;
+constant xstopstep	:integer	:=4;
+constant xstopmax	:integer	:=255;
 constant settletime	:integer	:=550;
 type settle_t is array(0 to 3) of integer range 0 to settletime;
 signal	settle	:settle_t;
 signal	tcnt	:integer range 0 to sysclk/10-1;
 signal	settlex	:integer range 0 to settletime;
+type xstop_t is array(0 to 3) of integer range 0 to xstopmax;
+signal	xstop	:xstop_t;
+signal	xstopx	:integer range 0 to xstopmax;
 signal	rotstop	:std_logic;
 signal	nodata	:std_logic;
 signal	idxmask	:std_logic;
@@ -829,6 +835,7 @@ begin
 	begin
 		if(rstn='0')then
 			settle<=(others=>0);
+			xstop<=(others=>0);
 			tcnt<=0;
 			lSTEPn:='1';
 		elsif(clk' event and clk='1')then
@@ -843,12 +850,24 @@ begin
 				elsif(tcnt=sysclk/10-1 and settle(i)/=0)then
 					settle(i)<=settle(i)-1;
 				end if;
+				--0.02 ms ticks at five places of tcnt; the stop ends at sysclk/10-1, so the first tick is 0.02 ms after it
+				if(lSTEPn='1' and STEPn='0' and conv_integer(USEL)=i)then
+					if(xstop(i)>xstopmax-xstopstep)then
+						xstop(i)<=xstopmax;
+					else
+						xstop(i)<=xstop(i)+xstopstep;
+					end if;
+				elsif((tcnt=sysclk/50 or tcnt=sysclk*2/50 or tcnt=sysclk*3/50 or tcnt=sysclk*4/50 or tcnt=sysclk/10-1)
+					and xstop(i)/=0 and settle(i)<=settletime-stoptime)then
+					xstop(i)<=xstop(i)-1;
+				end if;
 			end loop;
 			lSTEPn:=STEPn;
 		end if;
 	end process;
 	settlex<=settle(conv_integer(USEL));
-	rotstop<='1' when settlex>settletime-stoptime else '0';
+	xstopx<=xstop(conv_integer(USEL));
+	rotstop<='1' when settlex>settletime-stoptime or xstopx/=0 else '0';
 	nodata<='1' when settlex/=0 else '0';
 	
 	--decided when the disk turns to the index, so only the rotation makes index edges;
