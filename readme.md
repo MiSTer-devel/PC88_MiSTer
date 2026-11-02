@@ -11,6 +11,7 @@ This is the port of the [PC8801 MKII SR](http://fpga8801.seesaa.net/category/212
 * Modes N, N88V1L, N88V1H, N88V2
 * CPU Speeds (4MHz and 8MHz)
 * 2 Floppy Drives using D88 format (Disk types supported 2D and 2HD)
+* D88 files that hold more than one disk: selecting one on the OSD lists its disks to choose from (Main_MiSTer unstable builds from 2026-10-30)
 * Sound chips YM2203 and YM2608 (Sound Board II) with ADPCM, selected with the Sound Board option
 * Beeper, including the extended beep (port 40h bit 7) that CMD SING and some early games use for music
 * Mouse support (Changed between Mouse and Joypad on the OSD)
