@@ -307,24 +307,26 @@ localparam CLK_SYS_HZ = 18973214;
 
 wire       cmt_mton;
 wire [1:0] cmt_bs;
+wire       cmt_cds;
 wire [7:0] cmt_mode;   // 8251 mode written by the CPU
 
 // Port 30h is written in the CPU clock domain. The bits are synchronized in two
-// stages, and the three are taken as one word only after two equal samples: if
+// stages, and the four are taken as one word only after two equal samples: if
 // the bits written by one OUT arrive one clock apart, a mix of old and new bits
 // (motor on with the old cassette selection) must not reach the tape logic.
 // Writes are at least 1 us apart.
-reg [2:0] cmt_port30_s1 = 0, cmt_port30_s2 = 0, cmt_port30_s3 = 0, cmt_port30_s = 0;
+reg [3:0] cmt_port30_s1 = 0, cmt_port30_s2 = 0, cmt_port30_s3 = 0, cmt_port30_s = 0;
 always @(posedge clk_sys) begin
-	cmt_port30_s1 <= {cmt_mton, cmt_bs};
+	cmt_port30_s1 <= {cmt_mton, cmt_bs, cmt_cds};
 	cmt_port30_s2 <= cmt_port30_s1;
 	cmt_port30_s3 <= cmt_port30_s2;
 	if (cmt_port30_s3 == cmt_port30_s2) cmt_port30_s <= cmt_port30_s3;
 end
 
-wire tape_motor = cmt_port30_s[2];      // 30h bit3
-wire tape_sel   = ~cmt_port30_s[1];     // 30h bit5: 0 selects the cassette, 1 RS-232C
-wire tape_1200  = cmt_port30_s[0];      // 30h bit4: 1 = 1200 baud, 0 = 600
+wire tape_motor = cmt_port30_s[3];      // 30h bit3
+wire tape_sel   = ~cmt_port30_s[2];     // 30h bit5: 0 selects the cassette, 1 RS-232C
+wire tape_1200  = cmt_port30_s[1];      // 30h bit4: 1 = 1200 baud, 0 = 600
+wire tape_cds   = cmt_port30_s[0];      // 30h bit2
 
 wire tape_on  = tape_sel;
 wire tape_run = tape_on & tape_motor;
@@ -340,14 +342,16 @@ ltc2308_tape #(.CLK_RATE(CLK_SYS_HZ)) tape_adc
 	.dout(tape_level)
 );
 
-wire tape_rxd;
+wire tape_rxd, tape_mark, tape_space;
 cmt_demod #(.CLK_HZ(CLK_SYS_HZ)) tape_demod
 (
 	.clk(clk_sys),
 	.reset(1'b0),
 
 	.level(tape_level),
-	.rxd(tape_rxd)
+	.rxd(tape_rxd),
+	.tone_mark(tape_mark),
+	.tone_space(tape_space)
 );
 
 // Tape image playback (SD slot 4 -> 8251 RxD) and recording (8251 TxD -> SD slot 4).
@@ -384,6 +388,7 @@ always @(posedge clk_sys) begin
 end
 
 wire cmt_txd, cmt_ser_busy, cmt_cap_busy;
+wire cmt_mark, cmt_space;   // a .t88 MARK or SPACE is playing
 wire cmt_play_run, cmt_rec_run, cmt_rec_active;
 
 // Playback and recording are exclusive; Tape Record selects which one the motor runs.
@@ -454,6 +459,25 @@ wire [1:0] cmt_clk_sel = (cmt_line_hold & cmt_mode_ok) ? (cmt_baud_hold ? 2'b10 
 wire cmt_line_mark = cmt_present & tape_on;
 wire cmt_rxd = cmt_line_hold ? cmt_txd : cmt_line_mark ? 1'b1 : tape_run ? tape_rxd : 1'b0;
 
+// Port 40h bit 2, measured on a PC-8801FH: 0 while the motor is off or RS-232C is
+// selected. Otherwise 1 after a mark (2400 Hz) and 0 after a space (1200 Hz), kept
+// through silence; until the first tone it is the inverse of the 30h bit 2 written with
+// the OUT that turned this on. An image gives the bits it sends and, for a .t88, its MARK
+// and SPACE records.
+// A frame still being sent comes before the record that follows it.
+wire img_mark  = cmt_ser_busy ?  cmt_txd : cmt_mark;
+wire img_space = cmt_ser_busy ? ~cmt_txd : cmt_space;
+wire dcd_mark  = cmt_line_mark ? cmt_run & img_mark  : tape_mark;
+wire dcd_space = cmt_line_mark ? cmt_run & img_space : tape_space;
+reg  dcd_hold = 1'b0, cmt_dcd = 1'b0, tape_run_d = 1'b0;
+always @(posedge clk_sys) begin
+	tape_run_d <= tape_run;
+	if (!tape_run_d)    dcd_hold <= ~tape_cds;
+	else if (dcd_mark)  dcd_hold <= 1'b1;
+	else if (dcd_space) dcd_hold <= 1'b0;
+	cmt_dcd <= tape_run & dcd_hold;
+end
+
 // diskemu takes the shared sd_buff_wr without looking at its ack, so tape and disk
 // transfers must not overlap. cmt_arb lets one side at a time through to the host.
 cmt_arb cmt_arb_i
@@ -512,7 +536,8 @@ cmt_play #(.TICK_CLK(CMT_SYSCLK_HZ/4800)) cmt_play_i
 	.is_t88(),
 	.eof(),
 	.no_file(),
-	.carrier(),
+	.carrier(cmt_mark),
+	.space(cmt_space),
 	.t88_done(),
 	.t88_bad_tag(),
 	.t88_speed_1200()
@@ -648,6 +673,8 @@ PC88MiSTer PC88_top
 
 	.cmt_mton(cmt_mton),
 	.cmt_bs(cmt_bs),
+	.cmt_cds(cmt_cds),
+	.cmt_dcd(cmt_dcd),
 	.cmt_clk_sel(cmt_clk_sel),
 	.cmt_mode(cmt_mode),
 	.pCOM_RxD(cmt_rxd),

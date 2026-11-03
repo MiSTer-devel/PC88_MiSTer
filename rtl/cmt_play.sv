@@ -65,6 +65,7 @@ module cmt_play #(
 	output            eof,
 	output            no_file,
 	output            carrier,
+	output            space,
 	output            t88_done,
 	output            t88_bad_tag,
 	output            t88_speed_1200
@@ -143,6 +144,7 @@ cmt_t88 #(.TICK_CLK(TICK_CLK)) cmt_t88_i
 		// reported only; the rate follows port 30h bit 4
 	.speed_1200(t88_speed_1200),
 	.carrier(carrier),
+	.space(space),
 	.done(t88_done),
 	.bad_tag(t88_bad_tag)
 );
