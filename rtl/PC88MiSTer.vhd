@@ -441,6 +441,7 @@ port(
 	SETR	:out std_logic_vector(4 downto 0);
 	SETV	:out std_logic_vector(2 downto 0);
 	SETOK	:out std_logic;
+	CRTRST	:out std_logic;
 	
 	mon0	:out std_logic_vector(7 downto 0);
 	mon1	:out std_logic_vector(7 downto 0);
@@ -967,6 +968,7 @@ port(
 	
 	CPUBUS		:in std_logic;
 	CPUM1n		:in std_logic;
+	CRTRST		:in std_logic;
 	clk			:in std_logic;
 	ce			:in std_logic;
 	rstn		:in std_logic
@@ -1641,6 +1643,7 @@ signal	CRTC_SETL	:std_logic_vector(5 downto 0);
 signal	CRTC_SETR	:std_logic_vector(4 downto 0);
 signal	CRTC_SETV	:std_logic_vector(2 downto 0);
 signal	CRTC_SETOK	:std_logic;
+signal	CRTC_RST	:std_logic;
 signal	CRTC_TSET	:std_logic_vector(17 downto 0);
 signal	TCROSS_ce	:std_logic;
 
@@ -2874,6 +2877,7 @@ port map(
 	
 	CPUBUS		=>BUSSEL,
 	CPUM1n		=>M1_n,
+	CRTRST		=>CRTC_RST,
 	clk			=>rclk,
 	ce			=>tcnv_ce,
 	rstn		=>CPU_rstnr
@@ -2940,6 +2944,7 @@ port map(
 	SETR	=>CRTC_SETR,
 	SETV	=>CRTC_SETV,
 	SETOK	=>CRTC_SETOK,
+	CRTRST	=>CRTC_RST,
 
 	clk		=>rclk,
 	rstn	=>CPU_rstnr,

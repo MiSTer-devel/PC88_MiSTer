@@ -78,6 +78,7 @@ port(
 	
 	CPUBUS		:in std_logic	:='0';	-- a CPU bus cycle (BUSSEL)
 	CPUM1n		:in std_logic	:='1';
+	CRTRST		:in std_logic	:='0';	-- toggles on each CRTC RESET command (CRTCREGS)
 	clk			:in std_logic;
 	ce			:in std_logic	:='1';	-- one step: 4 times in 15 rclk clocks (20MHz)
 	rstn		:in std_logic
@@ -95,6 +96,16 @@ signal	SDSTADR	:std_logic_vector(11 downto 0);
 signal	CDSTADR	:std_logic_vector(11 downto 0);
 signal	ATRCNT	:integer range 0 to 19;
 signal	CURATR	:std_logic_vector(8 downto 0);
+--The attribute at the end of the last row, without the over and under lines: a
+--frame starts with it, as a real PC-8801FH does not reset the attribute at the
+--start of a frame (Valis II demo). The CRTC RESET command sets it to white.
+signal	ATRCARRY	:std_logic_vector(8 downto 0);
+signal	rCRTRST		:std_logic;
+--A RESET came in this frame: rows ending before the next frame start leave ATRCARRY white.
+signal	RSTP		:std_logic;
+--A repeated row or a row without attributes writes FIXVAL and leaves CURATR.
+signal	FIXATR		:std_logic;
+signal	FIXVAL		:std_logic_vector(8 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to MAXLINES;
@@ -292,6 +303,11 @@ begin
 			CATRADR<=x"0050";
 			ATRCNT<=0;
 			CURATR<="000000111";
+			ATRCARRY<="000000111";
+			rCRTRST<='0';
+			RSTP<='0';
+			FIXATR<='0';
+			FIXVAL<=(others=>'0');
 			CHARCNT<=0;
 			SDSTADR<=(others=>'0');
 			CDSTADR<=(others=>'0');
@@ -447,7 +463,8 @@ begin
 							--V1S was on at VRET (the frame start is held back only then): as the
 							--restart there would have done.
 							LINECNT<=0;
-							CURATR<="000000111";
+							CURATR<=ATRCARRY;
+							RSTP<='0';
 							LINESKIP<='0';
 							PFRST<='0';
 							PFHOLD<='0';
@@ -482,7 +499,8 @@ begin
 									--Leaving V1S: no rows until the next VRET.
 									LINECNT<=MAXLINES;
 								end if;
-								CURATR<="000000111";
+								CURATR<=ATRCARRY;
+								RSTP<='0';
 								LINESKIP<='0';
 								BNDPEND<='0';
 							elsif(CAPD='1' and BLANKD='0' and VT24s='0')then
@@ -495,10 +513,12 @@ begin
 								end if;
 							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ and PFHOLD='1' and LINECNT=0)then
 								if(VT24s='1' and VT15s=pfVT15 and TMODE=rTMODE and TVRMODE=rTVRMODE
-									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR)then
-									--Row 0 was read ahead: skip it.
+									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR
+									and RSTP='0')then
+									--Row 0 was read ahead (not before a RESET): skip it.
 									LINECNT<=1;
 									PFHOLD<='0';
+									ATRCARRY<='0' & CURATR(7) & '0' & CURATR(5 downto 0);
 								else
 									PFRST<='1';
 								end if;
@@ -535,7 +555,8 @@ begin
 								CATRADR<=TADR_TOP+x"0050";
 								SDSTADR<=(others=>'0');
 								CDSTADR<=(others=>'0');
-								CURATR<="000000111";
+								CURATR<=ATRCARRY;
+								RSTP<='0';
 								LINESKIP<='0';
 								CHARCNT<=0;
 								ATRCNT<=0;
@@ -606,7 +627,8 @@ begin
 							-- rCOLOR<=COLOR;
 							TVRAM_ADR<=(others=>'0');
 							LINECNT<=0;
-							CURATR<="000000111";
+							CURATR<=ATRCARRY;
+							RSTP<='0';
 							LINESKIP<='0';
 						elsif(lHRET='1' and HRETr='0' and TEXTENr='1')then
 							CHARCNT<=0;
@@ -689,10 +711,12 @@ begin
 							end if;
 						end if;
 					when ST_NOATTR =>
-						CURATR<='0' & x"07";
+						FIXATR<='1';
+						FIXVAL<='0' & x"07";
 						STATE<=ST_SETATR;
 					when ST_SKIPATR =>
-						CURATR<='0' & x"80";
+						FIXATR<='1';
+						FIXVAL<='0' & x"80";
 						STATE<=ST_SETATR;
 					when ST_RDATR =>
 						MRAM_RDn<='0';
@@ -706,7 +730,8 @@ begin
 						if(rTMODE='0' or MRAM_WAITr='0')then
 							case(RDDAT(6 downto 4))is
 								when o"0"|o"1"|o"2"|o"3"|o"4" =>
-									iATTRCUL:=conv_integer(RDDAT);
+									--The column is the lower 7 bits.
+									iATTRCUL:=conv_integer(RDDAT(6 downto 0));
 									fATTR(iATTRCUL)<='1';
 								when others =>
 									iATTRCUL:=80;
@@ -768,7 +793,11 @@ begin
 						end if;
 					when ST_SETATR =>
 						TVRAM_ADR<=CDSTADR;
-						TVRAM_WDAT<=CURATR;
+						if(FIXATR='1')then
+							TVRAM_WDAT<=FIXVAL;
+						else
+							TVRAM_WDAT<=CURATR;
+						end if;
 						STATE<=ST_SETATR1;
 					when ST_SETATR1 =>
 						TVRAM_WR<='1';
@@ -798,6 +827,14 @@ begin
 							SDSTADR<=SDSTADR+x"0a0";
 							CHARCNT<=0;
 							ATRCNT<=0;
+							--The over and under lines end with the row.
+							CURATR(8)<='0';
+							CURATR(6)<='0';
+							FIXATR<='0';
+							--A row read ahead leaves it as it is.
+							if(PFROW='0' and RSTP='0')then
+								ATRCARRY<='0' & CURATR(7) & '0' & CURATR(5 downto 0);
+							end if;
 							if(PFROW='1')then
 								PFROW<='0';
 								--Not when VRET rises in this same step (then it did not end before VRET),
@@ -969,6 +1006,21 @@ begin
 							XREQ<='1';
 							REQLINE<=REQLINE+capCHRL;
 						end if;
+					end if;
+				end if;
+
+				--CRTC RESET: white from now on; the next frame starts white. A row 0 read ahead
+				--with the old attribute is not used: one still running or ended before the
+				--retrace is dropped, and one already taken is read again at its row.
+				rCRTRST<=CRTRST;
+				if(CRTRST/=rCRTRST)then
+					ATRCARRY<="000000111";
+					CURATR<="000000111";
+					RSTP<='1';
+					PFDIRTY<='1';
+					PFOK<='0';
+					if(PFHOLD='1')then
+						PFRST<='1';
 					end if;
 				end if;
 			end if;
