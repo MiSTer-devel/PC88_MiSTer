@@ -128,14 +128,23 @@ begin
 					GAM<=CPU_WDAT(7);
 				when x"38"=>
 					TVRMODE<=CPU_WDAT(0);
+				-- the plane select is ignored while the extended access mode (32h bit 6) is on
 				when x"5c" =>
-					G_RAMSELb<=0;
+					if(GVAM='0')then
+						G_RAMSELb<=0;
+					end if;
 				when x"5d" =>
-					G_RAMSELb<=1;
+					if(GVAM='0')then
+						G_RAMSELb<=1;
+					end if;
 				when x"5e" =>
-					G_RAMSELb<=2;
+					if(GVAM='0')then
+						G_RAMSELb<=2;
+					end if;
 				when x"5f" =>
-					G_RAMSELb<=3;
+					if(GVAM='0')then
+						G_RAMSELb<=3;
+					end if;
 				when x"70" =>
 					TXWADR<=CPU_WDAT;
 				when x"71" =>
