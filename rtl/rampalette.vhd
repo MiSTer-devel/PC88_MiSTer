@@ -109,8 +109,9 @@ begin
 					ROUT<=(others=>'1');
 					GOUT<=(others=>'1');
 					BOUT<=(others=>'1');
-				when "01101"|"01111"|"11101"|"11111" =>
+				when "01101"|"01111"|"11101"|"11111"|"00011"|"00101"|"00111" =>
 					-- Color-CG, T-bit on: T-bit colored in digital palettes
+					-- D-pal, Mono-CG, T-bit or G-bit on: the text color, not through the palette (PC-8801FH)
 					ROUT<=(others=>DOTIN(1));
 					GOUT<=(others=>DOTIN(2));
 					BOUT<=(others=>DOTIN(0));
