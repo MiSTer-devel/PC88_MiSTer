@@ -10,7 +10,7 @@ use IEEE.numeric_std.all;
 --8MHz) while graphic VRAM is selected for direct access and the graphic
 --screen is being displayed, and about 6.85 times (7.30 at 8MHz) in 24kHz
 --timing. At 4MHz part of it is a wait on every bus cycle (BUSWAIT) and K
---gives the rest, as fitted to 16 loops measured on a real FH. At 8MHz K gives
+--gives the rest, as fitted to loops measured on a real FH. At 8MHz K gives
 --the slowdown a FH shows with the CRTC and the text DMA stopped; the text row
 --transfers (TRAMCONV) and the GVRAM waits (GVSWAIT) add the rest. In 24kHz
 --timing at 8MHz a FH also slows I/O cycles more than memory cycles (about
@@ -21,9 +21,13 @@ use IEEE.numeric_std.all;
 --K is set separately there too. In 24kHz timing at 8MHz a FH also charges a
 --memory read that directly follows another memory read (the 2nd operand byte
 --of LD BC,nn or JP nn) more than one that follows an M1, so K is smaller in
---such a read (rre, made from MRD and MCYC of the CPU). The values were fitted
---to a FH for each timing and text DMA state; why the FH charges them
---differently is not known.
+--such a read (rre, made from MRD and MCYC of the CPU). At 4MHz a FH charges
+--M1 cycles, reads right after a read, I/O cycles, other memory reads and the
+--rest (writes and internal T-states) differently too, so K is set for each of
+--them (an interrupt acknowledge counts as M1; while the bus is released the
+--held M1 or the rest is used). The values were fitted to a FH for each
+--timing and text DMA state; why the FH charges them differently is not
+--known.
 --Only the original ce_r/ce_f ticks are passed or dropped, and the passed ones
 --always alternate ce_r, ce_f, ce_r, ... so every user of the enables sees a
 --slower CPU clock. While STR is low all of them pass.
@@ -55,10 +59,12 @@ port(
 end GVSTRETCH;
 
 architecture rtl of GVSTRETCH is
--- ratio K/N: 260/1024 = 1/3.938 at 4MHz, 204/1024 = 1/5.020 at 8MHz,
--- 188/1024 = 1/5.447 and 143/1024 = 1/7.161 in 24kHz timing (121/1024 =
--- 1/8.463 in I/O cycles and 123/1024 = 1/8.325 with the text DMA, 128/1024 =
--- 1/8.000 without it, in a read right after a read at 8MHz)
+-- ratio K/N: 204/1024 = 1/5.020 at 8MHz and 143/1024 = 1/7.161 in 24kHz
+-- timing; at 4MHz outside the 5th/6th T 247/1024 to 290/1024 = 1/4.146 to
+-- 1/3.531, and 154/1024 to 200/1024 = 1/6.649 to 1/5.120 in 24kHz timing, by
+-- bus cycle (at 8MHz in 24kHz timing 121/1024 = 1/8.463 in I/O cycles and
+-- 123/1024 = 1/8.325 with the text DMA, 128/1024 = 1/8.000 without it, in a
+-- read right after a read)
 constant N		:integer := 1024;
 signal	K		:integer range 0 to 511;
 signal	acc		:integer range 0 to 2047;
@@ -139,10 +145,49 @@ begin
 				K<=317;
 			elsif(FAST='0' and T6='1')then
 				K<=162;
-			elsif(T24='1')then
+			--4MHz other T-states, by bus cycle (M1, read right after a read, I/O,
+			--other memory read, the rest): 24kHz with and without the text DMA, then
+			--15kHz.
+			elsif(FAST='0' and T24='1' and MCYC="001" and TXA='1')then
+				K<=194;
+			elsif(FAST='0' and T24='1' and MCYC="001")then
+				K<=186;
+			elsif(FAST='0' and MCYC="001" and TXA='1')then
+				K<=262;
+			elsif(FAST='0' and MCYC="001")then
+				K<=247;
+			elsif(FAST='0' and T24='1' and rre='1' and TXA='1')then
+				K<=166;
+			elsif(FAST='0' and T24='1' and rre='1')then
+				K<=154;
+			elsif(FAST='0' and rre='1' and TXA='1')then
+				K<=252;
+			elsif(FAST='0' and rre='1')then
+				K<=253;
+			elsif(FAST='0' and T24='1' and IOC='1' and TXA='1')then
 				K<=188;
+			elsif(FAST='0' and T24='1' and IOC='1')then
+				K<=187;
+			elsif(FAST='0' and IOC='1' and TXA='1')then
+				K<=271;
+			elsif(FAST='0' and IOC='1')then
+				K<=275;
+			elsif(FAST='0' and T24='1' and MRD='1' and TXA='1')then
+				K<=188;
+			elsif(FAST='0' and T24='1' and MRD='1')then
+				K<=200;
+			elsif(FAST='0' and MRD='1' and TXA='1')then
+				K<=269;
+			elsif(FAST='0' and MRD='1')then
+				K<=290;
+			elsif(T24='1' and TXA='1')then
+				K<=188;
+			elsif(T24='1')then
+				K<=198;
+			elsif(TXA='1')then
+				K<=268;
 			else
-				K<=260;
+				K<=289;
 			end if;
 		end if;
 	end process;
