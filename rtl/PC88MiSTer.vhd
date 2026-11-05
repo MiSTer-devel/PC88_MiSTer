@@ -3056,21 +3056,21 @@ port map(
 --	pMonDBus<=CPUDAT;
 
 	IOW10	:IO_WRS generic map(x"10")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,C_DO,C_RTC(2),C_RTC(1),C_RTC(0),rclk,CPU_rstnr,cpuce_r);
-	IOR30	:IO_RD generic map(x"30")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR30,IOR30_OE,'0','0','0','0',c20L,c40C,cBT,cN);
+	IOR30	:IO_RD generic map(x"30")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR30,IOR30_OE,'1','1','0','1',c20L,c40C,cBT,cN);
 	IOW30	:IO_WRS generic map(x"30")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,BS(1),BS(0),MTON,CDS,COLORn,HMODE,rclk,CPU_rstnr,cpuce_r);
 	--Port 30h bits for the tape path outside.
 	cmt_mton<=MTON;
 	cmt_bs<=BS;
 	cmt_cds<=CDS;
 	DCDs	:cdc_sync2 port map(cmt_dcd,DCD,rclk);
-	IOR31	:IO_RD generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR31,IOR31_OE,cVer,cHS,'1','1','1','0','1','1');
+	IOR31	:IO_RD generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR31,IOR31_OE,cVer,cHS,'1','1','1','0','0','1');
 	IOW31	:IO_WRS generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,GCOLOR,GRAPHEN,RMODE,MMODE,L200,rclk,CPU_rstnr,cpuce_r);
 	IO32	:IO_RWS generic map(x"32")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR32,IOR32_OE,SINTM,open,PMODE,TMODE,open,open,EROMSEL1,EROMSEL0,rclk,CPU_rstnr,cpuce_r);
 	IO33	:IO_RWS generic map(x"33")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR33,IOR33_OE,open,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
 	IOW34	:IO_WRS generic map(x"34")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,ALU2(1),ALU1(1),ALU0(1),open,ALU2(0),ALU1(0),ALU0(0),rclk,CPU_rstnr,cpuce_r);
 	IOW35	:IO_WRS generic map(x"35")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,GAM,open,GDM(1),GDM(0),open,PLN(2),PLN(1),PLN(0),rclk,CPU_rstnr,cpuce_r);
 	IO38	:IO_RWS generic map(x"38")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR38,IOR38_OE,open,open,open,open,open,open,open,TVRMODE,rclk,CPU_rstnr,cpuce_r);
-	IOR40	:IO_RD generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR40,IOR40_OE,'0','0',VRTC,CDI,cDisk,DCD,VT15,'0');
+	IOR40	:IO_RD generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR40,IOR40_OE,'1','1',VRTC,CDI,cDisk,DCD,VT15,'1');
 	IOW40	:IO_WRS generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,sing,pStr,beepen,GHSM,open,CCK,CSTB,open,rclk,CPU_rstnr,cpuce_r);
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'0','0','1','0','0','0','0');
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);

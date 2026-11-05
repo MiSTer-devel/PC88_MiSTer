@@ -197,7 +197,7 @@ begin
 	end process;
 	
 	CRTRST<=RSTTOG;
-	DATOUT<="000" & DSPen & "00" & (INTen and DSPen) & '0';
-	DATOE<='1' when ADR=CMDADR and IORQn='0' and RDn='0' else '0';
+	DATOUT<=x"00" when ADR=DATADR else "000" & DSPen & "00" & (INTen and DSPen) & '0';
+	DATOE<='1' when (ADR=CMDADR or ADR=DATADR) and IORQn='0' and RDn='0' else '0';
 	
 end MAIN;

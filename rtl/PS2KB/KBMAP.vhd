@@ -105,7 +105,7 @@ signal	INITDONEb	:std_logic;
 --before or after that clock's write. Rows 0 to 14 start as KS_CLRRAM leaves
 --them; row 15 is never written.
 type KBROW_T is array(0 to 15) of std_logic_vector(7 downto 0);
-signal	KBROW	:KBROW_T	:=(14=>"01111111",others=>(others=>'1'));
+signal	KBROW	:KBROW_T	:=(others=>(others=>'1'));
 attribute ramstyle	:string;
 attribute ramstyle of KBROW	:signal is "logic";
 
@@ -258,11 +258,7 @@ begin
 				case KBSTATE is
 				when KS_CLRRAM =>
 					if(WRADR/=x"f")then
-						if(WRADR=x"e")then
-							WRDAT<="01111111";
-						else
-							WRDAT<=(others=>'1');
-						end if;
+						WRDAT<=(others=>'1');
 						WE<='1';
 						KBSTATE<=KS_CLRRAM1;
 					else

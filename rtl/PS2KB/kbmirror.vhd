@@ -59,7 +59,7 @@ port(
 end component;
 
 type MIR_T is array(0 to 15) of std_logic_vector(7 downto 0);
-constant MIR_CLR	:MIR_T	:=(14=>"01111111",others=>(others=>'1'));
+constant MIR_CLR	:MIR_T	:=(others=>(others=>'1'));
 
 signal	srow	:std_logic_vector(3 downto 0);
 signal	sdata	:std_logic_vector(11 downto 0);
