@@ -455,9 +455,10 @@ wire [1:0] cmt_clk_sel = (cmt_line_hold & cmt_mode_ok) ? (cmt_baud_hold ? 2'b10 
 
 // With no image mounted and Tape Record off this is the ADC path exactly as before. A
 // mounted image idles at mark, and ejecting it hands the line back to the ADC once neither
-// playback nor recording holds it.
+// playback nor recording holds it. With RS-232C selected nothing is connected, and the
+// line idles at mark as on a PC-8801FH.
 wire cmt_line_mark = cmt_present & tape_on;
-wire cmt_rxd = cmt_line_hold ? cmt_txd : cmt_line_mark ? 1'b1 : tape_run ? tape_rxd : 1'b0;
+wire cmt_rxd = cmt_line_hold ? cmt_txd : (cmt_line_mark | ~tape_on) ? 1'b1 : tape_run ? tape_rxd : 1'b0;
 
 // Port 40h bit 2, measured on a PC-8801FH: 0 while the motor is off or RS-232C is
 // selected. Otherwise 1 after a mark (2400 Hz) and 0 after a space (1200 Hz), kept
