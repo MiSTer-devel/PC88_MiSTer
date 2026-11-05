@@ -73,7 +73,7 @@ set pc88_sub "$pc88_top|SUBunitsMiSTer:SUBU"
 # stays in the report until it is added here.
 set pats {}
 foreach s {SINTMs S2INTMs INT0s INT2s INT4s LDROEs LDRWRs LDRACKs FILLDONEs
-           FDEREQs FDEACKs FECREQs FECACKs SNDREQs SNDACKs RTCSTBs RTCCKs MSTBs CDIs} {
+           FDEREQs FDEACKs FECREQs FECACKs SNDREQs SNDACKs RTCSTBs RTCCKs MSTBs CDIs DCDs} {
 	lappend pats "$pc88_top|cdc_sync2:$s|s1"
 }
 foreach p [list "$pc88_sub|cdc_sync2:MON0Ss" "$pc88_sub|cdc_sync2:MON1Ss" \
@@ -211,6 +211,6 @@ set_max_delay -from [pc88_cdc_regs "RTC from" [list "$pc88_top|IO_WRS:IOW10|bit0
               -to   [pc88_cdc_regs "RTC to" [list "$pc88_top|rtc4990MiSTer:U_RTC|Clat\[*\]" "$pc88_top|rtc4990MiSTer:U_RTC|S_Pn" "$pc88_top|rtc4990MiSTer:U_RTC|sDIN"]] 13.176
 
 # Port 30h for the tape: the first stage of the synchronizer in PC8801SR.sv.
-# The three bits are used only after two equal samples, so a bit that arrives
+# The four bits are used only after two equal samples, so a bit that arrives
 # one clock later than the others is not seen as a mix. One rclk clock is used.
 set_max_delay -from $pc88_rclk -to [pc88_cdc_regs "port 30h" {emu:emu|cmt_port30_s1[*]}] 13.176

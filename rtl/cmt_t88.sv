@@ -53,6 +53,7 @@ module cmt_t88 #(
 
 	output reg        speed_1200,   // the rate of the last DATA record seen
 	output reg        carrier,      // high only while a MARK is playing
+	output reg        space,        // high only while a SPACE is playing
 	output reg        done,         // END has been reached
 	output reg        bad_tag       // a broken or truncated image
 );
@@ -83,13 +84,13 @@ always @(posedge clk) begin
 	fbyte_ack   <= 1'b0;
 	if (!rst_n || start) begin
 		st <= S_HDR; cnt <= 24; sub <= 0; done <= 0; bad_tag <= 0;
-		obyte_valid <= 0; carrier <= 0; speed_1200 <= 1'b1;
+		obyte_valid <= 0; carrier <= 0; space <= 0; speed_1200 <= 1'b1;
 	end else if (eof && !fbyte_valid && (
 			st == S_HDR || st == S_TAG || st == S_LEN || st == S_TIME || st == S_SUB ||
 			(st == S_SKIP && cnt != 0) || (st == S_TAIL && cnt != 0) ||
 			(st == S_DATA && cnt != 0 && !obyte_valid))) begin
 		// the file ended while a byte was expected
-		bad_tag <= 1'b1; obyte_valid <= 1'b0; st <= S_BAD;
+		bad_tag <= 1'b1; obyte_valid <= 1'b0; st <= S_BAD; carrier <= 1'b0; space <= 1'b0;
 	end else begin
 		case (st)
 		S_HDR: begin                       // skip the 24-byte magic
@@ -115,6 +116,7 @@ always @(posedge clk) begin
 		end
 		S_DISP: begin
 			carrier <= 1'b0;
+			space   <= 1'b0;
 			case (tag)
 			16'h0000: begin done <= 1'b1; st <= S_DONE; end
 			16'h0001, 16'h0010: begin cnt <= {16'd0, blen}; st <= S_SKIP; end   // VERSION / COMMENT
@@ -122,7 +124,6 @@ always @(posedge clk) begin
 				if (blen != 16'd8) begin bad_tag <= 1'b1; st <= S_BAD; end
 				else begin
 					cnt <= 8; sub <= 0; ticks <= 0; st <= S_TIME;
-					carrier <= (tag == 16'h0103);      // carrier only during a MARK
 				end
 			end
 			16'h0101: begin                                                     // DATA
@@ -149,6 +150,9 @@ always @(posedge clk) begin
 			end
 		end
 		S_WAIT: begin
+			// a tone only while its wait is being played
+			carrier <= (ticks != 0) && (tag == 16'h0103);
+			space   <= (ticks != 0) && (tag == 16'h0102);
 			if (ticks == 0) begin sub <= 0; st <= S_TAG; end
 			else if (!run) ;
 			else if (ser_busy) ;

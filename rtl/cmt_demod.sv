@@ -35,7 +35,12 @@ module cmt_demod #(
 	input      reset,
 
 	input      level,     // squared-up tape signal from cmt_adc
-	output reg rxd        // asynchronous serial line for the 8251
+	output reg rxd,       // asynchronous serial line for the 8251
+
+	// one clock at each edge that closes a half period of a mark or of a space; none
+	// after silence
+	output reg tone_mark = 1'b0,
+	output reg tone_space = 1'b0
 );
 
 // A mark's half period is CLK_HZ/4800 (4166 clocks at 20 MHz) and a space's is CLK_HZ/2400
@@ -64,9 +69,13 @@ always @(posedge clk) begin
 		pend_cnt <= 0;
 		pend_val <= 1'b1;
 		pend_act <= 1'b0;
+		tone_mark  <= 1'b0;
+		tone_space <= 1'b0;
 	end
 	else begin
 		level_d <= level;
+		tone_mark  <= 1'b0;
+		tone_space <= 1'b0;
 
 		if (pend_act) begin
 			if (pend_cnt == 0) begin
@@ -79,6 +88,8 @@ always @(posedge clk) begin
 		if (level_d != level) begin
 			// an edge closes a half period; short means the tone is a mark
 			cnt <= 0;
+			tone_mark  <= (cnt < CW'(THRESH));
+			tone_space <= (cnt >= CW'(THRESH)) && (cnt < CW'(TIMEOUT));
 			if (cnt < CW'(THRESH) && !mark) begin
 				// space -> mark. The boundary was `cnt` clocks ago, so wait out the rest.
 				mark     <= 1'b1;
