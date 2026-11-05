@@ -66,6 +66,7 @@ signal	TxEMPb	:std_logic;
 signal	RxRDYb	:std_logic;
 signal	TxRDYb	:std_logic;
 signal	STATUS	:std_logic_vector(7 downto 0);
+signal	CMDDONE	:std_logic:='0';
 signal	RECVDAT	:std_logic_vector(7 downto 0);
 signal	datlen	:integer range 1 to 9;
 signal	stoplen	:integer range 1 to 4;
@@ -452,7 +453,17 @@ begin
 	OEF	:g_srff port map(oeset,oereset,OE,clk,rstn);
 	FEF	:g_srff port map(feset,fereset,FE,clk,rstn);
 	
-	STATUS<= not DSRn & '0' & FE & OE & PE & TxEMPb & (RxRDYb and RxEN) & TxRDYb;
+	--A PC-8801FH reads the status as 00h from power-on until the first command is
+	--written; a reset of the CPU does not bring that back.
+	process(clk)begin
+		if(clk' event and clk='1')then
+			if(WR_CMD='1' and cmdnum=cn_cmd)then
+				CMDDONE<='1';
+			end if;
+		end if;
+	end process;
+
+	STATUS<= (not DSRn & '0' & FE & OE & PE & TxEMPb & (RxRDYb and RxEN) & TxRDYb) when CMDDONE='1' else (others=>'0');
 	
 	RECVDAT<=	rxdat(7 downto 0) 			when CLEN="11" else
 				'0' & rxdat(6 downto 0)		when CLEN="10" else
