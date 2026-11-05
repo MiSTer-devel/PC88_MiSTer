@@ -3039,8 +3039,6 @@ port map(
 				IDAT_IOR30	when IOR30_OE='1' else
 				IDAT_IOR31	when IOR31_OE='1' else
 				IDAT_IOR32	when IOR32_OE='1' else
-				IDAT_IOR33	when IOR33_OE='1' else
-				IDAT_IOR38	when IOR38_OE='1' else
 				IDAT_IOR40	when IOR40_OE='1' else
 				IDAT_IOR6e	when IOR6e_OE='1' else
 				IDAT_DMA	when DMA_OE='1' else
