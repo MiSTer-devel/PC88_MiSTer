@@ -47,6 +47,10 @@ port(
 	--then read as FFh, as on the MA.
 	EXTTYPE		:in std_logic_vector(1 downto 0);
 
+	--'1' in V1H and V2. A real FH in V1S and N keeps F000h-FFFFh in main RAM
+	--whatever 32h bit 4 says.
+	HS			:in std_logic;
+
 	clk			:in std_logic;
 	rstn		:in std_logic;
 	ce			:in std_logic := '1'
@@ -209,7 +213,7 @@ begin
 				ADDR_MAINRAM(27 downto 16) & CPU_ADR;	--MAIN RAM
 	
 	ADRSEL<=	
-				ADR_TRAM 	when TRAMSEL='1' and TMODE='0' and CPU_ADR(15 downto 12)=x"F" else
+				ADR_TRAM 	when TRAMSEL='1' and TMODE='0' and HS='1' and CPU_ADR(15 downto 12)=x"F" else
 				ADR_VRAM		when CPU_ADR(15 downto 14)="11" else
 				ADR_RAM		when CPU_ADR(15)='0' and extren='1' and CPU_WRn='1' else
 				ADR_ROM		when MMODE='0' and CPU_ADR(15)='0' and CPU_WRn='1' else
