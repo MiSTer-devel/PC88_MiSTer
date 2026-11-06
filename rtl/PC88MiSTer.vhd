@@ -252,6 +252,7 @@ port(
 	GADR_MSEL	:out std_logic;
 	
 	EXTTYPE		:in std_logic_vector(1 downto 0);
+	HS			:in std_logic;
 
 	clk			:in std_logic;
 	rstn		:in std_logic;
@@ -692,7 +693,6 @@ port(
 	M1n		:in std_logic;
 	CPUMD	:in std_logic;
 	HS		:in std_logic;
-	V1S		:in std_logic;
 
 	WAITn	:out std_logic;
 
@@ -1778,7 +1778,6 @@ signal	TRAM_WAITn	:std_logic;
 signal	KNJ_WAITn	:std_logic;
 signal	KNJWSEL		:std_logic;
 signal	TRWSEL		:std_logic;
-signal	TRWV1S		:std_logic;
 signal	WAIT_nb		:std_logic;
 signal	WAIT_other	:std_logic;
 signal	GV_WAITn	:std_logic;
@@ -2393,6 +2392,7 @@ begin
 	GADR_MSEL	=>GWME,
 	
 	EXTTYPE		=>FILL_RTYPE,
+	HS			=>cHS,
 
 	clk			=>rclk,
 	rstn		=>CPU_rstnr,
@@ -2888,9 +2888,11 @@ port map(
 	-- Two clocks to the CPU, as when TRAMCONV ran on clk21m.
 	BRQs	:cdc_sync2 port map(BUSRQ_nf,BUSRQ_n,rclk);
 
-	TVRAM_WDAT	<='0' & CPUDAT_W			when TMODE='0' and TVRMODE='1' else TCNV_WDAT;
-	TVRAM_ADR	<=TVRAM_MADR 				when TMODE='0' and TVRMODE='1' else TCNV_WADR;
-	TVRAM_WE	<=TVRAM_CE and (not WR_n)	when TMODE='0' and TVRMODE='1' else TCNV_WE;
+	-- V1S and N keep F000h- in main RAM (see memorymaps), so TRAMCONV always
+	-- writes the text VRAM there.
+	TVRAM_WDAT	<='0' & CPUDAT_W			when cHS='1' and TMODE='0' and TVRMODE='1' else TCNV_WDAT;
+	TVRAM_ADR	<=TVRAM_MADR 				when cHS='1' and TMODE='0' and TVRMODE='1' else TCNV_WADR;
+	TVRAM_WE	<=TVRAM_CE and (not WR_n)	when cHS='1' and TMODE='0' and TVRMODE='1' else TCNV_WE;
 
 tmap	:trammaps generic map(RAMAWIDTH) port map(
 	VADR		=>TCNV_RADR,
@@ -3178,8 +3180,7 @@ port map(
 	-- real FH. They are put in WAIT_nb as for SDRAM, so the other waits count
 	-- them or come after them.
 	TRWSEL<='1' when TRAM_CE='1' and (RD_n='0' or WR_n='0') else '0';
-	TRWV1S<='1' when MODE=MOD_V1S else '0';
-	TRW		:TRAMWAIT port map(TRWSEL,RD_n,M1_n,CPUMD,cHS,TRWV1S,TRAM_WAITn,rclk,cpuce_f,CPU_rstnr);
+	TRW		:TRAMWAIT port map(TRWSEL,RD_n,M1_n,CPUMD,cHS,TRAM_WAITn,rclk,cpuce_f,CPU_rstnr);
 	-- Wait states on the kanji ROM ports, as measured on a real FH: 2 at 8MHz.
 	KNJWSEL<=KANJI1RD or KANJI2RD;
 	KNJW	:KNJWAIT port map(KNJWSEL,CPUMD,KNJ_WAITn,rclk,cpuce_f,CPU_rstnr);
