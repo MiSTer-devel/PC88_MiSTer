@@ -666,7 +666,8 @@ port(
 	ce_f	:in std_logic;
 	rstn	:in std_logic;
 
-	VT24	:in std_logic
+	VT24	:in std_logic;
+	T24		:in std_logic
 );
 end component;
 
@@ -3245,7 +3246,7 @@ port map(
 	-- Wait states on graphic VRAM reads and writes in V1S and N with direct
 	-- access, as measured on a real FH. GVWAIT above covers the ALU.
 	GVSEN<='1' when cV1S='1' and GVAM='0' and GHSMv='0' else '0';
-	GVSW	:GVSWAIT port map(GVSEL,GV_other,CPUMD,GVSTR,GVSEN,GVS_WAITn,rclk,cpuce_f,CPU_rstnr,VT24);
+	GVSW	:GVSWAIT port map(GVSEL,GV_other,CPUMD,GVSTR,GVSEN,GVS_WAITn,rclk,cpuce_f,CPU_rstnr,VT24,T24);
 	-- While slowed down at 4MHz, a real FH also waits on every bus cycle
 	-- (BUSWAIT), after all the other waits. At 8MHz the text row transfers
 	-- in TRAMCONV give that part.
