@@ -1667,7 +1667,10 @@ begin
 			else
 				case ecommand is
 				when cmd_READDATA | cmd_READDELETEDDATA | cmd_READATRACK  =>
-					if(execstate/=es_seek and not(execstate=es_wseek and hdld='0') and lindex='1' and indexb='0')then
+					-- do not count index pulses from the data mark to the end of the data CRC: a long sector
+					-- is read to its end even if the index passes twice (as measured on a PC-8801FH)
+					if(execstate/=es_seek and not(execstate=es_wseek and hdld='0') and lindex='1' and indexb='0'
+						and not(execstate=es_DATA or execstate=es_DATAw or execstate=es_CRCd0 or execstate=es_CRCd1 or execstate=es_CRCdc))then
 --						if(contdata='1')then
 --							if(MT='1' and HD='0')then
 --								nturns<=0;
@@ -2218,7 +2221,11 @@ begin
 									incC<='1';
 									lastsect:='1';
 								end if;
-								sDE<='0';
+								if(ecommand=cmd_READATRACK and crczero='0')then
+									-- READ A TRACK goes on after a data CRC error; DE and DD stay set and are reported at the end
+									sDE<='1';
+									sDD<='1';
+								end if;
 								if(sOR='1')then
 									sIC<="01";
 									sNR<=readyv(iUS);
