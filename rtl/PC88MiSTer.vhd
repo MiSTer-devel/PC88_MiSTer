@@ -1343,6 +1343,7 @@ port(
 	EMULOADING		:out std_logic;
 	EMUBUSY			:out std_logic;
 	FDCBUSY			:out std_logic;
+	MAMODE			:in std_logic;
 	CPUCLK			:in std_logic;
 	CE_R			:in std_logic;
 	CE_F			:in std_logic;
@@ -3480,6 +3481,7 @@ port map(
 		FDCBUSY			=>pLed,
 		CPUCLK			=>SUBCLK,
 		CE_R			=>subce_r,
+		MAMODE			=>cSB2r,
 		CE_F			=>subce_f,
 		clk21m			=>clk21m,
 		ramclk			=>rclk,

@@ -74,6 +74,7 @@ port(
 	EMULOADING		:out std_logic;
 	EMUBUSY			:out std_logic;
 	FDCBUSY			:out std_logic;
+	MAMODE			:in std_logic;	-- '1': no opcode fetch wait, as on the MA
 	CPUCLK			:in std_logic;
 	-- High for one ramclk cycle where CPUCLK rises / falls. The sub CPU side
 	-- runs on ramclk and advances only on these cycles.
@@ -692,6 +693,7 @@ signal	INTn		:std_logic;
 signal	FDC_WAITn	:std_logic;
 signal	M1_WAITn	:std_logic;
 signal	M1_other	:std_logic;
+signal	M1_en		:std_logic;
 signal	fFDC_CSn	:std_logic;
 signal	fFDC_RDn	:std_logic;
 signal	fFDC_WRn	:std_logic;
@@ -796,9 +798,11 @@ begin
         MCYC        =>open
 	);
 
-	-- A FH's sub CPU takes one wait state in every opcode fetch.
+	-- A FH's sub CPU takes one wait state in every opcode fetch. An MA's does not,
+	-- so the wait is left out with the OnBoard sound board (MAMODE).
 	M1_other<=RAMWAIT or not FDC_WAITn;
-	M1W		:M1WAIT port map(M1n,MREQn,M1_other,'1',M1_WAITn,ramclk,CE_F,CPUrstnr);
+	M1_en<=not MAMODE;
+	M1W		:M1WAIT port map(M1n,MREQn,M1_other,M1_en,M1_WAITn,ramclk,CE_F,CPUrstnr);
 
 	mmap	:mmapsub generic map(awidth) port map(
 		CPU_ADR		=>ADR,
