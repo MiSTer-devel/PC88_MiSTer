@@ -2716,13 +2716,15 @@ port map(
 
 	-- CPU writes outside graphic VRAM are posted: a real FH has no wait state on
 	-- them at 4MHz and one at 8MHz (MEMWAIT), with the SDRAM write done later.
-	-- Graphic VRAM writes through the ALU are not, as the port reads the ALU
-	-- while it writes. Direct graphic VRAM writes are posted too (GVDP): a real
-	-- FH waits on them as long as on a read. In V1H, V2 and the V1S high-speed
-	-- mode only at 4MHz, where the FH waits no state on them in the retrace or
-	-- with the graphic screen off; the 8MHz counts of GVWAIT were measured with
-	-- the write held by SDRAM.
-	GVDP<='1' when GVAM='0' and (GVSEN='1' or CPUMD='0') else '0';
+	-- Direct graphic VRAM writes are posted too (GVDP): a real FH waits on them
+	-- as long as on a read. In V1H, V2 and the V1S high-speed mode only at 4MHz,
+	-- where the FH waits no state on them in the retrace or with the graphic
+	-- screen off; the 8MHz counts of GVWAIT were measured with the write held by
+	-- SDRAM. Writes through the ALU are posted in V2 at 4MHz, where a real FH
+	-- and MA write them as fast as direct writes (WRPOST keeps the ALU state).
+	GVDP<='1' when GVAM='0' and (GVSEN='1' or CPUMD='0') else
+		'1' when GVAM='1' and CPUMD='0' and MODE=MOD_V2 else
+		'0';
 	RAM_POST<='1' when CLR_OE='0' and LOADER_OEr='0' and TCNV_BUSUSE='0' and (GVSEL='0' or GVDP='1') else '0';
 	-- A posted graphic VRAM write is written with the GraphALU state latched in
 	-- WRPOST with it (GVAM, GDM, ALU0-2 and the last read), so a later OUT to
