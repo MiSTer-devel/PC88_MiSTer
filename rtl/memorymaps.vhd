@@ -130,8 +130,6 @@ begin
 					end if;
 				when x"35" =>
 					GAM<=CPU_WDAT(7);
-				when x"38"=>
-					TVRMODE<=CPU_WDAT(0);
 				-- the plane select is ignored while the extended access mode (32h bit 6) is on
 				when x"5c" =>
 					if(GVAM='0')then

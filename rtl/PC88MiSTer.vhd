@@ -1744,8 +1744,6 @@ signal	IDAT_IOR32	:std_logic_vector(7 downto 0);
 signal	IOR32_OE	:std_logic;
 signal	IDAT_IOR33	:std_logic_vector(7 downto 0);
 signal	IOR33_OE	:std_logic;
-signal	IDAT_IOR38	:std_logic_vector(7 downto 0);
-signal	IOR38_OE	:std_logic;
 signal	IDAT_IOR40	:std_logic_vector(7 downto 0);
 signal	IOR40_OE	:std_logic;
 signal	IDAT_IOR6e	:std_logic_vector(7 downto 0);
@@ -3086,7 +3084,8 @@ port map(
 	IO33	:IO_RWS generic map(x"33")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR33,IOR33_OE,open,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
 	IOW34	:IO_WRS generic map(x"34")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,ALU2(1),ALU1(1),ALU0(1),open,ALU2(0),ALU1(0),ALU0(0),rclk,CPU_rstnr,cpuce_r);
 	IOW35	:IO_WRS generic map(x"35")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,GAM,open,GDM(1),GDM(0),open,PLN(2),PLN(1),PLN(0),rclk,CPU_rstnr,cpuce_r);
-	IO38	:IO_RWS generic map(x"38")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR38,IOR38_OE,open,open,open,open,open,open,open,TVRMODE,rclk,CPU_rstnr,cpuce_r);
+	--A PC-8801FH has no port 38h, so writes to it are ignored.
+	TVRMODE<='0';
 	IOR40	:IO_RD generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR40,IOR40_OE,'1','1',VRTC,CDI,cDisk,DCD,VT15,'1');
 	IOW40	:IO_WRS generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,sing,pStr,beepen,GHSM,open,CCK,CSTB,open,rclk,CPU_rstnr,cpuce_r);
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'0','0','1','0','0','0','0');
