@@ -51,6 +51,13 @@ port(
 	--whatever 32h bit 4 says.
 	HS			:in std_logic;
 
+	--The bits of 31h, 32h and 35h that choose the map, from the port registers
+	P31_RMODE	:in std_logic;
+	P31_MMODE	:in std_logic;
+	P32_ROM4SEL	:in std_logic_vector(1 downto 0);
+	P32_TMODE	:in std_logic;
+	P35_GAM		:in std_logic;
+
 	clk			:in std_logic;
 	rstn		:in std_logic;
 	ce			:in std_logic := '1'
@@ -99,17 +106,18 @@ begin
 
 	IOWRn<=CPU_IORQn or CPU_WRn;
 	
+	RMODE<=P31_RMODE;
+	MMODE<=P31_MMODE;
+	ROM4SEL<=P32_ROM4SEL;
+	TMODE<=P32_TMODE;
+	GAM<=P35_GAM;
+	
 	process(clk,rstn)begin
 		if(rstn='0')then
-			RMODE<='0';
-			MMODE<='0';
 			IEROMn<='1';
-			TMODE<='0';
-			ROM4SEL<="00";
 			TXWADR<=x"00";
 			G_RAMSELb<=3;
 			GVAM<='0';
-			GAM<='0';
 			extre<='0';
 			extwe<='0';
 			extsel<=(others=>'0');
@@ -118,18 +126,11 @@ begin
 		 if(ce='1')then
 			if(IOWRn='0')then
 				case CPU_ADR(7 downto 0) is
-				when x"31" =>
-					MMODE<=CPU_WDAT(1);
-					RMODE<=CPU_WDAT(2);
 				when x"32" =>
-					ROM4SEL<=CPU_WDAT(1 downto 0);
-					TMODE<=CPU_WDAT(4);
 					GVAM<=CPU_WDAT(6);
 					if(CPU_WDAT(6)='1')then
 						G_RAMSELb<=3;
 					end if;
-				when x"35" =>
-					GAM<=CPU_WDAT(7);
 				-- the plane select is ignored while the extended access mode (32h bit 6) is on
 				when x"5c" =>
 					if(GVAM='0')then
