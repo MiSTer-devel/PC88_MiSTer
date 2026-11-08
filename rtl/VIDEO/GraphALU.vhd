@@ -30,6 +30,16 @@ port(
 	GAM		:in std_logic;
 	NSEL	:in integer range 0 to 3;
 
+	-- The state latched with a posted graphic VRAM write (WRPOST KIND):
+	-- bit 33 a posted graphic VRAM write (GVDW) is at the port, 32 GVAM,
+	-- 31-30 GDM, 29-24 ALU2 ALU1 ALU0, 23-0 LASTD2 LASTD1 LASTD0. While bit 33 is set
+	-- the write data is made from it, so an OUT or a CPU reset after the
+	-- write was posted does not change what is written.
+	PKIND	:in std_logic_vector(33 downto 0)	:=(others=>'0');
+	LASTDo0	:out std_logic_vector(7 downto 0);
+	LASTDo1	:out std_logic_vector(7 downto 0);
+	LASTDo2	:out std_logic_vector(7 downto 0);
+
 	clk		:in std_logic;
 	rstn	:in std_logic
 );
@@ -39,7 +49,22 @@ architecture MAIN of GraphALU is
 signal	LASTD0	:std_logic_vector(7 downto 0);
 signal	LASTD1	:std_logic_vector(7 downto 0);
 signal	LASTD2	:std_logic_vector(7 downto 0);
+signal	wGVAM	:std_logic;
+signal	wGDM	:std_logic_vector(1 downto 0);
+signal	wALU0,wALU1,wALU2	:std_logic_vector(1 downto 0);
+signal	wLD0,wLD1,wLD2		:std_logic_vector(7 downto 0);
 begin
+	LASTDo0<=LASTD0;
+	LASTDo1<=LASTD1;
+	LASTDo2<=LASTD2;
+	wGVAM<=	PKIND(32) when PKIND(33)='1' else GVAM;
+	wGDM<=	PKIND(31 downto 30) when PKIND(33)='1' else GDM;
+	wALU2<=	PKIND(29 downto 28) when PKIND(33)='1' else ALU2;
+	wALU1<=	PKIND(27 downto 26) when PKIND(33)='1' else ALU1;
+	wALU0<=	PKIND(25 downto 24) when PKIND(33)='1' else ALU0;
+	wLD2<=	PKIND(23 downto 16) when PKIND(33)='1' else LASTD2;
+	wLD1<=	PKIND(15 downto 8) when PKIND(33)='1' else LASTD1;
+	wLD0<=	PKIND(7 downto 0) when PKIND(33)='1' else LASTD0;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -55,11 +80,11 @@ begin
 		end if;
 	end process;
 	
-	process(GVAM,GDM,ALU0,ALU1,ALU2,RDDAT0,RDDAT1,RDDAT2,LASTD0,LASTD1,LASTD2,CPUWD)begin
-		if(GVAM='1')then
-			case GDM is
+	process(wGVAM,wGDM,wALU0,wALU1,wALU2,RDDAT0,RDDAT1,RDDAT2,wLD0,wLD1,wLD2,CPUWD)begin
+		if(wGVAM='1')then
+			case wGDM is
 			when "00" =>
-				case ALU0 is
+				case wALU0 is
 				when "00" =>
 					WRDAT0<=RDDAT0 and (not CPUWD);
 				when "01" =>
@@ -70,7 +95,7 @@ begin
 					WRDAT0<=RDDAT0;
 				end case;
 			
-				case ALU1 is
+				case wALU1 is
 				when "00" =>
 					WRDAT1<=RDDAT1 and (not CPUWD);
 				when "01" =>
@@ -81,7 +106,7 @@ begin
 					WRDAT1<=RDDAT1;
 				end case;
 			
-				case ALU2 is
+				case wALU2 is
 				when "00" =>
 					WRDAT2<=RDDAT2 and (not CPUWD);
 				when "01" =>
@@ -93,16 +118,16 @@ begin
 				end case;
 			
 			when "01" =>
-				WRDAT0<=LASTD0;
-				WRDAT1<=LASTD1;
-				WRDAT2<=LASTD2;
+				WRDAT0<=wLD0;
+				WRDAT1<=wLD1;
+				WRDAT2<=wLD2;
 			when "10" =>
-				WRDAT0<=LASTD1;
+				WRDAT0<=wLD1;
 				WRDAT1<=RDDAT1;
 				WRDAT2<=RDDAT2;
 			when others=>
 				WRDAT0<=RDDAT0;
-				WRDAT1<=LASTD0;
+				WRDAT1<=wLD0;
 				WRDAT2<=RDDAT2;
 			end case;
 		else
