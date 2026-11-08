@@ -179,6 +179,8 @@ begin
 	--the older keys that do the same thing, as on the FH: both RETURNs as RETURN,
 	--both SHIFTs as SHIFT, F6 to F10 as SHIFT and F1 to F5, INS as SHIFT and INS/DEL,
 	--BS and DEL as INS/DEL, and the two keys in row 13 bits 0 and 1 as SPACE.
+	--The FH has one CTRL. The right CTRL is held in row 14 bit 4, which software
+	--still reads as 1, and either CTRL reads as CTRL.
 	process(SCANADR,KBROW)
 	variable r	:std_logic_vector(7 downto 0);
 	begin
@@ -189,10 +191,13 @@ begin
 		when x"8" =>
 			r(6):=r(6) and KBROW(14)(2) and KBROW(14)(3) and KBROW(12)(0) and KBROW(12)(1) and KBROW(12)(2)
 				and KBROW(12)(3) and KBROW(12)(4) and KBROW(12)(6);
+			r(7):=r(7) and KBROW(14)(4);
 			r(3):=r(3) and KBROW(12)(5) and KBROW(12)(6) and KBROW(12)(7);
 		when x"9" =>
 			r(5 downto 1):=r(5 downto 1) and KBROW(12)(4 downto 0);
 			r(6):=r(6) and KBROW(13)(0) and KBROW(13)(1);
+		when x"e" =>
+			r(4):='1';
 		when others =>
 		end case;
 		SCANDAT<=r;
@@ -348,6 +353,8 @@ begin
 				when KS_RDTBL =>
 					if(TBLDAT(7 downto 4)=x"f")then
 						KBSTATE<=KS_IDLE;
+						E0en<='0';
+						F0en<='0';
 					else
 						WRADR<=TBLDAT(7 downto 4);
 						BITSEL<=TBLDAT(2 downto 0);
@@ -356,6 +363,8 @@ begin
 				when KS_RDE0TBL =>
 					if(E0TBLDAT(7 downto 4)=x"f")then
 						KBSTATE<=KS_IDLE;
+						E0en<='0';
+						F0en<='0';
 					else
 						WRADR<=E0TBLDAT(7 downto 4);
 						BITSEL<=E0TBLDAT(2 downto 0);
