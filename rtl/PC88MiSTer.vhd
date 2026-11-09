@@ -254,6 +254,12 @@ port(
 	EXTTYPE		:in std_logic_vector(1 downto 0);
 	HS			:in std_logic;
 
+	P31_RMODE	:in std_logic;
+	P31_MMODE	:in std_logic;
+	P32_ROM4SEL	:in std_logic_vector(1 downto 0);
+	P32_TMODE	:in std_logic;
+	P35_GAM		:in std_logic;
+
 	clk			:in std_logic;
 	rstn		:in std_logic;
 	ce			:in std_logic := '1'
@@ -2012,7 +2018,6 @@ signal RMODE	:std_logic;
 signal MMODE	:std_logic;
 signal EROMSEL1	:std_logic;
 signal EROMSEL0 :std_logic;
-signal	IEROM	:std_logic;
 -- signal	TCNVDONE	:std_logic;
 
 signal	beepsig	:std_logic;
@@ -2400,6 +2405,13 @@ begin
 	
 	EXTTYPE		=>FILL_RTYPE,
 	HS			=>cHS,
+
+	P31_RMODE	=>RMODE,
+	P31_MMODE	=>MMODE,
+	P32_ROM4SEL(1)	=>EROMSEL1,
+	P32_ROM4SEL(0)	=>EROMSEL0,
+	P32_TMODE	=>TMODE,
+	P35_GAM		=>GAM,
 
 	clk			=>rclk,
 	rstn		=>CPU_rstnr,
@@ -3090,7 +3102,6 @@ port map(
 	IOW40	:IO_WRS generic map(x"40")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,sing,pStr,beepen,GHSM,open,CCK,CSTB,open,rclk,CPU_rstnr,cpuce_r);
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'0','0','1','0','0','0','0');
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);
-	IOW71	:IO_WRS generic map(x"71")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,open,open,open,IEROM,rclk,CPU_rstnr,cpuce_r);
 	IOWaa	:IO_WRS generic map(x"aa")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,S2INTM,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
 	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE);
 	pStrA<=pStr;
