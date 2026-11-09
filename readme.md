@@ -62,7 +62,14 @@ There are several revisions of the N88 4th-0 ROM. Use the one listed above (710A
 - Decision (kettei) -> Muhenkan
 - = on the numeric keypad -> Num Lock
 
-KANA, Conversion, Decision, the yen key and the _ key (ro) need a Japanese keyboard. A US keyboard has no keys for them.
+Conversion and Decision need a Japanese keyboard, and so does KANA with the JP layout (with the US layout, Right Alt is KANA). With the JP layout, the yen key and the _ key (ro) do too, as a US keyboard has no keys for them.
+
+### Keyboard layout
+
+The OSD option Keyboard layout sets how the PC keyboard maps to the PC-8801.
+
+- JP (default): by key position, for Japanese keyboards. This is the table above.
+- US: the symbol keys give the characters on US keycaps. \ gives ¥ and Shift+- gives _. ` has no PC-8801 key and gives nothing, so Full-width is not on the keyboard. For @, ^, :, = and ', the core changes the PC-8801 SHIFT while the key is held, so other keys typed while it is held, or just after a short tap, can get the wrong SHIFT, and the function key labels switch while it is held. Right Alt is KANA (each press toggles kana; the Scroll Lock LED shows the state) and Left Alt is GRPH. With kana or GRPH on when a key is pressed, the key keeps its position.
 
 ## Sound Board
 
