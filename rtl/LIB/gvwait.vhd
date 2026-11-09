@@ -29,6 +29,17 @@ use IEEE.std_logic_1164.all;
 --counted, so it still adds to these waits as before.
 --Once the CPU has seen WAIT_n high in an access, the wait stays off until the
 --access ends, even if FAST or en changes.
+--In 15kHz timing at 4MHz the FH waits one more state (3 instead of 2) on some
+--drawn accesses. The waits measured over many access intervals fit a model
+--where an access waits more when it starts in an 8% window of the 8-dot text
+--clock. That clock runs on its own crystal; the length that fits best is
+--2.2325 CPU states (2.2313 from the nominal crystals), so ph keeps its phase
+--in CPU states (29355 of 65536 a state). Only the width of the window shows
+--in the waits, not where it sits, so it is put at phase 0.
+--This was measured in V2; the other modes that use these waits take the same
+--rule. As ph counts ce_f, it falls behind the real text clock while GVSTRETCH
+--slows the CPU in V1S and N. en is low all that time, so no wait here is taken
+--then; only the phase moves.
 entity GVWAIT is
 port(
 	SEL		:in std_logic;	-- GVRAM read or write strobe is out
@@ -43,7 +54,8 @@ port(
 	rstn	:in std_logic;
 
 	VRTC	:in std_logic;	-- '1' in the vertical retrace
-	QWAIT	:in std_logic	-- '1' while GVWQ holds a write back
+	QWAIT	:in std_logic;	-- '1' while GVWQ holds a write back
+	PH15	:in std_logic	-- '1' in 15kHz timing: take the text clock phase
 );
 end GVWAIT;
 
@@ -59,10 +71,21 @@ signal	lsel	:std_logic;
 signal	done	:std_logic;	-- the CPU has passed the wait in this access
 signal	lret	:std_logic;	-- VRTC taken when the access started
 signal	ret		:std_logic;
+constant PHSTEP	:integer:=29355;	-- 65536/2.2325 rounded down: one CPU state
+constant PHW	:integer:=5243;		-- 8% of the text clock
+signal	ph		:integer range 0 to 65535;
+signal	phlow	:std_logic;	-- ph is in the window (registered with ph)
+signal	phhit	:std_logic;
+signal	lhit	:std_logic;
+signal	hit		:integer range 0 to 1;
 begin
+	phhit<='1' when PH15='1' and FAST='0' and phlow='1' else '0';
+	hit<=	1 when SEL='1' and lsel='0' and phhit='1' else
+			1 when SEL='1' and lsel='1' and lhit='1' else
+			0;
 	tgtd<=	6 when FAST='1' and kd=8 else
 			4 when FAST='1' else
-			2;
+			2+hit;
 	tgtr<=	0 when FAST='1' and kr=9 else
 			2 when FAST='1' else
 			0;
@@ -70,7 +93,9 @@ begin
 	target<=tgtr+base when ret='1' else tgtd+base;
 	base<=1 when FAST='1' else 0;
 
-	process(clk,rstn)begin
+	process(clk,rstn)
+	variable nph	:integer range 0 to 65535;
+	begin
 		if(rstn='0')then
 			kd<=0;
 			kr<=0;
@@ -78,10 +103,27 @@ begin
 			lsel<='0';
 			done<='0';
 			lret<='0';
+			ph<=0;
+			phlow<='1';	-- 0 is in the window
+			lhit<='0';
 		elsif(clk' event and clk='1')then
 			lsel<=SEL;
+			if(ce_f='1')then
+				if(ph+PHSTEP>65535)then
+					nph:=ph+PHSTEP-65536;
+				else
+					nph:=ph+PHSTEP;
+				end if;
+				ph<=nph;
+				if(nph<PHW)then
+					phlow<='1';
+				else
+					phlow<='0';
+				end if;
+			end if;
 			if(SEL='1' and lsel='0')then
 				lret<=VRTC;
+				lhit<=phhit;
 			end if;
 			if(SEL='0')then
 				cnt<=0;
