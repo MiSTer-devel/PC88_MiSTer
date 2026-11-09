@@ -38,7 +38,21 @@ port(
 	RxCn	:in std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	--Save and restore. While HOLD is '1' every register keeps its value whatever the
+	--inputs do (the outputs that come straight from inputs still follow them); read REG
+	--then, and DIRSet loads DIR back. DIR is meant to be a value read from REG. Use them
+	--with rstn at '1': rstn wins over both (CMDDONE, which has no reset, aside).
+	--REG(57 downto 0): CMDDONE, BAUD, CLEN, PEN, PEV, STOP, TxEN, DTR, RxEN, RTS, cmdnum(2),
+	--  pereset, oereset, fereset, RxRDYb, oeset, peset, RXINT, TXINT, ltxemp, lrxcn, ltxcn,
+	--  rxce, txce, lRD_DAT, lRD_STA, lWR_DAT, lWR_CMD, RD_DAT, RD_STA, WR_DAT, WR_CMD, lWDAT, IOWDAT
+	--REG(60 downto 58): FE, OE, PE; (63 downto 61) and (66 downto 64): the receive and
+	--transmit prescalers; (102 downto 67): the receiver; (139 downto 103): the transmitter
+	HOLD	:in std_logic	:='0';
+	REG		:out std_logic_vector(139 downto 0);
+	DIRSet	:in std_logic	:='0';
+	DIR		:in std_logic_vector(139 downto 0)	:=(others=>'0')
 );
 end e8251;
 
@@ -121,6 +135,8 @@ signal	WR_DAT		:std_logic;
 signal	WR_CMD		:std_logic;
 signal	RXINT		:std_logic;
 signal	TXINT		:std_logic;
+signal	ltxemp		:std_logic;
+signal	cmdnumv		:std_logic_vector(1 downto 0);
 
 component txframe
 	generic(
@@ -141,7 +157,12 @@ component txframe
 		BUFEMP	:out std_logic;		-- transmit buffer empty signal
 		
 		clk		:in std_logic;		-- system clock
-		rstn	:in std_logic		-- system reset
+		rstn	:in std_logic;		-- system reset
+
+		HOLD	:in std_logic	:='0';
+		REG		:out std_logic_vector(2*maxlen+maxwid+12 downto 0);
+		DIRSet	:in std_logic	:='0';
+		DIR		:in std_logic_vector(2*maxlen+maxwid+12 downto 0)	:=(others=>'0')
 	);
 end component;
 
@@ -164,7 +185,12 @@ component rxframe
 		SFTRST	:in std_logic;	-- stop receive and reset
 				
 		clk		:in std_logic;	-- system clock
-		rstn	:in std_logic	-- system reset
+		rstn	:in std_logic;	-- system reset
+
+		HOLD	:in std_logic	:='0';
+		REG		:out std_logic_vector(2*maxlen+maxwid+11 downto 0);
+		DIRSet	:in std_logic	:='0';
+		DIR		:in std_logic_vector(2*maxlen+maxwid+11 downto 0)	:=(others=>'0')
 	);
 end component;
 
@@ -179,7 +205,12 @@ port(
 	sftout	:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	HOLD	:in std_logic	:='0';
+	REG		:out std_logic_vector(width downto 0);
+	DIRSet	:in std_logic	:='0';
+	DIR		:in std_logic_vector(width downto 0)	:=(others=>'0')
 );
 end component;
 
@@ -203,7 +234,12 @@ port(
 	q		:out std_logic;
 	
 	clk		:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	HOLD	:in std_logic	:='0';
+	REG		:out std_logic;
+	DIRSet	:in std_logic	:='0';
+	DIR		:in std_logic	:='0'
 );
 end component;
 
@@ -254,19 +290,30 @@ begin
 			end if;
 			lrxcn<=lrxcn(0) & RxCn;
 			ltxcn<=ltxcn(0) & TxCn;
+			if(DIRSet='1')then
+				txce<=DIR(28);
+				rxce<=DIR(29);
+				ltxcn<=DIR(31 downto 30);
+				lrxcn<=DIR(33 downto 32);
+			elsif(HOLD='1')then
+				txce<=txce;
+				rxce<=rxce;
+				ltxcn<=ltxcn;
+				lrxcn<=lrxcn;
+			end if;
 		end if;
 	end process;
 	
 	presval<="00" when prescen<='0' else "11";
 	
-	rps	:sftdiv generic map(2) port map(presval,rxce,sftrxb,clk,rstn);
-	tps	:sftdiv generic map(2) port map(presval,txce,sfttxb,clk,rstn);
+	rps	:sftdiv generic map(2) port map(presval,rxce,sftrxb,clk,rstn,HOLD,REG(63 downto 61),DIRSet,DIR(63 downto 61));
+	tps	:sftdiv generic map(2) port map(presval,txce,sfttxb,clk,rstn,HOLD,REG(66 downto 64),DIRSet,DIR(66 downto 64));
 	
 	sftrx<=sftrxb and RxEN;
 	sfttx<=sfttxb and TxEN;
 	
-	rxf	:rxframe generic map(9,6) port map(RxD,sftrx,bitwidth,datlen,rxdat,rxed,feset,'0',clk,rstn);
-	txf	:txframe generic map(9,6) port map(TxD,txbusy,sfttx,bitwidth,datlen,stoplen,txdat,txwr,txbemp,clk,rstn);
+	rxf	:rxframe generic map(9,6) port map(RxD,sftrx,bitwidth,datlen,rxdat,rxed,feset,'0',clk,rstn,HOLD,REG(102 downto 67),DIRSet,DIR(102 downto 67));
+	txf	:txframe generic map(9,6) port map(TxD,txbusy,sfttx,bitwidth,datlen,stoplen,txdat,txwr,txbemp,clk,rstn,HOLD,REG(139 downto 103),DIRSet,DIR(139 downto 103));
 	
 	IORD_DAT<='1' when CSn='0' and RDn='0' and C_Dn='0' else '0';
 	IORD_STA<='1' when CSn='0' and RDn='0' and C_Dn='1' else '0';
@@ -323,6 +370,29 @@ begin
 			lWR_DAT<=lWR_DAT(0) & IOWR_DAT;
 			lWR_CMD<=lWR_CMD(0) & IOWR_CMD;
 			lWDAT<=DATIN;
+			if(DIRSet='1')then
+				IOWDAT<=DIR(7 downto 0);
+				lWDAT<=DIR(15 downto 8);
+				WR_CMD<=DIR(16);
+				WR_DAT<=DIR(17);
+				RD_STA<=DIR(18);
+				RD_DAT<=DIR(19);
+				lWR_CMD<=DIR(21 downto 20);
+				lWR_DAT<=DIR(23 downto 22);
+				lRD_STA<=DIR(25 downto 24);
+				lRD_DAT<=DIR(27 downto 26);
+			elsif(HOLD='1')then
+				IOWDAT<=IOWDAT;
+				lWDAT<=lWDAT;
+				WR_CMD<=WR_CMD;
+				WR_DAT<=WR_DAT;
+				RD_STA<=RD_STA;
+				RD_DAT<=RD_DAT;
+				lWR_CMD<=lWR_CMD;
+				lWR_DAT<=lWR_DAT;
+				lRD_STA<=lRD_STA;
+				lRD_DAT<=lRD_DAT;
+			end if;
 		end if;
 	end process;
 	
@@ -371,6 +441,35 @@ begin
 				when others=>
 				end case;
 			end if;
+			if(DIRSet='1')then
+				fereset<=DIR(40);
+				oereset<=DIR(41);
+				pereset<=DIR(42);
+				cmdnum<=conv_integer(DIR(44 downto 43));
+				RTS<=DIR(45);
+				RxEN<=DIR(46);
+				DTR<=DIR(47);
+				TxEN<=DIR(48);
+				STOP<=DIR(50 downto 49);
+				PEV<=DIR(51);
+				PEN<=DIR(52);
+				CLEN<=DIR(54 downto 53);
+				BAUD<=DIR(56 downto 55);
+			elsif(HOLD='1')then
+				fereset<=fereset;
+				oereset<=oereset;
+				pereset<=pereset;
+				cmdnum<=cmdnum;
+				RTS<=RTS;
+				RxEN<=RxEN;
+				DTR<=DTR;
+				TxEN<=TxEN;
+				STOP<=STOP;
+				PEV<=PEV;
+				PEN<=PEN;
+				CLEN<=CLEN;
+				BAUD<=BAUD;
+			end if;
 		end if;
 	end process;
 
@@ -412,12 +511,21 @@ begin
 			elsif(WR_CMD='1')then
 				RXINT<='0';
 			end if;
+			if(DIRSet='1')then
+				RXINT<=DIR(36);
+				peset<=DIR(37);
+				oeset<=DIR(38);
+				RxRDYb<=DIR(39);
+			elsif(HOLD='1')then
+				RXINT<=RXINT;
+				peset<=peset;
+				oeset<=oeset;
+				RxRDYb<=RxRDYb;
+			end if;
 		end if;
 	end process;
 	
-	process(clk,rstn)
-	variable ltxemp	:std_logic;
-	begin
+	process(clk,rstn)begin
 		if(rstn='0')then
 			TXINT<='0';
 		elsif(clk' event and clk='1')then
@@ -430,7 +538,14 @@ begin
 			elsif(WR_CMD='1')then
 				TXINT<='0';
 			end if;
-			ltxemp:=txbemp;
+			ltxemp<=txbemp;
+			if(DIRSet='1')then
+				ltxemp<=DIR(34);
+				TXINT<=DIR(35);
+			elsif(HOLD='1')then
+				ltxemp<=ltxemp;
+				TXINT<=TXINT;
+			end if;
 		end if;
 	end process;
 
@@ -449,9 +564,9 @@ begin
 	RTSn<=not RTS;
 	DTRn<=not DTR;
 	
-	PEF	:g_srff port map(peset,pereset,PE,clk,rstn);
-	OEF	:g_srff port map(oeset,oereset,OE,clk,rstn);
-	FEF	:g_srff port map(feset,fereset,FE,clk,rstn);
+	PEF	:g_srff port map(peset,pereset,PE,clk,rstn,HOLD,REG(58),DIRSet,DIR(58));
+	OEF	:g_srff port map(oeset,oereset,OE,clk,rstn,HOLD,REG(59),DIRSet,DIR(59));
+	FEF	:g_srff port map(feset,fereset,FE,clk,rstn,HOLD,REG(60),DIRSet,DIR(60));
 	
 	--A PC-8801FH reads the status as 00h from power-on until the first command is
 	--written; a reset of the CPU does not bring that back.
@@ -459,6 +574,11 @@ begin
 		if(clk' event and clk='1')then
 			if(WR_CMD='1' and cmdnum=cn_cmd)then
 				CMDDONE<='1';
+			end if;
+			if(DIRSet='1')then
+				CMDDONE<=DIR(57);
+			elsif(HOLD='1')then
+				CMDDONE<=CMDDONE;
 			end if;
 		end if;
 	end process;
@@ -472,4 +592,9 @@ begin
 	
 	DATOUT<=STATUS when C_Dn='1' else RECVDAT;
 	DATOE<=IORD_DAT or IORD_STA;
+
+	cmdnumv<=conv_std_logic_vector(cmdnum,2);
+	REG(57 downto 0)<=CMDDONE & BAUD & CLEN & PEN & PEV & STOP & TxEN & DTR & RxEN & RTS & cmdnumv &
+		pereset & oereset & fereset & RxRDYb & oeset & peset & RXINT & TXINT & ltxemp & lrxcn & ltxcn &
+		rxce & txce & lRD_DAT & lRD_STA & lWR_DAT & lWR_CMD & RD_DAT & RD_STA & WR_DAT & WR_CMD & lWDAT & IOWDAT;
 end rtl;
