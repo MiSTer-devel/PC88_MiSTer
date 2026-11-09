@@ -102,7 +102,21 @@ entity T80a_ce is
 		-- released
 		MRD			: out std_logic;
 		-- the M cycle (MCycle of T80), to tell one cycle from the next
-		MCYC		: out std_logic_vector(2 downto 0)
+		MCYC		: out std_logic_vector(2 downto 0);
+		-- '1' in the first T of an M1 (not an INT acknowledge, not while the
+		-- bus is released). This includes the M1 after a DD/FD/ED/CB prefix,
+		-- an NMI acknowledge and the M1s of HALT. The state read from REG and
+		-- REGX while it is '1' is enough to resume there: load it with DIRSet
+		-- and go on with the next CE_R or CE_F. DIRSet loads both DIR and DIRX
+		-- (DIRX left at 0 is not a valid state). Keep CE_R and CE_F at '0' on
+		-- the clock DIRSet is '1', and give DIRSet only when the CPU is out of
+		-- reset, i.e. after a CE_R after RESET_n went '1'.
+		BND			: out std_logic;
+		REG			: out std_logic_vector(211 downto 0);
+		REGX		: out std_logic_vector(103 downto 0);	-- IORQ_n_i, Req_Inhibit, WR_n_i, MREQ, RD, Wait_s, DI_Reg, DO, then REGX of T80
+		DIRSet		: in std_logic := '0';
+		DIR			: in std_logic_vector(211 downto 0) := (others => '0');
+		DIRX		: in std_logic_vector(103 downto 0) := (others => '0')
 	);
 end T80a_ce;
 
@@ -165,6 +179,9 @@ begin
 	MRD <= '1' when MCycle /= "001" and NoRead = '0' and Write = '0' and IORQ = '0' and BUSAK_n_i = '1' else '0';
 	MCYC <= MCycle;
 
+	BND <= '1' when MCycle = "001" and TState = "001" and IntCycle_n = '1' and BUSAK_n_i = '1' else '0';
+	REGX(103 downto 82) <= IORQ_n_i & Req_Inhibit & WR_n_i & MREQ & RD & Wait_s & DI_Reg & DO;
+
 	u0 : T80
 		generic map(
 			Mode => Mode,
@@ -190,12 +207,21 @@ begin
 			DO => DO,
 			MC => MCycle,
 			TS => TState,
-			IntCycle_n => IntCycle_n);
+			IntCycle_n => IntCycle_n,
+			REG => REG,
+			DIRSet => DIRSet,
+			DIR => DIR,
+			DIRXSet => DIRSet,
+			REGX => REGX(81 downto 0),
+			DIRX => DIRX(89 downto 0));
 
 	process (CLK_n)
 	begin
 		if CLK_n'event and CLK_n = '1' then
-			if CE_F = '1' then
+			if DIRSet = '1' then
+				Wait_s <= DIRX(98);
+				DI_Reg <= DIRX(97 downto 90);
+			elsif CE_F = '1' then
 				Wait_s <= WAIT_n;
 				if TState = "011" and BUSAK_n_i = '1' then
 					DI_Reg <= to_x01(D);
@@ -209,7 +235,9 @@ begin
 		if Reset_s = '0' then
 			WR_n_i <= '1';
 		elsif CLK_n'event and CLK_n = '1' then
-		 if CE_R = '1' then
+		 if DIRSet = '1' then
+			WR_n_i <= DIRX(101);
+		 elsif CE_R = '1' then
 			if(WAIT_n='1')then
 				WR_n_i <= '1';
 				if TState = "001" then	-- To short for IO writes !!!!!!!!!!!!!!!!!!!
@@ -225,7 +253,9 @@ begin
 		if Reset_s = '0' then
 			Req_Inhibit <= '0';
 		elsif CLK_n'event and CLK_n = '1' then
-		 if CE_R = '1' then
+		 if DIRSet = '1' then
+			Req_Inhibit <= DIRX(102);
+		 elsif CE_R = '1' then
 			if(WAIT_s='1')then
 				if MCycle = "001" and TState = "010" then
 					Req_Inhibit <= '1';
@@ -242,7 +272,9 @@ begin
 		if Reset_s = '0' then
 			MReq_Inhibit <= '0';
 		elsif CLK_n'event and CLK_n = '1' then
-		 if CE_F = '1' then
+		 if DIRSet = '1' then
+			MReq_Inhibit <= '0';
+		 elsif CE_F = '1' then
 			if MCycle = "001" and TState = "010" then
 				MReq_Inhibit <= '1';
 			else
@@ -259,7 +291,11 @@ begin
 			IORQ_n_i <= '1';
 			MREQ <= '0';
 		elsif CLK_n'event and CLK_n = '1' then
-		 if CE_F = '1' then
+		 if DIRSet = '1' then
+			RD <= DIRX(99);
+			IORQ_n_i <= DIRX(103);
+			MREQ <= DIRX(100);
+		 elsif CE_F = '1' then
 			if(WAIT_n='1') then
 				if MCycle = "001" then
 					if TState = "001" then
