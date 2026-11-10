@@ -91,7 +91,7 @@ signal	G_RAMSELb	:integer range 0 to 3;
 signal	GVAM		:std_logic;
 signal	GAM			:std_logic;
 signal	TRAMSEL		:std_logic;
-signal	TVRMODE		:std_logic;
+constant	TVRMODE		:std_logic	:='0';	--A PC-8801FH has no port 38h.
 signal	IOWRn		:std_logic;
 signal	lWRn		:std_logic;
 signal	TXTWINENb	:std_logic;
@@ -121,7 +121,6 @@ begin
 			extre<='0';
 			extwe<='0';
 			extsel<=(others=>'0');
-			TVRMODE<='0';
 		elsif(clk' event and clk='1')then
 		 if(ce='1')then
 			if(IOWRn='0')then
