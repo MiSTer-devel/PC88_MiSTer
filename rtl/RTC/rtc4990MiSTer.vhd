@@ -19,7 +19,23 @@ port(
 	RTCIN	:in std_logic_vector(64 downto 0);
 
  	sclk	:in std_logic;
-	rstn	:in std_logic
+	rstn	:in std_logic;
+
+	--Save and restore of the serial side. While HOLD is '1' every register here keeps its
+	--value whatever the inputs do; read REG then, and DIRSet loads DIR back. DIR is meant
+	--to be a value read from REG; load it while HOLD is '1' (with HOLD at '0' the time is
+	--written at once: from the loaded TXSFT when Clat is 010, from RTCIN when SYSINI is
+	--'1'). Use them with
+	--rstn at '1': rstn wins over both (CMDSFT and lDCLK, which have no reset, aside). The
+	--time in rtcbody is neither held nor saved: the clock keeps running, as the real one
+	--does, but the serial side does not write it while HOLD is '1'.
+	--REG(51 downto 0): TXSFT; (55 downto 52): CMDSFT; (58 downto 56): Clat; 59: S_Pn;
+	--  60: sDCLK; 61: lDCLK; 62: sDIN; 63: sSTB; 64: STBe; 65: SYSINI; (67 downto 66): the
+	--  start-up state (0 to 2; REG never gives 3, and DIR takes 3 as 2)
+	HOLD	:in std_logic	:='0';
+	REG		:out std_logic_vector(67 downto 0);
+	DIRSet	:in std_logic	:='0';
+	DIR		:in std_logic_vector(67 downto 0)	:=(others=>'0')
 );
 end rtc4990MiSTer;
 
@@ -80,6 +96,8 @@ signal	sSTB	:std_logic;
 signal	STBe	:std_logic;
 signal	fast	:std_logic;
 signal	Clat	:std_logic_vector(2 downto 0);
+signal	inistate	:integer range 0 to 2;
+signal	inistatev	:std_logic_vector(1 downto 0);
 
 component rtcbody
 generic(
@@ -158,6 +176,17 @@ begin
 			else
 				STBe<='0';
 			end if;
+			if(DIRSet='1')then
+				sDCLK<=DIR(60);
+				sDIN<=DIR(62);
+				sSTB<=DIR(63);
+				STBe<=DIR(64);
+			elsif(HOLD='1')then
+				sDCLK<=sDCLK;
+				sDIN<=sDIN;
+				sSTB<=sSTB;
+				STBe<=STBe;
+			end if;
 		end if;
 	end process;
 	
@@ -175,6 +204,13 @@ begin
 					S_Pn<='0';
 				end if;
 			end if;
+			if(DIRSet='1')then
+				Clat<=DIR(58 downto 56);
+				S_Pn<=DIR(59);
+			elsif(HOLD='1')then
+				Clat<=Clat;
+				S_Pn<=S_Pn;
+			end if;
 		end if;
 	end process;
 
@@ -191,6 +227,15 @@ begin
 				TXSFT<=x"0" & YEH & YEL & MON & '0' & WDAY & "00" & DAYH & DAYL & "00" & HORH & HORL & '0' & MINH & MINL & '0' & SECH & SECL;
 			end if;
 			lDCLK<=sDCLK;
+			if(DIRSet='1')then
+				TXSFT<=DIR(51 downto 0);
+				CMDSFT<=DIR(55 downto 52);
+				lDCLK<=DIR(61);
+			elsif(HOLD='1')then
+				TXSFT<=TXSFT;
+				CMDSFT<=CMDSFT;
+				lDCLK<=lDCLK;
+			end if;
 		end if;
 	end process;
 	
@@ -212,7 +257,7 @@ begin
 	SECLWD	<=RXDAT( 3 downto  0) when SYSINI='0' else SECLID;
 	
 	SYS_SET<='1' when (Clat="010") else '0';
-	TIMESET<=SYS_SET or SYSINI;
+	TIMESET<=(SYS_SET or SYSINI) and not HOLD;	--not while held: DIRSet may pass through other values
 	fast<='0';
 	
 	rtc	:rtcbody generic map(clkfreq) port map(
@@ -298,28 +343,45 @@ begin
 
 	WDAYID<=RTCIN(50 downto 48);
 
-	process(sclk,rstn)
-	variable state	:integer range 0 to 2;
-	begin
+	process(sclk,rstn)begin
 		if(rstn='0')then
-			state:=0;
+			inistate<=0;
 			SYSINI<='0';
 		elsif(sclk' event and sclk='1')then
 			SYSINI<='0';
-			case state is
+			case inistate is
 			when 2 =>
 			when 1 =>
 				SYSINI<='1';
-				state:=2;
+				inistate<=2;
 			when 0 =>
 				if(RTCIN(64)='1')then
-					state:=1;
+					inistate<=1;
 				end if;
 			when others =>
-				state:=2;
+				inistate<=2;
 			end case;
+			if(DIRSet='1')then
+				SYSINI<=DIR(65);
+				if(DIR(67)='1')then
+					inistate<=2;
+				elsif(DIR(66)='1')then
+					inistate<=1;
+				else
+					inistate<=0;
+				end if;
+			elsif(HOLD='1')then
+				SYSINI<=SYSINI;
+				inistate<=inistate;
+			end if;
 		end if;
 	end process;
+
+	inistatev<=	"10" when inistate=2 else
+				"01" when inistate=1 else
+				"00";
+
+	REG<=inistatev & SYSINI & STBe & sSTB & sDIN & lDCLK & sDCLK & S_Pn & Clat & CMDSFT & TXSFT;
 	
 
 	
