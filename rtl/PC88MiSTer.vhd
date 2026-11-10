@@ -765,7 +765,8 @@ port(
 	rstn	:in std_logic;
 
 	VRTC	:in std_logic;
-	QWAIT	:in std_logic
+	QWAIT	:in std_logic;
+	PH15	:in std_logic
 );
 end component;
 
@@ -3233,7 +3234,7 @@ port map(
 	-- as measured on a real FH (GVWQ).
 	GVQEN<='1' when T24='1' and cHS='1' and GRAPHEN='1' else '0';
 	GVWQ0	:GVWQ port map(GVSEL,WR_n,CPUMD,GVQEN,GVQWAIT,HRTCr,VRTCr,rclk,cpuce_f,CPU_rstnr);
-	GVW		:GVWAIT port map(GVSEL,GV_M1W,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,GVRET,GVQWAIT);
+	GVW		:GVWAIT port map(GVSEL,GV_M1W,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,GVRET,GVQWAIT,VT15);
 	-- V1S and N slow down the whole CPU while graphic VRAM is selected for
 	-- direct access (5Ch-5Eh) and the graphic screen is being displayed,
 	-- as measured on a real FH. Every user of cpuce_r/cpuce_f gets the
