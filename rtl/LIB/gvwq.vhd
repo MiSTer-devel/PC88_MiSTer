@@ -6,22 +6,27 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
 --Holds CPU writes to graphic VRAM back while they wait for a free slot.
---On a real FH at 8MHz in 24kHz timing, writes that follow each other closely
---while the screen is drawn wait longer than single writes: PUSH to graphic
---VRAM takes about 26 states on the FH, 22.4 in the core without this.
+--On a real FH in 24kHz timing, writes that follow each other closely while
+--the screen is drawn wait longer than single writes. At 8MHz, PUSH to
+--graphic VRAM takes about 26 states on the FH and 22.4 in the core without
+--this. At 4MHz, eight PUSHes in a row take about 1 state more each on the FH
+--than in the core without this.
 --This is not the circuit of the FH. It is a model that gives the measured
---waits: up to 3 writes are held, the oldest one goes out when it is at least
---MINAGE states old and a slot comes, and a write that finds all 3 places
---taken waits until one is free.
+--waits: up to depth writes are held, the oldest one goes out when it is at
+--least minage states old and a slot comes, and a write that finds all places
+--taken waits until one is free, unless GVWAIT gives the access no wait (in
+--the retrace at 4MHz).
 --A slot comes in the horizontal or vertical retrace, and while the screen is
---drawn at random, PHIT in 256 per state (an LFSR).
+--drawn at random, phit in 256 per state (an LFSR).
+--depth, minage and phit are 3, 6 and 18 at 8MHz, and 4, 8 and 32 at 4MHz.
 --QWAIT is high while a write waits for a free place. GVWAIT adds its own
 --wait after that.
 entity GVWQ is
 port(
 	SEL		:in std_logic;	-- GVRAM read or write strobe is out
 	WRn		:in std_logic;
-	en		:in std_logic;	-- 24kHz timing, V1H or V2, 8MHz, graphic screen on
+	FAST	:in std_logic;	-- '1' at 8MHz
+	en		:in std_logic;	-- 24kHz timing, V1H or V2, graphic screen on
 
 	QWAIT	:out std_logic;
 
@@ -35,13 +40,14 @@ port(
 end GVWQ;
 
 architecture rtl of GVWQ is
-constant DEPTH	:integer	:=3;
-constant PHIT	:integer	:=18;
-constant MINAGE	:integer	:=6;
+constant DMAX	:integer	:=4;
 constant SEED	:std_logic_vector(15 downto 0)	:=x"ace1";
 constant TAPS	:std_logic_vector(15 downto 0)	:=x"b400";
-type age_t is array(0 to DEPTH-1) of integer range 0 to 8;
-signal	cnt		:integer range 0 to DEPTH;	-- writes held
+type age_t is array(0 to DMAX-1) of integer range 0 to 8;
+signal	depth	:integer range 1 to DMAX;
+signal	phit	:integer range 0 to 255;
+signal	minage	:integer range 0 to 8;
+signal	cnt		:integer range 0 to DMAX;	-- writes held
 signal	age		:age_t;	-- states since each held write came, oldest first
 signal	pushed	:std_logic;	-- this write is held already
 signal	lfsr	:std_logic_vector(15 downto 0);
@@ -63,12 +69,15 @@ begin
 end function;
 
 begin
+	depth<=3 when FAST='1' else 4;
+	phit<=18 when FAST='1' else 32;
+	minage<=6 when FAST='1' else 8;
 	wr<='1' when SEL='1' and WRn='0' else '0';
 	nlfsr<=step8(lfsr);
-	QWAIT<='1' when en='1' and wr='1' and pushed='0' and cnt=DEPTH else '0';
+	QWAIT<='1' when en='1' and wr='1' and pushed='0' and cnt>=depth else '0';
 
 	process(clk,rstn)
-	variable n	:integer range 0 to DEPTH;
+	variable n	:integer range 0 to DMAX;
 	variable a	:age_t;
 	begin
 		if(rstn='0')then
@@ -88,19 +97,19 @@ begin
 				else
 					n:=cnt;
 					a:=age;
-					for i in 0 to DEPTH-1 loop
+					for i in 0 to DMAX-1 loop
 						if(i<n and a(i)<8)then
 							a(i):=a(i)+1;
 						end if;
 					end loop;
-					if(n>0 and a(0)>=MINAGE and (HRTC='1' or VRTC='1' or unsigned(nlfsr(7 downto 0))<PHIT))then
-						for i in 0 to DEPTH-2 loop
+					if(n>0 and a(0)>=minage and (HRTC='1' or VRTC='1' or unsigned(nlfsr(7 downto 0))<phit))then
+						for i in 0 to DMAX-2 loop
 							a(i):=a(i+1);
 						end loop;
-						a(DEPTH-1):=0;
+						a(DMAX-1):=0;
 						n:=n-1;
 					end if;
-					if(wr='1' and pushed='0' and n<DEPTH)then
+					if(wr='1' and pushed='0' and n<depth)then
 						a(n):=0;
 						n:=n+1;
 						pushed<='1';

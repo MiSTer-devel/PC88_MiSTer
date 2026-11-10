@@ -773,6 +773,7 @@ component GVWQ
 port(
 	SEL		:in std_logic;
 	WRn		:in std_logic;
+	FAST	:in std_logic;
 	en		:in std_logic;
 
 	QWAIT	:out std_logic;
@@ -3228,10 +3229,10 @@ port map(
 	-- With the graphic screen off, a real FH gives graphic VRAM accesses the
 	-- retrace wait also while the screen is drawn.
 	GVRET<=VRTCr or not GRAPHEN;
-	-- At 8MHz in 24kHz timing, V1H and V2 hold writes back while the screen
-	-- is drawn, as measured on a real FH (GVWQ).
-	GVQEN<='1' when T24='1' and cHS='1' and CPUMD='1' and GRAPHEN='1' else '0';
-	GVWQ0	:GVWQ port map(GVSEL,WR_n,GVQEN,GVQWAIT,HRTCr,VRTCr,rclk,cpuce_f,CPU_rstnr);
+	-- In 24kHz timing, V1H and V2 hold writes back while the screen is drawn,
+	-- as measured on a real FH (GVWQ).
+	GVQEN<='1' when T24='1' and cHS='1' and GRAPHEN='1' else '0';
+	GVWQ0	:GVWQ port map(GVSEL,WR_n,CPUMD,GVQEN,GVQWAIT,HRTCr,VRTCr,rclk,cpuce_f,CPU_rstnr);
 	GVW		:GVWAIT port map(GVSEL,GV_M1W,CPUMD,GVEN,GV_WAITn,rclk,cpuce_f,CPU_rstnr,GVRET,GVQWAIT);
 	-- V1S and N slow down the whole CPU while graphic VRAM is selected for
 	-- direct access (5Ch-5Eh) and the graphic screen is being displayed,
