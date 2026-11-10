@@ -1529,19 +1529,20 @@ begin
 	CPUCLK<=CLKSFT(18);
 	SUBCLKb<=SUBCSFT(18);
 
-	-- Next value of SUBCSFT, following the process above (cleared in reset,
-	-- during SDRAM init, reloaded at clkcount=18, rotated otherwise).
-	nextsubc<=	(others=>'0')				when rstn='0' else
-				SUBCSFT						when (STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL) else
+	-- Next value of SUBCSFT, following the process above (held during SDRAM
+	-- init, reloaded at clkcount=18, rotated otherwise). In reset STATE is
+	-- ST_INITPALL, so the enables below stay '0' without rstn here; leaving it
+	-- out keeps srstn, which is released on the falling edge, off their path.
+	nextsubc<=	SUBCSFT						when (STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL) else
 				"1111000000000011111"		when clkcount=18 else
 				SUBCSFT(17 downto 0) & SUBCSFT(18);
 	SUBCE_R<='1' when SUBCSFT(18)='0' and nextsubc(18)='1' else '0';
 	SUBCE_F<='1' when SUBCSFT(18)='1' and nextsubc(18)='0' else '0';
 
-	-- Next value of CLKSFT, following the same process (cleared in reset, held
-	-- during SDRAM init, reloaded by CLOCKM at clkcount=18, rotated otherwise).
-	nextcpuc<=	(others=>'0')				when rstn='0' else
-				CLKSFT						when (STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL) else
+	-- Next value of CLKSFT, following the same process (held during SDRAM init,
+	-- reloaded by CLOCKM at clkcount=18, rotated otherwise; rstn left out as
+	-- above).
+	nextcpuc<=	CLKSFT						when (STATE=ST_INITREF or STATE=ST_INITMRS or STATE=ST_INITPALL) else
 				"0000011111000011111"		when clkcount=18 and CLOCKM='1' else
 				"0000011111111100000"		when clkcount=18 else
 				CLKSFT(17 downto 0) & CLKSFT(18);
