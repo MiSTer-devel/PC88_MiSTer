@@ -124,7 +124,13 @@ entity T80 is
 		REG        : out std_logic_vector(211 downto 0); -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 
 		DIRSet     : in  std_logic := '0';
-		DIR        : in  std_logic_vector(211 downto 0) := (others => '0') -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+		DIR        : in  std_logic_vector(211 downto 0) := (others => '0'); -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+		-- The rest of the state, to resume at the first T of an M1 (see REGX below).
+		-- When DIRXSet is '1' together with DIRSet, DIRSet also loads DIRX and
+		-- puts the CPU at that T. DIRX(89 downto 82) is DO (read it from DO).
+		DIRXSet    : in  std_logic := '0';
+		REGX       : out std_logic_vector(81 downto 0); -- IncDecZ, RegAddrA_r(3), BusB, BusA, PreserveC_r, Z16_r, Arith16_r, ALU_Op_r(4), Save_ALU_r, Read_To_Reg_r(5), Alternate, OldNMI_n, NMI_s, NMICycle, Halt_FF, F_last, Q_reg, XY_State(2), ISet(2), IR, WZ(16)
+		DIRX       : in  std_logic_vector(89 downto 0) := (others => '0') -- DO, then as REGX
 	);
 end T80;
 
@@ -268,12 +274,30 @@ architecture rtl of T80 is
 	signal XYbit_undoc          : std_logic;
 	signal No_PC                : std_logic;
 	signal DOR                  : std_logic_vector(127 downto 0);
+	signal DIR_Regs             : std_logic_vector(127 downto 0);
+	signal OldNMI_n             : std_logic;
 
 begin
 
 	REG <= IntE_FF2 & IntE_FF1 & IStatus & DOR & std_logic_vector(PC) & std_logic_vector(SP) & std_logic_vector(R) & I & Fp & Ap & F & ACC when Alternate = '0'
 			 else IntE_FF2 & IntE_FF1 & IStatus & DOR(127 downto 112) & DOR(47 downto 0) & DOR(63 downto 48) & DOR(111 downto 64) &
 						std_logic_vector(PC) & std_logic_vector(SP) & std_logic_vector(R) & I & Fp & Ap & F & ACC;
+
+	-- What an instruction leaves for the next one: the write back of its
+	-- result in the first T of the next M1 (Read_To_Reg_r to RegAddrA_r and
+	-- IncDecZ), the flags SCF/CCF and BIT look at (Q_reg, F_last, WZ), the
+	-- prefix (ISet, XY_State), the data of a write that is still going on
+	-- (DO, kept outside) and the rest of the control state. The other
+	-- registers are written again before they are read, or what they drive
+	-- is. XY_Ind and I_RXDD are set to '0' by DIRXSet. The R800 multiplier
+	-- (MULU_*) is not kept.
+	REGX <= IncDecZ & RegAddrA_r & BusB & BusA & PreserveC_r & Z16_r & Arith16_r & ALU_Op_r & Save_ALU_r &
+			Read_To_Reg_r & Alternate & OldNMI_n & NMI_s & NMICycle & Halt_FF & F_last & Q_reg &
+			XY_State & ISet & IR & WZ;
+
+	-- REG shows the register file with the alternate set swapped in, so swap it back
+	DIR_Regs <= DIR(207 downto 80) when DIRXSet = '0' or DIRX(48) = '0' else
+			DIR(207 downto 192) & DIR(127 downto 80) & DIR(143 downto 128) & DIR(191 downto 144);
 
 	mcode : T80_MCode
 		generic map(
@@ -448,6 +472,25 @@ begin
 				PC  <= unsigned(DIR(79 downto 64));
 				A <= DIR(79 downto 64);
 				IStatus <= DIR(209 downto 208);
+
+				if DIRXSet = '1' then
+					WZ <= DIRX(15 downto 0);
+					IR <= DIRX(23 downto 16);
+					ISet <= DIRX(25 downto 24);
+					XY_State <= DIRX(27 downto 26);
+					XY_Ind <= '0';
+					I_RXDD <= '0';
+					Q_reg <= DIRX(35 downto 28);
+					F_last <= DIRX(43 downto 36);
+					Alternate <= DIRX(48);
+					Read_To_Reg_r <= DIRX(53 downto 49);
+					Save_ALU_r <= DIRX(54);
+					ALU_Op_r <= DIRX(58 downto 55);
+					Arith16_r <= DIRX(59);
+					Z16_r <= DIRX(60);
+					PreserveC_r <= DIRX(61);
+					DO <= DIRX(89 downto 82);
+				end if;
 
 			elsif ClkEn = '1' then
 				ALU_Op_r <= "0000";
@@ -1000,7 +1043,10 @@ begin
 	process (CLK_n)
 	begin
 		if rising_edge(CLK_n) then
-			if ClkEn = '1' then
+			if DIRSet = '1' and DIRXSet = '1' then
+				RegAddrA_r <= DIRX(80 downto 78);
+				IncDecZ <= DIRX(81);
+			elsif ClkEn = '1' then
 				-- Bus A / Write
 				RegAddrA_r <= Alternate & Set_BusA_To(2 downto 1);
 				if XY_Ind = '0' and XY_State /= "00" and Set_BusA_To(2 downto 1) = "10" then
@@ -1166,7 +1212,7 @@ begin
 			DOCL => RegBusC(7 downto 0),
 			DOR  => DOR,
 			DIRSet => DIRSet,
-			DIR  => DIR(207 downto 80));
+			DIR  => DIR_Regs);
 
 ---------------------------------------------------------------------------
 --
@@ -1176,7 +1222,10 @@ begin
 	process (CLK_n)
 	begin
 		if rising_edge(CLK_n) then
-			if ClkEn = '1' then
+			if DIRSet = '1' and DIRXSet = '1' then
+				BusA <= DIRX(69 downto 62);
+				BusB <= DIRX(77 downto 70);
+			elsif ClkEn = '1' then
 				case Set_BusB_To is
 				when "0111" =>
 					BusB <= ACC;
@@ -1248,7 +1297,9 @@ begin
 		if RESET_n = '0' then
 			RFSH_n <= '1';
 		elsif rising_edge(CLK_n) then
-			if DIRSet = '0' and CEN = '1' then
+			if DIRSet = '1' and DIRXSet = '1' then
+				RFSH_n <= '1';
+			elsif DIRSet = '0' and CEN = '1' then
 				if MCycle = "001" and ((TState = 2  and Wait_n = '1') or TState = 3) then
 					RFSH_n <= '0';
 				else
@@ -1273,7 +1324,6 @@ begin
 --
 -------------------------------------------------------------------------
 	process (RESET_n, CLK_n)
-		variable OldNMI_n : std_logic;
 	begin
 		if RESET_n = '0' then
 			MCycle <= "001";
@@ -1295,11 +1345,26 @@ begin
 			if DIRSet = '1' then
 				IntE_FF2 <= DIR(211);
 				IntE_FF1 <= DIR(210);
+
+				if DIRXSet = '1' then
+					-- the first T of an M1, as right after T_Res
+					MCycle <= "001";
+					TState <= "001";
+					M1_n <= '0';
+					BusAck <= '0';
+					Auto_Wait_t1 <= '0';
+					Auto_Wait_t2 <= '0';
+					IntCycle <= '0';
+					Halt_FF <= DIRX(44);
+					NMICycle <= DIRX(45);
+					NMI_s <= DIRX(46);
+					OldNMI_n <= DIRX(47);
+				end if;
 			else
 				if NMI_n = '0' and OldNMI_n = '1' then
 					NMI_s <= '1';
 				end if;
-				OldNMI_n := NMI_n;
+				OldNMI_n <= NMI_n;
 
 				if CEN = '1' then
 					BusReq_s <= not BUSRQ_n;

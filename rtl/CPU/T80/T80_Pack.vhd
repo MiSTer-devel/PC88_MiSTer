@@ -109,7 +109,10 @@ package T80_Pack is
 		out0            : in  std_logic := '0';  -- 0 => OUT(C),0, 1 => OUT(C),255
 		REG             : out std_logic_vector(211 downto 0); -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
 		DIRSet          : in  std_logic := '0';
-		DIR             : in  std_logic_vector(211 downto 0) := (others => '0') -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+		DIR             : in  std_logic_vector(211 downto 0) := (others => '0'); -- IFF2, IFF1, IM, IY, HL', DE', BC', IX, HL, DE, BC, PC, SP, R, I, F', A', F, A
+		DIRXSet         : in  std_logic := '0';
+		REGX            : out std_logic_vector(81 downto 0);
+		DIRX            : in  std_logic_vector(89 downto 0) := (others => '0')
 	);
 	end component;
 
