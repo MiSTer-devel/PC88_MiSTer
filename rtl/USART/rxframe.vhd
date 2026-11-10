@@ -23,7 +23,14 @@ entity rxframe is
 		SFTRST	:in std_logic;	-- stop receive and reset
 				
 		clk		:in std_logic;	-- system clock
-		rstn	:in std_logic	-- system reset
+		rstn	:in std_logic;	-- system reset
+
+		-- Save and restore. While HOLD is '1' every register is kept; DIRSet loads DIR
+		-- (a value read from REG: its BITCNT field is 0 to maxlen+1). rstn wins over both.
+		HOLD	:in std_logic	:='0';
+		REG		:out std_logic_vector(2*maxlen+maxwid+11 downto 0);	-- DATA, DONE, STOPERR, WSTART, WCNT, SFTBUF, BITCNT(8), SDtr
+		DIRSet	:in std_logic	:='0';
+		DIR		:in std_logic_vector(2*maxlen+maxwid+11 downto 0)	:=(others=>'0')
 	);
 end rxframe;
 
@@ -33,6 +40,9 @@ signal	SFTBUF	:std_logic_vector(maxlen-1 downto 0);	-- serial shift buffer
 signal	WCNT	:std_logic_vector(maxwid-1 downto 0);	-- 1bit width counter
 signal	WSTART	:std_logic;				-- start bit waiting
 signal	SDtr	:std_logic;				-- digital filtered SD signal
+signal	DATAb	:std_logic_vector(maxlen-1 downto 0);
+signal	DONEb	:std_logic;
+signal	STOPERRb	:std_logic;
 constant widzero	:std_logic_vector(maxwid-1 downto 0)	:=(others=>'0');
 constant widone		:std_logic_vector(maxwid-1 downto 0)	:=widzero(maxwid-1 downto 1) & '1';
 component TWICEREAD
@@ -52,6 +62,11 @@ begin
 			SDtr<='1';
 		elsif(clk' event and clk='1')then
 			SDtr<=SD;
+			if(DIRSet='1')then
+				SDtr<=DIR(0);
+			elsif(HOLD='1')then
+				SDtr<=SDtr;
+			end if;
 		end if;
 	end process;
 
@@ -62,12 +77,12 @@ begin
 			SFTBUF<=(others=>'0');
 			WSTART<='1';
 			WCNT<=(others=>'0');
-			STOPERR<='0';
-			DONE<='0';
-			DATA<=(others=>'0');
+			STOPERRb<='0';
+			DONEb<='0';
+			DATAb<=(others=>'0');
 		elsif(clk' event and clk='1')then
-			DONE<='0';
-			STOPERR<='0';
+			DONEb<='0';
+			STOPERRb<='0';
 			if(SFTRST='1')then		-- SYNC error detected
 				BITCNT<=0;			-- buffer clear
 				SFTBUF<=(others=>'0');
@@ -97,12 +112,12 @@ begin
 					else
 						if(BITCNT=0)then	-- received full bit
 							if(SDtr='0')then	--stop error
-								STOPERR<='1';
-								DATA<=SFTBUF;
+								STOPERRb<='1';
+								DATAb<=SFTBUF;
 								WSTART<='1';
 							else			-- receive success
-								DONE<='1';
-								DATA<=SFTBUF;
+								DONEb<='1';
+								DATAb<=SFTBUF;
 								WSTART<='1';
 							end if;
 						else	
@@ -110,13 +125,36 @@ begin
 							SFTBUF(len-1)<=SDtr;
 							WCNT<=WIDTH-1; 	-- full width wait
 						end if;
-						BITCNT<=BITCNT-1;	-- next bit
+						if(BITCNT/=0)then	-- at 0 the frame is done (and -1 is out of the range)
+							BITCNT<=BITCNT-1;	-- next bit
+						end if;
 					end if;
 				else
 					WCNT<=WCNT-1;
 				end if;
 			end if;
+			if(DIRSet='1')then
+				BITCNT<=conv_integer(DIR(8 downto 1));
+				SFTBUF<=DIR(maxlen+8 downto 9);
+				WCNT<=DIR(maxlen+maxwid+8 downto maxlen+9);
+				WSTART<=DIR(maxlen+maxwid+9);
+				STOPERRb<=DIR(maxlen+maxwid+10);
+				DONEb<=DIR(maxlen+maxwid+11);
+				DATAb<=DIR(2*maxlen+maxwid+11 downto maxlen+maxwid+12);
+			elsif(HOLD='1')then
+				BITCNT<=BITCNT;
+				SFTBUF<=SFTBUF;
+				WCNT<=WCNT;
+				WSTART<=WSTART;
+				STOPERRb<=STOPERRb;
+				DONEb<=DONEb;
+				DATAb<=DATAb;
+			end if;
 		end if;
 	end process;
 	BUSY<=not WSTART;
+	DATA<=DATAb;
+	DONE<=DONEb;
+	STOPERR<=STOPERRb;
+	REG<=DATAb & DONEb & STOPERRb & WSTART & WCNT & SFTBUF & conv_std_logic_vector(BITCNT,8) & SDtr;
 end rtl;

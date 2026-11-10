@@ -22,7 +22,14 @@ entity txframe	is
 		BUFEMP	:out std_logic;		-- transmit buffer empty signal
 		
 		clk		:in std_logic;		-- system clock
-		rstn	:in std_logic		-- system reset
+		rstn	:in std_logic;		-- system reset
+
+		-- Save and restore. While HOLD is '1' every register is kept; DIRSet loads DIR
+		-- (a value read from REG). rstn wins over both.
+		HOLD	:in std_logic	:='0';
+		REG		:out std_logic_vector(2*maxlen+maxwid+12 downto 0);	-- WCNT, DRCNT, SD, BITCNT(8), SFTBUF, EXDATA, NXTBUF
+		DIRSet	:in std_logic	:='0';
+		DIR		:in std_logic_vector(2*maxlen+maxwid+12 downto 0)	:=(others=>'0')
 	);
 end txframe;
 
@@ -32,6 +39,8 @@ signal	WCNT	:std_logic_vector(MAXWID-1 downto 0);	-- 1bit width counter
 signal	NXTBUF	:std_logic_vector(MAXLEN-1 downto 0);	-- transmit buffer
 signal	BITCNT	:integer range 0 to MAXLEN+1;			-- bit number counter
 signal	EXDATA	:std_logic;						-- transmit buffer full
+signal	SDb		:std_logic;
+signal	DRCNTb	:std_logic;
 constant widzero	:std_logic_vector(maxwid-1 downto 0)	:=(others=>'0');
 begin
 
@@ -41,8 +50,8 @@ begin
 			EXDATA<='0';
 			SFTBUF<=(others=>'0');
 			BITCNT<=0;
-			SD<='1';
-			DRCNT<='0';
+			SDb<='1';
+			DRCNTb<='0';
 			WCNT<=(others=>'0');
 		elsif(clk' event and clk='1')then
 			if(WRITE='1' and EXDATA='0')then	-- write to buffer
@@ -60,13 +69,13 @@ begin
 							BITCNT<=LEN+STPLEN;		-- last n bit
 							EXDATA<='0';	-- buffer empty
 							WCNT<=WIDTH-1;
-							DRCNT<='1';		-- transmitting
-							SD<='0';		-- start bit output
+							DRCNTb<='1';		-- transmitting
+							SDb<='0';		-- start bit output
 						else
-							DRCNT<='0';		-- no transmitting
+							DRCNTb<='0';		-- no transmitting
 						end if;
 					else
-						SD<=SFTBUF(1);	-- shift the register
+						SDb<=SFTBUF(1);	-- shift the register
 						SFTBUF(maxlen downto 0)<=SFTBUF(maxlen+1 downto 1);
 						SFTBUF(LEN)<='1';
 						BITCNT<=BITCNT-1;
@@ -76,8 +85,28 @@ begin
 					WCNT<=WCNT-1;
 				end if;
 			end if;
+			if(DIRSet='1')then
+				NXTBUF<=DIR(maxlen-1 downto 0);
+				EXDATA<=DIR(maxlen);
+				SFTBUF<=DIR(2*maxlen+2 downto maxlen+1);
+				BITCNT<=conv_integer(DIR(2*maxlen+10 downto 2*maxlen+3));
+				SDb<=DIR(2*maxlen+11);
+				DRCNTb<=DIR(2*maxlen+12);
+				WCNT<=DIR(2*maxlen+maxwid+12 downto 2*maxlen+13);
+			elsif(HOLD='1')then
+				NXTBUF<=NXTBUF;
+				EXDATA<=EXDATA;
+				SFTBUF<=SFTBUF;
+				BITCNT<=BITCNT;
+				SDb<=SDb;
+				DRCNTb<=DRCNTb;
+				WCNT<=WCNT;
+			end if;
 		end if;
 	end process;
+	SD<=SDb;
+	DRCNT<=DRCNTb;
+	REG<=WCNT & DRCNTb & SDb & conv_std_logic_vector(BITCNT,8) & SFTBUF & EXDATA & NXTBUF;
 
 	BUFEMP<=(not EXDATA) and (not WRITE);
 	
