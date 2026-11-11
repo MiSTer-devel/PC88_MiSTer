@@ -78,6 +78,7 @@ parameter CONF_STR = {
 	"P2OQR,RAM,Fx (SR/FR/FH/FA),Mx (MR/MH/MA/MC),512KB;",
 	"P2-;",
 	"P2OK,Input,Joypad,Mouse;",
+	"P2ON,Keyboard layout,JP,US;",
 	"P2-;",
 	"P2OA,Basic mode,Basic,Terminal;",
 	"P2OB,Cols,80,40;",
@@ -267,6 +268,7 @@ wire	cDisk	=status[13];
 wire	MTSAVE	=1;
 wire [1:0]FDsync=status[16:15];
 wire	cInDev	=status[20];
+wire	cKbUS	=status[23];
 wire [1:0]cSB	=status[22:21];
 wire [1:0]cVtiming=status[25:24];
 
@@ -662,7 +664,7 @@ PC88MiSTer PC88_top
 
 	.pLed(disk_led),
 	.pDip({clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
-	.pCoreConfig({cVtiming,cSB,cInDev}),
+	.pCoreConfig({cKbUS,cVtiming,cSB,cInDev}),
 	.pPsw(2'b11),
 
 	.pVideoR(red),

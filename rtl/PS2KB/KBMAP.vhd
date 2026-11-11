@@ -20,6 +20,7 @@ port(
 	KBDAT	:out std_logic_vector(7 downto 0);
 	KBRX	:out std_logic;
 	KBEN	:in std_logic	:='1';
+	USLAYOUT:in std_logic	:='0';
 	
 	monout	:out std_logic_vector(7 downto 0);
 	
@@ -146,10 +147,95 @@ constant waitscount	:integer	:=waitsep*SFTCYC;
 signal	WAITSFT		:integer range 0 to waitscount;
 signal	CAPSen		:std_logic;
 signal	KANAen		:std_logic;
+signal	RALTH		:std_logic;	--right Alt held
+signal	RALTK		:std_logic;	--right Alt was pressed as KANA (US layout), kept until it is released
+signal	KSRC		:std_logic;	--the KANA cell is written for right Alt, not 13h
+signal	lRALTf0		:std_logic;	--like lKANAf0, for right Alt
+signal	nRALT0		:std_logic;	--like nKANA0, for right Alt
 signal	nCAPS0		:std_logic;
 signal	nKANA0		:std_logic;
 signal	lCAPSf0		:std_logic;
 signal	lKANAf0		:std_logic;
+
+--US layout: the 14 keys whose US keycaps differ from the PC-8801 keys. Each key's
+--handling is fixed when it is first pressed and kept until it is released.
+constant OW_NONE	:std_logic_vector(2 downto 0)	:="000";
+constant OW_NORM	:std_logic_vector(2 downto 0)	:="001";	--as before, through KBROW
+constant OW_HOLD	:std_logic_vector(2 downto 0)	:="010";	--another cell, SHIFT as is
+constant OW_SHCH	:std_logic_vector(2 downto 0)	:="011";	--another cell, SHIFT added or removed
+constant OW_NOTH	:std_logic_vector(2 downto 0)	:="100";	--nothing (` has no PC-8801 key)
+type OWN_T is array(0 to 13) of std_logic_vector(2 downto 0);
+type DST_T is array(0 to 13) of std_logic_vector(6 downto 0);
+signal	OWN		:OWN_T;
+signal	DST		:DST_T;		--row & bit
+signal	SADD	:std_logic_vector(13 downto 0);	--1: add SHIFT, 0: remove SHIFT
+--The key that changes SHIFT is shown one at a time: SHIFT first, the cell TKEY later,
+--the cell for at least THOLD, then the cell is taken away and SHIFT TKEY later.
+constant TKEYC	:integer	:=20*CLKCYC;
+constant THOLDC	:integer	:=100*CLKCYC;	--with 60 ms, the N88-BASIC prompt missed presses shorter than about 80 ms
+signal	CURV	:std_logic;
+signal	CURR	:std_logic;		--released, waiting for THOLD
+signal	CURI	:integer range 0 to 13;
+signal	CURP	:integer range 0 to 3;	--0: SHIFT only, 1: cell shown, 2: THOLD met, 3: cell taken away
+signal	NXTV	:std_logic;
+signal	NXTR	:std_logic;
+signal	NXTI	:integer range 0 to 13;
+signal	UTIM	:integer range 0 to THOLDC;
+
+function US_IDX(sc :std_logic_vector(7 downto 0)) return integer is
+begin
+	case sc is
+	when x"1E" => return 0;		--2 @
+	when x"36" => return 1;		--6 ^
+	when x"3D" => return 2;		--7 &
+	when x"3E" => return 3;		--8 *
+	when x"46" => return 4;		--9 (
+	when x"45" => return 5;		--0 )
+	when x"4E" => return 6;		--- _
+	when x"55" => return 7;		--= +
+	when x"54" => return 8;		--[ {
+	when x"5B" => return 9;		--] }
+	when x"5D" => return 10;	--\ |
+	when x"4C" => return 11;	--; :
+	when x"52" => return 12;	--' "
+	when x"0E" => return 13;	--` ~
+	when others => return 14;
+	end case;
+end US_IDX;
+
+--handling & add SHIFT & row & bit, for the key without and with SHIFT
+function US_ENT(i :integer; sft :std_logic) return std_logic_vector is
+begin
+	if(sft='0')then
+		case i is
+		when 7 => return OW_SHCH & '1' & x"5" & "111";	--= : SHIFT+-
+		when 8 => return OW_HOLD & '0' & x"5" & "011";	--[
+		when 9 => return OW_HOLD & '0' & x"5" & "101";	--]
+		when 10 => return OW_HOLD & '0' & x"5" & "100";	--\ : yen
+		when 12 => return OW_SHCH & '1' & x"6" & "111";	--' : SHIFT+7
+		when 13 => return OW_NOTH & '0' & x"0" & "000";	--`
+		when others => return OW_NORM & '0' & x"0" & "000";
+		end case;
+	else
+		case i is
+		when 0 => return OW_SHCH & '0' & x"2" & "000";	--@
+		when 1 => return OW_SHCH & '0' & x"5" & "110";	--^
+		when 2 => return OW_HOLD & '0' & x"6" & "110";	--& : SHIFT+6
+		when 3 => return OW_HOLD & '0' & x"7" & "010";	--* : SHIFT+:
+		when 4 => return OW_HOLD & '0' & x"7" & "000";	--( : SHIFT+8
+		when 5 => return OW_HOLD & '0' & x"7" & "001";	--) : SHIFT+9
+		when 6 => return OW_HOLD & '0' & x"7" & "111";	--_ : SHIFT+ro
+		when 7 => return OW_HOLD & '0' & x"7" & "011";	--+ : SHIFT+;
+		when 8 => return OW_HOLD & '0' & x"5" & "011";	--{
+		when 9 => return OW_HOLD & '0' & x"5" & "101";	--}
+		when 10 => return OW_HOLD & '0' & x"5" & "100";	--|
+		when 11 => return OW_SHCH & '0' & x"7" & "010";	--:
+		when 12 => return OW_HOLD & '0' & x"6" & "010";	--" : SHIFT+2
+		when 13 => return OW_HOLD & '0' & x"5" & "110";	--~ : SHIFT+^
+		when others => return OW_NORM & '0' & x"0" & "000";
+		end case;
+	end if;
+end US_ENT;
 	
 begin
 --	MONOUT<="00000000" when KBSTATE=KS_IDLE else
@@ -181,7 +267,7 @@ begin
 	--BS and DEL as INS/DEL, and the two keys in row 13 bits 0 and 1 as SPACE.
 	--The FH has one CTRL. The right CTRL is held in row 14 bit 4, which software
 	--still reads as 1, and either CTRL reads as CTRL.
-	process(SCANADR,KBROW)
+	process(SCANADR,KBROW,OWN,DST,SADD,CURV,CURI,CURP)
 	variable r	:std_logic_vector(7 downto 0);
 	begin
 		r:=KBROW(conv_integer(SCANADR));
@@ -200,6 +286,24 @@ begin
 			r(4):='1';
 		when others =>
 		end case;
+		--US layout: the cells of the keys held, and SHIFT for the key that changes it
+		for i in 0 to 13 loop
+			if(OWN(i)=OW_HOLD and DST(i)(6 downto 3)=SCANADR)then
+				r(conv_integer(DST(i)(2 downto 0))):='0';
+			end if;
+		end loop;
+		if(CURV='1')then
+			if(SADD(CURI)='1')then
+				if(SCANADR=x"8")then r(6):='0'; end if;
+				if(SCANADR=x"e")then r(2):='0'; end if;
+			else
+				if(SCANADR=x"8")then r(6):='1'; end if;
+				if(SCANADR=x"e")then r(3 downto 2):="11"; end if;
+			end if;
+			if((CURP=1 or CURP=2) and DST(CURI)(6 downto 3)=SCANADR)then
+				r(conv_integer(DST(CURI)(2 downto 0))):='0';
+			end if;
+		end if;
 		SCANDAT<=r;
 	end process;
 	INITDONE<=INITDONEb;
@@ -229,6 +333,9 @@ begin
 	
 	process(clk,rstn)
 	variable iBITSEL	:integer range 0 to 7;
+	variable ui		:integer range 0 to 14;
+	variable ue		:std_logic_vector(10 downto 0);
+	variable usp	:boolean;
 	begin
 		if(rstn='0')then
 			KBSTATE<=KS_CLRRAM;
@@ -243,16 +350,73 @@ begin
 			WAITSFT<=0;
 			CAPSen<='0';
 			KANAen<='0';
+			RALTH<='0';
+			RALTK<='0';
+			KSRC<='0';
+			lRALTf0<='1';
 			lKANAf0<='1';
 			lCAPSf0<='1';
 			nKANA0<='0';
+			nRALT0<='0';
 			nCAPS0<='0';
 			BITSEL<=(others=>'0');
 			KB_TXDAT<=(others=>'0');
 			INITDONEb<='0';
+			OWN<=(others=>OW_NONE);
+			CURV<='0';
+			CURR<='0';
+			CURI<=0;
+			CURP<=0;
+			NXTV<='0';
+			NXTR<='0';
+			NXTI<=0;
+			UTIM<=0;
 		elsif(clk' event and clk='1')then
 			WE<='0';
 			KB_WRn<='1';
+			--The timer waits while KS_RDTBL handles a key, so that both never update
+			--the US layout state in one clock.
+			if(WAITCNT=0 and WAITSFT=0 and KBSTATE=KS_RDTBL)then
+				null;
+			elsif(CURV='1')then
+				if(UTIM/=0)then
+					UTIM<=UTIM-1;
+				else
+					case CURP is
+					when 0 =>
+						CURP<=1;
+						UTIM<=THOLDC;
+					when 1 =>
+						CURP<=2;
+					when 2 =>
+						if(CURR='1' or NXTV='1')then
+							CURP<=3;
+							UTIM<=TKEYC;
+						end if;
+					when others =>
+						if(CURR='1')then
+							OWN(CURI)<=OW_NONE;
+						end if;
+						--the next key takes over in the same clock, so the SHIFT override never drops
+						if(NXTV='1')then
+							CURI<=NXTI;
+							CURR<=NXTR;
+							CURP<=0;
+							UTIM<=TKEYC;
+							NXTV<='0';
+						else
+							CURV<='0';
+						end if;
+					end case;
+				end if;
+			elsif(NXTV='1')then
+				CURV<='1';
+				CURI<=NXTI;
+				CURR<=NXTR;
+				CURP<=0;
+				UTIM<=TKEYC;
+				NXTV<='0';
+			end if;
 			if(WAITCNT>0)then
 				WAITCNT<=WAITCNT-1;
 			elsif(WAITSFT>0)then
@@ -345,13 +509,84 @@ begin
 							else
 								KBSTATE<=KS_RDTBL;
 							end if;
+							KSRC<=E0en;
 --							E0en<='0';
 							TBLADR<=KB_RXDAT;
 							WAITCNT<=2;
 						end if;
 					end if;
 				when KS_RDTBL =>
-					if(TBLDAT(7 downto 4)=x"f")then
+					ui:=US_IDX(TBLADR);
+					usp:=false;
+					if(ui/=14)then
+						if(F0en='0')then
+							if(OWN(ui)=OW_NONE)then
+								if(USLAYOUT='1' and KANAen='0' and KBROW(8)(4)='1')then
+									if(KBROW(14)(2)='0' or KBROW(14)(3)='0')then
+										ue:=US_ENT(ui,'1');
+									else
+										ue:=US_ENT(ui,'0');
+									end if;
+								else
+									ue:=OW_NORM & '0' & x"0" & "000";
+								end if;
+								OWN(ui)<=ue(10 downto 8);
+								if(ue(10 downto 8)/=OW_NORM)then
+									usp:=true;
+									DST(ui)<=ue(6 downto 0);
+									SADD(ui)<=ue(7);
+									if(ue(10 downto 8)=OW_SHCH)then
+										if(CURV='1' or NXTV='1')then
+											if(NXTV='1' and NXTR='1')then
+												OWN(NXTI)<=OW_NONE;
+											end if;
+											NXTV<='1';
+											NXTR<='0';
+											NXTI<=ui;
+										else
+											CURV<='1';
+											CURR<='0';
+											CURI<=ui;
+											CURP<=0;
+											UTIM<=TKEYC;
+										end if;
+									end if;
+								end if;
+							elsif(OWN(ui)/=OW_NORM)then
+								--a repeated make: keep how the key is handled
+								usp:=true;
+								if(OWN(ui)=OW_SHCH)then
+									if(CURV='1' and CURI=ui and CURR='1')then
+										CURR<='0';
+										if(CURP=3)then
+											CURP<=0;
+											UTIM<=TKEYC;
+										end if;
+									elsif(NXTV='1' and NXTI=ui)then
+										NXTR<='0';
+									end if;
+								end if;
+							end if;
+						else
+							if(OWN(ui)=OW_NORM)then
+								OWN(ui)<=OW_NONE;
+							elsif(OWN(ui)/=OW_NONE)then
+								usp:=true;
+								if(OWN(ui)=OW_SHCH and CURV='1' and CURI=ui)then
+									CURR<='1';
+								elsif(OWN(ui)=OW_SHCH and NXTV='1' and NXTI=ui)then
+									NXTR<='1';
+								else
+									OWN(ui)<=OW_NONE;
+								end if;
+							end if;
+						end if;
+					end if;
+					if(usp)then
+						KBSTATE<=KS_IDLE;
+						E0en<='0';
+						F0en<='0';
+					elsif(TBLDAT(7 downto 4)=x"f")then
 						KBSTATE<=KS_IDLE;
 						E0en<='0';
 						F0en<='0';
@@ -361,7 +596,23 @@ begin
 						KBSTATE<=KS_RDRAM;
 					end if;
 				when KS_RDE0TBL =>
-					if(E0TBLDAT(7 downto 4)=x"f")then
+					--US layout: right Alt is KANA (a US keyboard has no KANA key), left Alt stays GRPH
+					if(TBLADR=x"11")then
+						if(F0en='0')then
+							if(RALTH='0')then
+								RALTK<=USLAYOUT;
+							end if;
+							RALTH<='1';
+						else
+							RALTH<='0';
+							RALTK<='0';
+						end if;
+					end if;
+					if(TBLADR=x"11" and ((F0en='0' and ((RALTH='0' and USLAYOUT='1') or (RALTH='1' and RALTK='1'))) or (F0en='1' and RALTK='1')))then
+						WRADR<=x"8";
+						BITSEL<="101";
+						KBSTATE<=KS_RDRAM;
+					elsif(E0TBLDAT(7 downto 4)=x"f")then
 						KBSTATE<=KS_IDLE;
 						E0en<='0';
 						F0en<='0';
@@ -374,8 +625,24 @@ begin
 					KBSTATE<=KS_WRRAM;
 				when KS_WRRAM =>
 					if(WRADR=x"8" and BITSEL="101")then
-						if(F0en='0' and lKANAf0='1')then
-							nKANA0<=KANAen;
+						if(F0en='0' and ((KSRC='0' and lKANAf0='1') or (KSRC='1' and lRALTf0='1')))then
+							--each key keeps its own "turn kana off on release"; pressing one while the other
+							--holds it cancels both, so two presses always toggle twice
+							if(KSRC='1')then
+								if(KANAen='1' and nKANA0='1')then
+									nKANA0<='0';
+									nRALT0<='0';
+								else
+									nRALT0<=KANAen;
+								end if;
+							else
+								if(KANAen='1' and nRALT0='1')then
+									nRALT0<='0';
+									nKANA0<='0';
+								else
+									nKANA0<=KANAen;
+								end if;
+							end if;
 							for i in 0 to 7 loop
 								if(i=5)then
 									WRDAT(i)<='0';
@@ -386,7 +653,12 @@ begin
 							KANAen<='1';
 							WE<='1';
 							KBSTATE<=KS_LEDS;
-						elsif(F0en='1' and nKANA0='1')then
+						elsif(F0en='1' and ((KSRC='0' and nKANA0='1') or (KSRC='1' and nRALT0='1')))then
+							if(KSRC='1')then
+								nRALT0<='0';
+							else
+								nKANA0<='0';
+							end if;
 							for i in 0 to 7 loop
 								if(i=5)then
 									WRDAT(i)<='1';
@@ -400,7 +672,11 @@ begin
 						else
 							KBSTATE<=KS_IDLE;
 						end if;
-						lKANAf0<=F0en;
+						if(KSRC='1')then
+							lRALTf0<=F0en;
+						else
+							lKANAf0<=F0en;
+						end if;
 					elsif(WRADR=x"a" and BITSEL="111")then
 						if(F0en='0' and lCAPSf0='1')then
 							nCAPS0<=CAPSen;
