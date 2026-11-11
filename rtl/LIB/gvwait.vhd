@@ -40,6 +40,14 @@ use IEEE.std_logic_1164.all;
 --rule. As ph counts ce_f, it falls behind the real text clock while GVSTRETCH
 --slows the CPU in V1S and N. en is low all that time, so no wait here is taken
 --then; only the phase moves.
+--In 24kHz timing at 4MHz the FH also waits one more state on some drawn
+--accesses, by the same kind of window on its own 8-dot text clock (1.51757 CPU
+--states from the nominal crystals), 16% wide. There the window opens only on
+--the lines whose graphic VRAM the screen reads, and only while the line is
+--drawn (HRET low): in 200-line modes that is every other line, in 400-line
+--mode every line. On a real FH the extra wait in 400-line mode is twice that
+--in 200-line mode, as this gives. Which line of a pair is read does not show in
+--the waits, so ln just turns over at every line.
 entity GVWAIT is
 port(
 	SEL		:in std_logic;	-- GVRAM read or write strobe is out
@@ -55,7 +63,10 @@ port(
 
 	VRTC	:in std_logic;	-- '1' in the vertical retrace
 	QWAIT	:in std_logic;	-- '1' while GVWQ holds a write back
-	PH15	:in std_logic	-- '1' in 15kHz timing: take the text clock phase
+	PH15	:in std_logic;	-- '1' in 15kHz timing: take the text clock phase
+	PH24	:in std_logic;	-- '1' in 24kHz timing: the same, using the 24kHz text clock
+	L200	:in std_logic;	-- '1' in 200-line modes: the screen reads every other line
+	HRET	:in std_logic	-- '1' in the horizontal retrace
 );
 end GVWAIT;
 
@@ -73,13 +84,23 @@ signal	lret	:std_logic;	-- VRTC taken when the access started
 signal	ret		:std_logic;
 constant PHSTEP	:integer:=29355;	-- 65536/2.2325 rounded down: one CPU state
 constant PHW	:integer:=5243;		-- 8% of the text clock
+constant PHSTEP24:integer:=43185;	-- 65536/1.51757 rounded: one CPU state in 24kHz timing
+constant PHW24	:integer:=10486;	-- 16% of the 24kHz text clock
+signal	step	:integer range 0 to 65535;
+signal	wid		:integer range 0 to 65535;
+signal	lhret	:std_logic;
+signal	ln		:std_logic;	-- turns over at every line
+signal	lnrd	:std_logic;	-- the screen reads graphic VRAM on this line, and it is drawn
 signal	ph		:integer range 0 to 65535;
 signal	phlow	:std_logic;	-- ph is in the window (registered with ph)
 signal	phhit	:std_logic;
 signal	lhit	:std_logic;
 signal	hit		:integer range 0 to 1;
 begin
-	phhit<='1' when PH15='1' and FAST='0' and phlow='1' else '0';
+	step<=PHSTEP24 when PH24='1' else PHSTEP;
+	wid<=PHW24 when PH24='1' else PHW;
+	lnrd<='1' when HRET='0' and (L200='0' or ln='0') else '0';
+	phhit<='1' when FAST='0' and phlow='1' and (PH15='1' or (PH24='1' and lnrd='1')) else '0';
 	hit<=	1 when SEL='1' and lsel='0' and phhit='1' else
 			1 when SEL='1' and lsel='1' and lhit='1' else
 			0;
@@ -106,16 +127,22 @@ begin
 			ph<=0;
 			phlow<='1';	-- 0 is in the window
 			lhit<='0';
+			lhret<='0';
+			ln<='0';
 		elsif(clk' event and clk='1')then
 			lsel<=SEL;
+			lhret<=HRET;
+			if(HRET='1' and lhret='0')then
+				ln<=not ln;
+			end if;
 			if(ce_f='1')then
-				if(ph+PHSTEP>65535)then
-					nph:=ph+PHSTEP-65536;
+				if(ph+step>65535)then
+					nph:=ph+step-65536;
 				else
-					nph:=ph+PHSTEP;
+					nph:=ph+step;
 				end if;
 				ph<=nph;
-				if(nph<PHW)then
+				if(nph<wid)then
 					phlow<='1';
 				else
 					phlow<='0';
