@@ -939,7 +939,10 @@ port(
 
 	RDn		:in std_logic := '1';
 	RDAT	:out std_logic_vector(7 downto 0);
-	ROE		:out std_logic
+	ROE		:out std_logic;
+
+	DMAREQ	:in std_logic_vector(1 downto 0) := "00";
+	DMALEN	:in std_logic_vector(7 downto 0) := (others=>'0')
 );
 end component;
 
@@ -985,6 +988,8 @@ port(
 	VRET		:in std_logic;
 	HRET		:in std_logic;
 	DONE		:out std_logic;
+	DMAREQ		:out std_logic_vector(1 downto 0);
+	DMALEN		:out std_logic_vector(7 downto 0);
 	
 	CPUBUS		:in std_logic;
 	CPUM1n		:in std_logic;
@@ -1762,6 +1767,8 @@ signal	IOR40_OE	:std_logic;
 signal	IDAT_IOR6e	:std_logic_vector(7 downto 0);
 signal	IOR6e_OE	:std_logic;
 signal	IDAT_DMA	:std_logic_vector(7 downto 0);
+signal	TDMA_REQ	:std_logic_vector(1 downto 0);
+signal	TDMA_LEN	:std_logic_vector(7 downto 0);
 signal	DMA_OE		:std_logic;
 signal	IDAT_IOR71	:std_logic_vector(7 downto 0);
 signal	IOR71_OE	:std_logic;
@@ -2912,6 +2919,8 @@ port map(
 	VRET		=>VRTCr,
 	HRET		=>HRTCr,
 	-- DONE		=>TCNVDONE,
+	DMAREQ		=>TDMA_REQ,
+	DMALEN		=>TDMA_LEN,
 	
 	CPUBUS		=>BUSSEL,
 	CPUM1n		=>M1_n,
@@ -3112,7 +3121,7 @@ port map(
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'0','0','1','0','0','0','0');
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);
 	IOWaa	:IO_WRS generic map(x"aa")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,S2INTM,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
-	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE);
+	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE,TDMA_REQ,TDMA_LEN);
 	pStrA<=pStr;
 	pStrB<=pStr;
 	
