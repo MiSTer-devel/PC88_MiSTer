@@ -475,10 +475,10 @@ begin
 	COLNUMT(2)	<=T_FGCOLOR(2) when T_BIT='1' else T_BGCOLOR(2);
 	
 	--Black and white graphics: COLNUMN is the text color or 0, so a reversed character flips it
-	--with the text color: the dots turn on and off and keep their color (PC-8801FH). White is the
-	--same as before; black, which also fills the rows TRAMCONV skips or blanks, still flips with 7.
+	--with the text color: the dots turn on and off and keep their color, and black stays 0
+	--(PC-8801FH), as do the rows TRAMCONV fills with x"80". White is the same as before.
 	COLNUM<=COLNUMT when TXTMODE='1' else COLNUMN when (GCOLOR='1' or TXTEN='0') else
-		COLNUMN xor A_REVERSE when T_FGCOLOR="000" else COLNUMN xor (A_REVERSE and T_FGCOLOR);
+		COLNUMN xor (A_REVERSE and T_FGCOLOR);
 
 	PAL	:rampalette port map(
 		IORQn	=>IORQn,
