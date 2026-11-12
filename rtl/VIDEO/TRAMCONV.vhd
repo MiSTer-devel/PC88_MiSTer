@@ -223,11 +223,10 @@ signal	HOLDING		:std_logic;
 signal	SINCEBND	:integer range 0 to 3;
 signal	BLKADR		:integer range 0 to BLANKEND;
 --A FH moves row k while row k-1 is shown and row 0 of the next frame while the last
---row is shown. After the text DMA or the CRTC stops, it starts again at the next
---frame, with row 0 moved in the retrace.
+--row is shown. After the text DMA or the CRTC stops, it moves no row until the
+--place for row 0 of the next frame.
 signal	DMAT		:std_logic_vector(1 downto 0);
 signal	DMAN		:std_logic_vector(7 downto 0);
-signal	DMRUN		:std_logic;	-- running since the start of this frame
 signal	DMAX		:std_logic;	-- the place for row 0 of the next frame has passed
 signal	DMXF		:std_logic;	-- row 0 of the next frame was moved
 signal	DMA0		:std_logic;	-- row 0 of this frame was moved in the last frame
@@ -406,7 +405,6 @@ begin
 			hTMODE<='0';
 			DMAT<="00";
 			DMAN<=(others=>'0');
-			DMRUN<='0';
 			DMAX<='0';
 			DMXF<='0';
 			DMA0<='0';
@@ -947,7 +945,6 @@ begin
 
 				--V1S: count rasters and row requests.
 				if(TEXTENr='0')then
-					DMRUN<='0';
 					DMXF<='0';
 					DMA0<='0';
 				end if;
@@ -1033,11 +1030,8 @@ begin
 							XREQ<='1';
 							REQLINE<=REQLINE+capCHRL;
 						end if;
-						if(RASTER+1=CAPLINE)then
-							DMRUN<=TEXTENr;
-						end if;
-						if(CAPD='1' and RASTER+1=REQLINE and DMRUN='1' and TEXTENr='1'
-							and ((REQ=0 and DMA0='0') or (REQ>0 and REQ<capROWS) or (REQ>=capROWS and DMAX='0'))
+						if(CAPD='1' and RASTER+1=REQLINE and TEXTENr='1'
+							and ((REQ>0 and REQ<capROWS and DMA0='1') or (REQ>=capROWS and DMAX='0'))
 							and (SMODE='0' or REQ>=capROWS or (REQ mod 2)=0))then
 							DMAT<=DMAT+1;
 							DMAN<=LINEADD(7 downto 0);
