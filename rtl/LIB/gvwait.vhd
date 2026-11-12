@@ -6,13 +6,11 @@ use IEEE.std_logic_1164.all;
 
 --Adds wait states to CPU reads and writes of graphic VRAM.
 --A real FH waits longer while the screen is drawn than in the vertical
---retrace: 3.947 states on average at 8MHz in 24kHz timing and 3.662 in 15kHz
---timing. The count follows 4 (eight times),6 drawn and 2 (nine times),0 in
---the retrace at 8MHz, each with its own step, one step per access. At 4MHz it
---is 2 drawn and none in the retrace, as measured part by part.
+--retrace: at 8MHz 4 drawn and 2 in the retrace, at 4MHz 2 drawn and none in
+--the retrace, as measured part by part. Some drawn accesses wait one more, by
+--the text clock windows given below.
 --Whether an access counts as drawn or retrace is taken from VRTC when it
---starts. The same rule is used in 31kHz timing. At 8MHz an odd count can be
---lost to the SDRAM slot, so only even counts are used there.
+--starts. The same rule is used in 31kHz timing.
 --These counts come on top of the wait of a main RAM access (1 at 8MHz, none
 --at 4MHz), and the sum is the whole wait of the access: every ce_f sample of
 --the access is counted, also while another wait holds the CPU, so the access
@@ -48,6 +46,21 @@ use IEEE.std_logic_1164.all;
 --mode every line. On a real FH the extra wait in 400-line mode is twice that
 --in 200-line mode, as this gives. Which line of a pair is read does not show in
 --the waits, so ln just turns over at every line.
+--At 8MHz the FH waits 4 states on a drawn access, and more when it starts in
+--a window of the text clock. In 15kHz timing the text clock is the nominal
+--4.4627 states and the window 30% of it, open only while a line is drawn
+--(HRET low). An access that starts in the window waits for it to close, as
+--taken from the phase where it starts: two more states in the first 12% of
+--the text clock, one more in the rest of the window. This fits FH timings of
+--35 loop lengths from 31 to 73 states, of reads as of writes, and matches
+--loops with two writes each, which were not used for the fit. In 24kHz
+--timing the text clock is the nominal 3.0351 states and the window 48% of it,
+--open only on the lines the screen reads while they are drawn (as above): two
+--more states in the first 14% of the text clock, one more in the rest of the
+--window. This is the best fit to FH timings of loops measured from outside;
+--loops with two accesses a pass are still up to about 0.2% off the FH.
+--The FH has no 31kHz timing to measure; at 8MHz the core takes the 15kHz
+--values there.
 entity GVWAIT is
 port(
 	SEL		:in std_logic;	-- GVRAM read or write strobe is out
@@ -71,8 +84,6 @@ port(
 end GVWAIT;
 
 architecture rtl of GVWAIT is
-signal	kd		:integer range 0 to 8;	-- access number while drawn
-signal	kr		:integer range 0 to 9;	-- access number in the retrace
 signal	cnt		:integer range 0 to 7;	-- waits taken in this access
 signal	target	:integer range 0 to 7;
 signal	base	:integer range 0 to 1;	-- the wait of a main RAM access
@@ -86,29 +97,55 @@ constant PHSTEP	:integer:=29355;	-- 65536/2.2325 rounded down: one CPU state
 constant PHW	:integer:=5243;		-- 8% of the text clock
 constant PHSTEP24:integer:=43185;	-- 65536/1.51757 rounded: one CPU state in 24kHz timing
 constant PHW24	:integer:=10486;	-- 16% of the 24kHz text clock
+constant PHSTEP8:integer:=14685;	-- 65536/4.4627 rounded: one 8MHz state in 15kHz timing
+constant PHW8	:integer:=19661;	-- 30% of the 15kHz text clock
+constant PHW8B	:integer:=7913;		-- the first 12% of the 15kHz text clock, where the wait is two
+constant PHSTEP824:integer:=21593;	-- 65536/3.0351 rounded: one 8MHz state in 24kHz timing
+constant PHW824	:integer:=31457;	-- 48% of the 24kHz text clock, on the lines the screen reads
+constant PHW824B:integer:=9175;		-- the first 14% of the 24kHz text clock, where the wait is two
 signal	step	:integer range 0 to 65535;
 signal	wid		:integer range 0 to 65535;
+signal	widb	:integer range 0 to 65535;	-- the head of the window, where the wait is two (8MHz)
 signal	lhret	:std_logic;
 signal	ln		:std_logic;	-- turns over at every line
 signal	lnrd	:std_logic;	-- the screen reads graphic VRAM on this line, and it is drawn
 signal	ph		:integer range 0 to 65535;
 signal	phlow	:std_logic;	-- ph is in the window (registered with ph)
+signal	phlb	:std_logic;	-- ph is in the head of the window (registered with ph)
+signal	ph2		:std_logic;	-- the access waits two more (8MHz)
+signal	lhit2	:std_logic;
+signal	hit2	:integer range 0 to 1;
 signal	phhit	:std_logic;
 signal	lhit	:std_logic;
 signal	hit		:integer range 0 to 1;
 begin
-	step<=PHSTEP24 when PH24='1' else PHSTEP;
-	wid<=PHW24 when PH24='1' else PHW;
+	step<=	PHSTEP824 when FAST='1' and PH24='1' else
+			PHSTEP8 when FAST='1' else
+			PHSTEP24 when PH24='1' else
+			PHSTEP;
+	wid<=	PHW824 when FAST='1' and PH24='1' else
+			PHW8 when FAST='1' else
+			PHW24 when PH24='1' else
+			PHW;
+	widb<=	PHW824B when PH24='1' else
+			PHW8B;
 	lnrd<='1' when HRET='0' and (L200='0' or ln='0') else '0';
-	phhit<='1' when FAST='0' and phlow='1' and (PH15='1' or (PH24='1' and lnrd='1')) else '0';
+	phhit<='1' when FAST='0' and phlow='1' and (PH15='1' or (PH24='1' and lnrd='1')) else
+			'1' when FAST='1' and phlow='1' and PH24='0' and HRET='0' else
+			'1' when FAST='1' and phlow='1' and PH24='1' and lnrd='1' else
+			'0';
 	hit<=	1 when SEL='1' and lsel='0' and phhit='1' else
 			1 when SEL='1' and lsel='1' and lhit='1' else
 			0;
-	tgtd<=	6 when FAST='1' and kd=8 else
-			4 when FAST='1' else
+	ph2<='1' when FAST='1' and PH24='0' and phlb='1' and HRET='0' else
+		'1' when FAST='1' and PH24='1' and phlb='1' and lnrd='1' else
+		'0';
+	hit2<=	1 when SEL='1' and lsel='0' and ph2='1' else
+			1 when SEL='1' and lsel='1' and lhit2='1' else
+			0;
+	tgtd<=	4+hit+hit2 when FAST='1' else
 			2+hit;
-	tgtr<=	0 when FAST='1' and kr=9 else
-			2 when FAST='1' else
+	tgtr<=	2 when FAST='1' else
 			0;
 	ret<=VRTC when SEL='1' and lsel='0' else lret;
 	target<=tgtr+base when ret='1' else tgtd+base;
@@ -118,14 +155,14 @@ begin
 	variable nph	:integer range 0 to 65535;
 	begin
 		if(rstn='0')then
-			kd<=0;
-			kr<=0;
 			cnt<=0;
 			lsel<='0';
 			done<='0';
 			lret<='0';
 			ph<=0;
 			phlow<='1';	-- 0 is in the window
+			phlb<='1';	-- and in the head of the window
+			lhit2<='0';
 			lhit<='0';
 			lhret<='0';
 			ln<='0';
@@ -147,29 +184,20 @@ begin
 				else
 					phlow<='0';
 				end if;
+				if(nph<widb)then
+					phlb<='1';
+				else
+					phlb<='0';
+				end if;
 			end if;
 			if(SEL='1' and lsel='0')then
 				lret<=VRTC;
 				lhit<=phhit;
+				lhit2<=ph2;
 			end if;
 			if(SEL='0')then
 				cnt<=0;
 				done<='0';
-				if(lsel='1' and en='1')then
-					if(lret='0')then
-						if(kd>=8)then
-							kd<=0;
-						else
-							kd<=kd+1;
-						end if;
-					else
-						if(kr>=9)then
-							kr<=0;
-						else
-							kr<=kr+1;
-						end if;
-					end if;
-				end if;
 			elsif(ce_f='1' and M1W='0')then
 				if(en='1' and cnt<target and done='0')then
 					if(QWAIT='0')then
