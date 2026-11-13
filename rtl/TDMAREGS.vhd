@@ -113,6 +113,10 @@ begin
 						BUSY<='0';
 					end if;
 					MAL<=DAT(7);
+					-- Turning autoload off clears UPDATE, so channel 2 is not reloaded from channel 3 (8257)
+					if(DAT(7)='0')then
+						UPD<='0';
+					end if;
 					MTCS<=DAT(6);
 					MEN2<=DAT(2);
 					STP<='0';
