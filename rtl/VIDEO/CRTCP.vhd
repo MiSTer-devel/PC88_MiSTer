@@ -484,12 +484,12 @@ begin
 	COLNUM<=COLNUMT when TXTMODE='1' else COLNUMN when (GCOLOR='1' or TXTEN='0') else
 		COLNUMN xor (A_REVERSE and T_FGCOLOR);
 
-	--Black and white graphics at 15kHz and 24kHz, on a graphics line (not between 24kHz 200-line
-	--graphics lines): the palette is told whether the dot is lit (a text dot, or a graphics dot with
-	--the graphics on, flipped by reverse). A lit dot shows the text color, black too, and an unlit dot
-	--the background color, also with the graphics off (PC-8801FH).
+	--Black and white graphics, on a graphics line (not between 24kHz 200-line graphics lines): the
+	--palette is told whether the dot is lit (a text dot, or a graphics dot with the graphics on,
+	--flipped by reverse). A lit dot shows the text color, black too, and an unlit dot the background
+	--color, also with the graphics off (PC-8801FH).
 	L_BIT<=(T_BIT or (GM_BIT and GRAPHEN)) xor F_REVERSE;
-	L_EN<='1' when TXTMODE='0' and GCOLOR='0' and TXTEN='1' and CRTCEN='1' and VT24='1' and GE_BIT='1' else '0';
+	L_EN<='1' when TXTMODE='0' and GCOLOR='0' and TXTEN='1' and CRTCEN='1' and GE_BIT='1' else '0';
 	P_BIT<=L_BIT when L_EN='1' else X_BIT;
 
 	PAL	:rampalette port map(
