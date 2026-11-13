@@ -113,6 +113,10 @@ port(
 	pCOM_RxD	:in std_logic;
 	pCOM_CTS	:in std_logic;
 	pCOM_RTS	:out std_logic;
+
+	-- A real keyboard on the user port (SNAC)
+	pSnacKbEn	:in std_logic	:='0';
+	pSnacKbRxd	:in std_logic	:='1';
 	
 	rstn		:in std_logic
 );
@@ -1027,6 +1031,22 @@ port(
 );
 end component;
 
+component snackbd
+generic(
+	SYSCLK	:integer	:=18973
+);
+port(
+	EN		:in std_logic;
+	RXD		:in std_logic;
+
+	SCANADR	:in std_logic_vector(3 downto 0);
+	SCANDAT	:out std_logic_vector(7 downto 0);
+
+	clk		:in std_logic;
+	rstn	:in std_logic
+);
+end component;
+
 component kbmirror
 port(
 	ADR		:in std_logic_vector(7 downto 0);
@@ -1752,6 +1772,8 @@ signal	KB_OE		:std_logic;
 signal	KB_SCANADR	:std_logic_vector(3 downto 0);
 signal	KB_SCANDAT	:std_logic_vector(7 downto 0);
 signal	KB_INITDONE	:std_logic;
+signal	KB_PS2DAT	:std_logic_vector(7 downto 0);
+signal	KB_SNACDAT	:std_logic_vector(7 downto 0);
 signal	IDAT_ALU	:std_logic_vector(7 downto 0);
 signal	ALU_OE		:std_logic;
 signal	IDAT_IOR30	:std_logic_vector(7 downto 0);
@@ -3024,7 +3046,7 @@ port map(
 
 	KB	:KBMAP generic map(SYSCLK,100) port map(
 	SCANADR	=>KB_SCANADR,
-	SCANDAT	=>KB_SCANDAT,
+	SCANDAT	=>KB_PS2DAT,
 	INITDONE=>KB_INITDONE,
 
 	KBCLKIN	=>KBCLKIN,
@@ -3042,6 +3064,20 @@ port map(
 	clk		=>clk21m,
 	rstn	=>CPU_rstn
 );
+
+	SKB	:snackbd generic map(SYSCLK) port map(
+	EN		=>pSnacKbEn,
+	RXD		=>pSnacKbRxd,
+
+	SCANADR	=>KB_SCANADR,
+	SCANDAT	=>KB_SNACDAT,
+
+	clk		=>clk21m,
+	rstn	=>srstn21
+);
+
+	--a key is down when it is down on either keyboard
+	KB_SCANDAT<=KB_PS2DAT and KB_SNACDAT;
 
 	KBM	:kbmirror port map(
 		ADR		=>CPUADR(7 downto 0),

@@ -130,6 +130,7 @@ set_global_assignment -name HEX_FILE rtl/PS2KB/kbtble0.hex
 set_global_assignment -name VHDL_FILE rtl/PS2KB/KBIF.vhd
 set_global_assignment -name VHDL_FILE rtl/PS2KB/KBMAP.vhd
 set_global_assignment -name VHDL_FILE rtl/PS2KB/kbmirror.vhd
+set_global_assignment -name VHDL_FILE rtl/PS2KB/snackbd.vhd
 set_global_assignment -name QIP_FILE rtl/PS2KB/KBTBLN.qip
 set_global_assignment -name QIP_FILE rtl/PS2KB/KBTBLE0.qip
 set_global_assignment -name VHDL_FILE rtl/VIDEO/CRTCP.vhd
