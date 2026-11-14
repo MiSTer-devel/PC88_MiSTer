@@ -270,7 +270,7 @@ wire [1:0]FDsync=status[16:15];
 wire	cInDev	=status[20];
 wire	cKbUS	=status[23];
 wire	cSnacKb	=status[33:32]==2'd1;
-// USER_IO[0] is let go for the keyboard on the SNAC while it is on
+// USER_IO[0] is let go for the keyboard on the SNAC while SNAC is set to Keyboard
 assign USER_OUT = {6'b0, cSnacKb};
 wire [1:0]cSB	=status[22:21];
 wire [1:0]cVtiming=status[25:24];

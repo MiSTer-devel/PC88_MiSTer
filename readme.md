@@ -73,7 +73,7 @@ The OSD option Keyboard layout sets how the PC keyboard maps to the PC-8801.
 
 ### FH/MA keyboard on the SNAC
 
-A PC-8801 FH/MA keyboard (the one with the 5-pin mini DIN plug) can be used with SNAC set to Keyboard on the OSD. Its data line goes to D+ of the user port through a 5V to 3.3V level shifter, and the keyboard takes +5V and GND from the port. It works with the common SNAC level converter board: data to D+, +5V to 5V and GND to GND on its 5V side, with its jumper fitted. The PS/2 keyboard still works while it is on.
+A PC-8801 FH/MA keyboard (the one with the 5-pin mini DIN plug) can be used with SNAC set to Keyboard on the OSD. Its data line goes to D+ of the user port through a 5V to 3.3V level shifter, and the keyboard takes +5V and GND from the port. It works with the common SNAC level converter board: data to D+, +5V to 5V and GND to GND on its 5V side, with its jumper installed. The PS/2 keyboard still works with SNAC set to Keyboard.
 
 ## Sound Board
 

@@ -30,6 +30,9 @@ end snackbd;
 architecture rtl of snackbd is
 constant BITCYC	:integer	:=SYSCLK*1000/20800;
 constant FLTCYC	:integer	:=15;
+--longer than the line stays high inside a frame (at most 14 bits),
+--shorter than the gap between frames (about 2.3 ms)
+constant SYNCCYC	:integer	:=BITCYC*16;
 
 type ROW_T is array(0 to 15) of std_logic_vector(7 downto 0);
 signal	rows	:ROW_T;
@@ -39,9 +42,10 @@ signal	rx_s	:std_logic_vector(1 downto 0);
 signal	rx		:std_logic;
 signal	fcnt	:integer range 0 to FLTCYC;
 
-type ST_T is (ST_IDLE,ST_START,ST_DATA,ST_STOP);
+type ST_T is (ST_SYNC,ST_IDLE,ST_START,ST_DATA,ST_STOP);
 signal	st		:ST_T;
 signal	bcnt	:integer range 0 to BITCYC;
+signal	hcnt	:integer range 0 to SYNCCYC;
 signal	nbit	:integer range 0 to 13;
 signal	sr		:std_logic_vector(12 downto 0);
 
@@ -70,16 +74,28 @@ begin
 	process(clk,rstn)begin
 		if(rstn='0')then
 			rows<=(others=>(others=>'1'));
-			st<=ST_IDLE;
+			st<=ST_SYNC;
 			bcnt<=0;
+			hcnt<=0;
 			nbit<=0;
 			sr<=(others=>'1');
 		elsif(clk' event and clk='1')then
 			if(en_s='0')then
 				rows<=(others=>(others=>'1'));
-				st<=ST_STOP;
+				st<=ST_SYNC;
+				hcnt<=0;
 			else
 				case st is
+				when ST_SYNC =>
+					--after reset or turning on, wait for a gap so that a frame
+					--already on the line is not taken from its middle
+					if(rx='0')then
+						hcnt<=0;
+					elsif(hcnt=SYNCCYC)then
+						st<=ST_IDLE;
+					else
+						hcnt<=hcnt+1;
+					end if;
 				when ST_IDLE =>
 					if(rx='0')then
 						bcnt<=BITCYC/2;
