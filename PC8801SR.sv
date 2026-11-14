@@ -35,7 +35,6 @@ assign VGA_SCALER = 0; // 24kHz, 15kHz: VGA as set in MiSTer.ini (vga_scaler)
 assign LED_POWER = 0;
 assign BUTTONS = 0;
 assign AUDIO_MIX = status[30:29];
-assign USER_OUT = 0;
 assign HDMI_FREEZE = 0;
 assign HDMI_BLACKOUT = 0;
 assign HDMI_BOB_DEINT = 0;
@@ -79,6 +78,7 @@ parameter CONF_STR = {
 	"P2-;",
 	"P2OK,Input,Joypad,Mouse;",
 	"P2ON,Keyboard layout,JP,US;",
+	"P2O[33:32],SNAC,Off,Keyboard;",
 	"P2-;",
 	"P2OA,Basic mode,Basic,Terminal;",
 	"P2OB,Cols,80,40;",
@@ -269,6 +269,9 @@ wire	MTSAVE	=1;
 wire [1:0]FDsync=status[16:15];
 wire	cInDev	=status[20];
 wire	cKbUS	=status[23];
+wire	cSnacKb	=status[33:32]==2'd1;
+// USER_IO[0] is let go, so that a keyboard on the SNAC is not held low while SNAC is Off
+assign USER_OUT = {6'b0, 1'b1};
 wire [1:0]cSB	=status[22:21];
 wire [1:0]cVtiming=status[25:24];
 
@@ -687,6 +690,9 @@ PC88MiSTer PC88_top
 	.cmt_mode(cmt_mode),
 	.pCOM_RxD(cmt_rxd),
 	.pCOM_TxD(cmt_txd_8251),
+
+	.pSnacKbEn(cSnacKb),
+	.pSnacKbRxd(USER_IN[0]),
 
 	.rstn(reset_n & ~reset)
 );
