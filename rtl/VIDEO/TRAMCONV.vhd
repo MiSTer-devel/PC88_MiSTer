@@ -75,6 +75,8 @@ port(
 	VRET		:in std_logic;
 	HRET		:in std_logic;
 	DONE		:out std_logic;
+	DMAREQ		:out std_logic_vector(1 downto 0);	-- counts where a FH starts the DMA of a text row (TDMAREGS)
+	DMALEN		:out std_logic_vector(7 downto 0);	-- bytes in that row
 	
 	CPUBUS		:in std_logic	:='0';	-- a CPU bus cycle (BUSSEL)
 	CPUM1n		:in std_logic	:='1';
@@ -220,6 +222,14 @@ attribute altera_attribute of m1hist	:signal is "-name AUTO_SHIFT_REGISTER_RECOG
 signal	HOLDING		:std_logic;
 signal	SINCEBND	:integer range 0 to 3;
 signal	BLKADR		:integer range 0 to BLANKEND;
+--A FH moves row k while row k-1 is shown and row 0 of the next frame while the last
+--row is shown. After the text DMA or the CRTC stops, it moves no row until the
+--place for row 0 of the next frame.
+signal	DMAT		:std_logic_vector(1 downto 0);
+signal	DMAN		:std_logic_vector(7 downto 0);
+signal	DMAX		:std_logic;	-- the place for row 0 of the next frame has passed
+signal	DMXF		:std_logic;	-- row 0 of the next frame was moved
+signal	DMA0		:std_logic;	-- row 0 of this frame was moved in the last frame
 
 --The inputs are taken one step before the FSM uses them. They were the
 --synchronizers when TRAMCONV ran on clk21m; the FSM's step counts include them,
@@ -243,6 +253,8 @@ begin
 	LINES<=conv_integer(TXTLINES);
 
 	BUSREQn<=BUSREQi;
+	DMAREQ<=DMAT;
+	DMALEN<=DMAN;
 	--M1 among the last 128 CPU bus cycles
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -391,6 +403,11 @@ begin
 			hTADR<=(others=>'0');
 			hTVRMODE<='0';
 			hTMODE<='0';
+			DMAT<="00";
+			DMAN<=(others=>'0');
+			DMAX<='0';
+			DMXF<='0';
+			DMA0<='0';
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -927,6 +944,10 @@ begin
 				end if;
 
 				--V1S: count rasters and row requests.
+				if(TEXTENr='0')then
+					DMXF<='0';
+					DMA0<='0';
+				end if;
 				pVRET<=VRETr;
 				pHRET<=HRETr;
 				lBUSREQ<=BUSREQi;
@@ -961,6 +982,9 @@ begin
 					BLANKD<='0';
 					BLANKR<='0';
 					SINCEBND<=0;
+					DMAX<='0';
+					DMXF<='0';
+					DMA0<=DMXF;
 				else
 					if(SINCEBND<3)then
 						SINCEBND<=SINCEBND+1;
@@ -1005,6 +1029,18 @@ begin
 							--One row after the last row: the hold-only request.
 							XREQ<='1';
 							REQLINE<=REQLINE+capCHRL;
+						end if;
+						if(CAPD='1' and RASTER+1=REQLINE and TEXTENr='1'
+							and ((REQ>0 and REQ<capROWS and DMA0='1') or (REQ>=capROWS and DMAX='0'))
+							and (SMODE='0' or REQ>=capROWS or (REQ mod 2)=0))then
+							DMAT<=DMAT+1;
+							DMAN<=LINEADD(7 downto 0);
+							if(REQ>=capROWS)then
+								DMXF<='1';
+							end if;
+						end if;
+						if(CAPD='1' and RASTER+1=REQLINE and REQ>=capROWS)then
+							DMAX<='1';
 						end if;
 					end if;
 				end if;
