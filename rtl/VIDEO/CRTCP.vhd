@@ -68,7 +68,7 @@ port(
 	--24kHz or 15kHz timing: lines and blanking from the CRTC parameters
 	VT24		:in std_logic	:='0';
 	VT15		:in std_logic	:='0';
-	CTYPE		:in std_logic_vector(1 downto 0)	:="11";	-- cursor (24kHz, 15kHz): 1x whole row, x1 blink
+	CTYPE		:in std_logic_vector(1 downto 0)	:="11";	-- cursor: 1x whole row, x1 blink
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
@@ -394,10 +394,10 @@ begin
 	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL);
 	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET);
 
-	--31kHz: the cursor is the bottom 4 lines, blinking. 24kHz, 15kHz: as set by the
-	--CRTC (C of the RESET command).
-	T_CURM<=CTYPE(1) when VT24='1' else '0';
-	T_CBLINK<=CTYPE(0) when VT24='1' else '1';
+	--The cursor is as set by the CRTC (C of the RESET command): the whole row or
+	--its last line, blinking or not.
+	T_CURM<=CTYPE(1);
+	T_CBLINK<=CTYPE(0);
 
 	--24kHz, 15kHz: a parameter set is used from the next frame, if it is in range
 	--and its first row can be requested after TRAMCONV takes it (at CAPLINE).

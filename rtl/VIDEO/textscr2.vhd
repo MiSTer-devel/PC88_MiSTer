@@ -6,7 +6,6 @@ use work.VIDEO_TIMING_pkg.all;
 
 entity TEXTSCR2 is
 generic(
-	CURLINE	:integer	:=4;
 	CBLINKINT :integer	:=20;
 	BLINKINT :integer	:=40
 );
@@ -266,17 +265,17 @@ begin
 							BNXTDOT1:=(others=>'0');
 						end if;
 					end if;
-					--24kHz, 15kHz: the under line is the last line of the row, the over line
-					--the first, and the cursor the whole row or its last line.
-					if(TRAMDAT(6)='1' and ((VT24='0' and C_LIN=15) or (VT24='1' and C_LIN=CHRLINES-1)))then	-- under line
+					--The under line is the last line of the row, the over line the first, and
+					--the cursor the whole row or its last line.
+					if(TRAMDAT(6)='1' and C_LIN=CHRLINES-1)then	-- under line
 						BNXTDOT0:=(others=>'1');
 						BNXTDOT1:=(others=>'1');
 					end if;
-					if(VT24='1' and TRAMDAT(8)='1' and C_LIN=0)then	-- over line
+					if(TRAMDAT(8)='1' and C_LIN=0)then	-- over line
 						BNXTDOT0:=(others=>'1');
 						BNXTDOT1:=(others=>'1');
 					end if;
-					if(CURV='1' and C_LOW=iCURL and C_COL=iCURC and (CURM='1' or (VT24='0' and C_LIN>(CHRLINES-CURLINE-1)) or (VT24='1' and C_LIN=CHRLINES-1)))then
+					if(CURV='1' and C_LOW=iCURL and C_COL=iCURC and (CURM='1' or C_LIN=CHRLINES-1))then
 						NXTDOT0<=not BNXTDOT0;
 						NXTDOT1<=not BNXTDOT1;
 					else
