@@ -77,6 +77,13 @@ port(
 	DONE		:out std_logic;
 	DMAREQ		:out std_logic_vector(1 downto 0);	-- counts where a FH starts the DMA of a text row (TDMAREGS)
 	DMALEN		:out std_logic_vector(7 downto 0);	-- bytes in that row
+	--TDMAREGS: where the next row transfer starts, bytes to TC, the autoload values, and
+	--whether the rows can follow the 8257 (taken for row 0 of the next frame)
+	DMNXA		:in std_logic_vector(15 downto 0)	:=(others=>'0');
+	DMNXR		:in std_logic_vector(14 downto 0)	:=(others=>'0');
+	DMRLA		:in std_logic_vector(15 downto 0)	:=(others=>'0');
+	DMRLR		:in std_logic_vector(14 downto 0)	:=(others=>'0');
+	DMOK		:in std_logic	:='0';
 	
 	CPUBUS		:in std_logic	:='0';	-- a CPU bus cycle (BUSSEL)
 	CPUM1n		:in std_logic	:='1';
@@ -230,6 +237,48 @@ signal	DMAN		:std_logic_vector(7 downto 0);
 signal	DMAX		:std_logic;	-- the place for row 0 of the next frame has passed
 signal	DMXF		:std_logic;	-- row 0 of the next frame was moved
 signal	DMA0		:std_logic;	-- row 0 of this frame was moved in the last frame
+--A FH draws the rows in the order the 8257 moves them (vramtest K, fhp2, fhp3). Taken when
+--row 0 of the next frame is moved: where it starts, the bytes to TC, the autoload values.
+--The rows follow it only when they are 120 bytes (20 attributes), as measured on a FH.
+signal	F0A,F0B		:std_logic_vector(15 downto 0);
+signal	F0R,F0C		:integer range 0 to 16384;
+signal	F0OK		:std_logic;
+signal	FSA,FSX		:std_logic_vector(15 downto 0);	-- start of row 0 for this frame
+--This frame follows the 8257: bytes from STXTADR to TC, and where the 8257 goes on from there
+signal	FOL			:std_logic;
+signal	RREM		:integer range 0 to 16384;
+signal	RLA			:std_logic_vector(15 downto 0);
+signal	RLR			:integer range 0 to 16384;
+signal	RDAT1		:std_logic;	-- the row after this one is a row of the screen
+signal	FOLL		:std_logic;	-- FOL, and this row is 120 bytes
+--The address of a byte in a row: past TC it comes from where the 8257 reloads
+function xl(a,s :std_logic_vector(15 downto 0); rm :integer; rla :std_logic_vector(15 downto 0); fol :std_logic) return std_logic_vector is
+begin
+	if(fol='1' and conv_integer(a-s)>=rm)then
+		return a-s-conv_std_logic_vector(rm,16)+rla;
+	else
+		return a;
+	end if;
+end function;
+--The start of the next row, and the bytes from there to TC
+function nxa(s,l :std_logic_vector(15 downto 0); rm :integer; rla :std_logic_vector(15 downto 0); fol :std_logic) return std_logic_vector is
+begin
+	if(fol='1' and rm<=conv_integer(l))then
+		return rla+l-conv_std_logic_vector(rm,16);
+	else
+		return s+l;
+	end if;
+end function;
+function nxr(l :std_logic_vector(15 downto 0); rm,rlr :integer; fol :std_logic) return integer is
+begin
+	if(fol='1' and rm<=conv_integer(l))then
+		return rlr-conv_integer(l)+rm;
+	elsif(fol='1')then
+		return rm-conv_integer(l);
+	else
+		return rm;
+	end if;
+end function;
 
 --The inputs are taken one step before the FSM uses them. They were the
 --synchronizers when TRAMCONV ran on clk21m; the FSM's step counts include them,
@@ -255,6 +304,10 @@ begin
 	BUSREQn<=BUSREQi;
 	DMAREQ<=DMAT;
 	DMALEN<=DMAN;
+	FSA<=F0A when F0OK='1' else TADR_TOP;
+	FSX<=F0A when F0OK='1' and DMXF='1' else TADR_TOP;
+	RDAT1<='0' when capV1S='0' and LINECNT>LINES else '1';
+	FOLL<=FOL when LINEADD=x"0078" else '0';
 	--M1 among the last 128 CPU bus cycles
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -408,6 +461,15 @@ begin
 			DMAX<='0';
 			DMXF<='0';
 			DMA0<='0';
+			F0A<=(others=>'0');
+			F0B<=(others=>'0');
+			F0R<=0;
+			F0C<=0;
+			F0OK<='0';
+			FOL<='0';
+			RREM<=0;
+			RLA<=(others=>'0');
+			RLR<=0;
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -449,10 +511,11 @@ begin
 								if(SMODE='1' and LINESKIP='0')then
 									LINESKIP<='1';
 								else
-									CTXTADR<=STXTADR+LINEADD;
-									STXTADR<=STXTADR+LINEADD;
-									CATRADR<=SATRADR+LINEADD;
-									SATRADR<=SATRADR+LINEADD;
+									CTXTADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1);
+									STXTADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1);
+									CATRADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1)+x"0050";
+									SATRADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1)+x"0050";
+									RREM<=nxr(LINEADD,RREM,RLR,FOLL and RDAT1);
 									LINESKIP<='0';
 								end if;
 								CDSTADR<=SDSTADR+x"0a0";
@@ -468,10 +531,21 @@ begin
 					when ST_IDLE =>
 						if(PFRST='1' and BNDPEND='0')then
 							--The frame start held back at VRET, with the values taken there.
-							STXTADR<=hTADR;
-							SATRADR<=hTADR+x"0050";
-							CTXTADR<=hTADR;
-							CATRADR<=hTADR+x"0050";
+							if(F0OK='1')then
+								STXTADR<=F0A;
+								SATRADR<=F0A+x"0050";
+								CTXTADR<=F0A;
+								CATRADR<=F0A+x"0050";
+							else
+								STXTADR<=hTADR;
+								SATRADR<=hTADR+x"0050";
+								CTXTADR<=hTADR;
+								CATRADR<=hTADR+x"0050";
+							end if;
+							FOL<=F0OK;
+							RREM<=F0R;
+							RLA<=F0B;
+							RLR<=F0C;
 							SDSTADR<=(others=>'0');
 							CDSTADR<=(others=>'0');
 							rTVRMODE<=hTVRMODE;
@@ -501,10 +575,14 @@ begin
 								PFOK<='0';
 								PFHOLD<='0';
 								PFRST<='0';
-								STXTADR<=TADR_TOP;
-								SATRADR<=TADR_TOP+x"0050";
-								CTXTADR<=TADR_TOP;
-								CATRADR<=TADR_TOP+x"0050";
+								STXTADR<=FSA;
+								SATRADR<=FSA+x"0050";
+								CTXTADR<=FSA;
+								CATRADR<=FSA+x"0050";
+								FOL<=F0OK;
+								RREM<=F0R;
+								RLA<=F0B;
+								RLR<=F0C;
 								SDSTADR<=(others=>'0');
 								CDSTADR<=(others=>'0');
 								rTVRMODE<=TVRMODE;
@@ -566,10 +644,14 @@ begin
 								--a row start.
 								XREQ<='0';
 								SHACT<='0';
-								STXTADR<=TADR_TOP;
-								SATRADR<=TADR_TOP+x"0050";
-								CTXTADR<=TADR_TOP;
-								CATRADR<=TADR_TOP+x"0050";
+								STXTADR<=FSX;
+								SATRADR<=FSX+x"0050";
+								CTXTADR<=FSX;
+								CATRADR<=FSX+x"0050";
+								FOL<=F0OK and DMXF;
+								RREM<=F0R;
+								RLA<=F0B;
+								RLR<=F0C;
 								SDSTADR<=(others=>'0');
 								CDSTADR<=(others=>'0');
 								CURATR<=ATRCARRY;
@@ -632,11 +714,15 @@ begin
 								end if;
 							end if;
 						elsif(lVRET='1' and VRETr='0')then
-							STXTADR<=TADR_TOP;
-							SATRADR<=TADR_TOP+x"0050";
+							STXTADR<=FSA;
+							SATRADR<=FSA+x"0050";
 							SDSTADR<=(others=>'0');
-							CTXTADR<=TADR_TOP;
-							CATRADR<=TADR_TOP+x"0050";
+							CTXTADR<=FSA;
+							CATRADR<=FSA+x"0050";
+							FOL<=F0OK;
+							RREM<=F0R;
+							RLA<=F0B;
+							RLR<=F0C;
 							SDSTADR<=(others=>'0');
 							CDSTADR<=(others=>'0');
 							rTVRMODE<=TVRMODE;
@@ -692,7 +778,7 @@ begin
 						end if;
 					when ST_RDTXT =>
 						MRAM_RDn<='0';
-						RDADR<=CTXTADR;
+						RDADR<=xl(CTXTADR,STXTADR,RREM,RLA,FOLL);
 						STATE<=ST_RDTXT1;
 						if(rTMODE='1')then
 							--One cycle more, to pay back the cycle spent registering MRAM_WAIT.
@@ -737,7 +823,7 @@ begin
 						STATE<=ST_SETATR;
 					when ST_RDATR =>
 						MRAM_RDn<='0';
-						RDADR<=CATRADR;
+						RDADR<=xl(CATRADR,STXTADR,RREM,RLA,FOLL);
 						STATE<=ST_RDATR1;
 						if(rTMODE='1')then
 							--One cycle more, to pay back the cycle spent registering MRAM_WAIT.
@@ -769,7 +855,7 @@ begin
 							end if;
 						end if;
 					when ST_RDATR2 =>
-						RDADR<=CATRADR;
+						RDADR<=xl(CATRADR,STXTADR,RREM,RLA,FOLL);
 						MRAM_RDn<='0';
 						STATE<=ST_RDATR3;
 						if(rTMODE='1')then
@@ -834,10 +920,11 @@ begin
 								CATRADR<=SATRADR;
 								LINESKIP<='1';
 							else
-								CTXTADR<=STXTADR+LINEADD;
-								STXTADR<=STXTADR+LINEADD;
-								CATRADR<=SATRADR+LINEADD;
-								SATRADR<=SATRADR+LINEADD;
+								CTXTADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1);
+								STXTADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1);
+								CATRADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1)+x"0050";
+								SATRADR<=nxa(STXTADR,LINEADD,RREM,RLA,FOLL and RDAT1)+x"0050";
+								RREM<=nxr(LINEADD,RREM,RLR,FOLL and RDAT1);
 								LINESKIP<='0';
 							end if;
 							CDSTADR<=SDSTADR+x"0a0";
@@ -947,6 +1034,7 @@ begin
 				if(TEXTENr='0')then
 					DMXF<='0';
 					DMA0<='0';
+					F0OK<='0';
 				end if;
 				pVRET<=VRETr;
 				pHRET<=HRETr;
@@ -985,6 +1073,9 @@ begin
 					DMAX<='0';
 					DMXF<='0';
 					DMA0<=DMXF;
+					if(DMXF='0')then
+						F0OK<='0';
+					end if;
 				else
 					if(SINCEBND<3)then
 						SINCEBND<=SINCEBND+1;
@@ -1037,6 +1128,15 @@ begin
 							DMAN<=LINEADD(7 downto 0);
 							if(REQ>=capROWS)then
 								DMXF<='1';
+								F0A<=DMNXA;
+								F0R<=conv_integer(DMNXR);
+								F0B<=DMRLA;
+								F0C<=conv_integer(DMRLR);
+								if(DMOK='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LINEADD=x"0078")then
+									F0OK<='1';
+								else
+									F0OK<='0';
+								end if;
 							end if;
 						end if;
 						if(CAPD='1' and RASTER+1=REQLINE and REQ>=capROWS)then
@@ -1058,6 +1158,11 @@ begin
 					if(PFHOLD='1')then
 						PFRST<='1';
 					end if;
+				end if;
+				--Rows that are not 120 bytes stop following the 8257 for the rest of the frame
+				--(last, so a frame start in the same step does not set it again)
+				if(LINEADD/=x"0078")then
+					FOL<='0';
 				end if;
 			end if;
 		end if;

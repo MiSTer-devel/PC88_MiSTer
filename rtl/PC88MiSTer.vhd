@@ -942,7 +942,12 @@ port(
 	ROE		:out std_logic;
 
 	DMAREQ	:in std_logic_vector(1 downto 0) := "00";
-	DMALEN	:in std_logic_vector(7 downto 0) := (others=>'0')
+	DMALEN	:in std_logic_vector(7 downto 0) := (others=>'0');
+	DMNXA	:out std_logic_vector(15 downto 0);
+	DMNXR	:out std_logic_vector(14 downto 0);
+	DMRLA	:out std_logic_vector(15 downto 0);
+	DMRLR	:out std_logic_vector(14 downto 0);
+	DMOK	:out std_logic
 );
 end component;
 
@@ -990,6 +995,11 @@ port(
 	DONE		:out std_logic;
 	DMAREQ		:out std_logic_vector(1 downto 0);
 	DMALEN		:out std_logic_vector(7 downto 0);
+	DMNXA		:in std_logic_vector(15 downto 0);
+	DMNXR		:in std_logic_vector(14 downto 0);
+	DMRLA		:in std_logic_vector(15 downto 0);
+	DMRLR		:in std_logic_vector(14 downto 0);
+	DMOK		:in std_logic;
 	
 	CPUBUS		:in std_logic;
 	CPUM1n		:in std_logic;
@@ -1769,6 +1779,11 @@ signal	IOR6e_OE	:std_logic;
 signal	IDAT_DMA	:std_logic_vector(7 downto 0);
 signal	TDMA_REQ	:std_logic_vector(1 downto 0);
 signal	TDMA_LEN	:std_logic_vector(7 downto 0);
+signal	TDMA_NXA	:std_logic_vector(15 downto 0);
+signal	TDMA_NXR	:std_logic_vector(14 downto 0);
+signal	TDMA_RLA	:std_logic_vector(15 downto 0);
+signal	TDMA_RLR	:std_logic_vector(14 downto 0);
+signal	TDMA_OK		:std_logic;
 signal	DMA_OE		:std_logic;
 signal	IDAT_IOR71	:std_logic_vector(7 downto 0);
 signal	IOR71_OE	:std_logic;
@@ -2921,6 +2936,11 @@ port map(
 	-- DONE		=>TCNVDONE,
 	DMAREQ		=>TDMA_REQ,
 	DMALEN		=>TDMA_LEN,
+	DMNXA		=>TDMA_NXA,
+	DMNXR		=>TDMA_NXR,
+	DMRLA		=>TDMA_RLA,
+	DMRLR		=>TDMA_RLR,
+	DMOK		=>TDMA_OK,
 	
 	CPUBUS		=>BUSSEL,
 	CPUM1n		=>M1_n,
@@ -3121,7 +3141,7 @@ port map(
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'0','0','1','0','0','0','0');
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);
 	IOWaa	:IO_WRS generic map(x"aa")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,S2INTM,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
-	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE,TDMA_REQ,TDMA_LEN);
+	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE,TDMA_REQ,TDMA_LEN,TDMA_NXA,TDMA_NXR,TDMA_RLA,TDMA_RLR,TDMA_OK);
 	pStrA<=pStr;
 	pStrB<=pStr;
 	
