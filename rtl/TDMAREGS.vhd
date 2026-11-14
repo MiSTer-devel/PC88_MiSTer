@@ -39,8 +39,8 @@ port(
 	DMRLA	:out std_logic_vector(15 downto 0);
 	DMRLR	:out std_logic_vector(14 downto 0);
 	DMOK	:out std_logic;
-	-- Counts the CPU writes to the channel 2 address and count, those during a row transfer once at
-	-- the end of the row (TRAMCONV reads the rows not moved yet again)
+	-- Counts the writes that move channel 2 (a low and high byte pair once), those during a row
+	-- transfer at the end of the row (TRAMCONV reads the rows not moved yet again)
 	DMWE	:out std_logic_vector(1 downto 0);
 	-- Channel 2 runs with autoload after a write of its address (DMOK without the timing),
 	-- and a row request is waiting to start
@@ -81,11 +81,24 @@ signal	BCNT	:integer range 0 to DMABURST;
 signal	BLEN	:std_logic_vector(7 downto 0);
 -- Channel 2 is followed a row at a time, so a CPU write to 64h, 65h during a row transfer is
 -- taken as made after that row (fhp3 Q4: a FH draws whole rows from the old and the new address).
--- The write goes in at once and is marked (WA, WC: low, high byte); the end of the row counts
--- from where the row started (CA0, CC0) and leaves the bytes written.
+-- A write (both bytes, or a low byte put in alone) goes in then and is marked (WA, WC: low, high
+-- byte); the end of the row counts from where the row started (CA0, CC0) and leaves the bytes
+-- written.
 signal	CA0		:std_logic_vector(15 downto 0);
 signal	CC0		:std_logic_vector(13 downto 0);
 signal	WA,WC	:std_logic_vector(1 downto 0);
+-- A write of 64h or 65h moves channel 2 (and 3 with autoload) when both bytes are in (fhp3 Q4: OUT,
+-- LD, OUT), so that a row transfer, row 0 taken by TRAMCONV or a reload never sees half of it
+-- (the 64h, 65h registers shown on TRAMTOP and TRAMLEN take each byte at once). The low byte waits
+-- in SL (PP: waiting, SCH: which register); a high byte to another register, another read or write
+-- of 60h-67h (they flip F/L), a write to 68h or PPC running out (2048 ce, past a V1S row read that
+-- holds the CPU) puts it in alone.
+signal	PP		:std_logic;
+signal	SCH		:integer range 0 to 7;
+signal	SL		:std_logic_vector(7 downto 0);
+signal	PPC		:integer range 0 to 2047;
+-- A low byte put in by PPC alone: no row starts for a few clocks, so TRAMCONV sees the request waiting
+signal	TOH		:integer range 0 to 7;
 signal	lDMAREQ	:std_logic_vector(1 downto 0);
 signal	IOBUSY	:std_logic;
 constant CH2A	:integer	:=conv_integer(unsigned(ADRTOP(2 downto 0)));
@@ -120,6 +133,10 @@ begin
 	variable nca	:std_logic_vector(15 downto 0);
 	variable ncc	:std_logic_vector(13 downto 0);
 	variable ncm	:std_logic_vector(1 downto 0);
+	variable cl,ch	:boolean;
+	variable cn		:integer range 0 to 7;
+	variable hd		:std_logic_vector(7 downto 0);
+	variable stop,ns	:boolean;
 	begin
 		if(rstn='0')then
 			CHREG<=(others=>(others=>'0'));
@@ -145,13 +162,37 @@ begin
 			CC0<=(others=>'0');
 			WA<="00";
 			WC<="00";
+			PP<='0';
+			SCH<=0;
+			SL<=(others=>'0');
+			PPC<=0;
+			TOH<=0;
 			lDMAREQ<="00";
 		elsif(clk' event and clk='1')then
+			cl:=false;
+			ch:=false;
+			if(TOH/=0)then
+				TOH<=TOH-1;
+			end if;
 		 if(ce='1')then
+			cn:=CH2A;
+			hd:=DAT;
+			stop:=false;
+			ns:=false;
+			if(PP='1')then
+				if(PPC=2047)then
+					cl:=true;
+					TOH<=7;
+				else
+					PPC<=PPC+1;
+				end if;
+			end if;
 			if(IOWRn='0' and lWRn='1')then
 				if(ADR=ADRCMD)then
+					cl:=(PP='1');
 					FL<='0';
 					if(DAT(2)='0')then
+						stop:=true;
 						BUSY<='0';
 						SYNC<='0';
 						if(WA/="00" or WC/="00")then
@@ -174,48 +215,21 @@ begin
 					else
 						CHREG(CHNO)(15 downto 8)<=DAT;
 					end if;
-					-- With autoload, a write to channel 2 also goes to channel 3
-					if(CHNO=CH2A)then
-						SYNC<='1';
-						-- During a row transfer: counted at the end of the row
-						if(BUSY='0')then
-							WEC<=unsigned(WEC)+1;
-						elsif(FL='0')then
-							WA(0)<='1';
-						else
-							WA(1)<='1';
-						end if;
+					if(CHNO=CH2A or CHNO=CH2C)then
 						if(FL='0')then
-							CA(7 downto 0)<=DAT;
-							if(MAL='1')then
-								CHREG(CH2A+2)(7 downto 0)<=DAT;
-							end if;
+							cl:=(PP='1');
+							ns:=true;
+							PP<='1';
+							PPC<=0;
+							SCH<=CHNO;
+							SL<=DAT;
 						else
-							CA(15 downto 8)<=DAT;
-							if(MAL='1')then
-								CHREG(CH2A+2)(15 downto 8)<=DAT;
-							end if;
+							cl:=(PP='1');
+							ch:=true;
+							cn:=CHNO;
 						end if;
-					elsif(CHNO=CH2C)then
-						if(BUSY='0')then
-							WEC<=unsigned(WEC)+1;
-						elsif(FL='0')then
-							WC(0)<='1';
-						else
-							WC(1)<='1';
-						end if;
-						if(FL='0')then
-							CC(7 downto 0)<=DAT;
-							if(MAL='1')then
-								CHREG(CH2C+2)(7 downto 0)<=DAT;
-							end if;
-						else
-							CC(13 downto 8)<=DAT(5 downto 0);
-							CM<=DAT(7 downto 6);
-							if(MAL='1')then
-								CHREG(CH2C+2)(15 downto 8)<=DAT;
-							end if;
-						end if;
+					else
+						cl:=(PP='1');
 					end if;
 					FL<=not FL;
 				end if;
@@ -223,11 +237,67 @@ begin
 			-- Flip at the end of the read, so the byte stays put while the CPU takes it
 			if(IORDn='0')then
 				RDCH<=CHSEL;
+				if(CHSEL='1')then
+					cl:=(PP='1');
+				end if;
 			elsif(lRDn='0' and RDCH='1')then
 				FL<=not FL;
 				RDCH<='0';
 			end if;
 			lRDn<=IORDn;
+			-- Put the waiting low byte and the high byte in. With autoload, channel 2 also goes to
+			-- channel 3. During a row transfer the bytes are marked and counted at the end of the row.
+			if(cl)then
+				if(not ns)then
+					PP<='0';
+				end if;
+				if(SCH=CH2A)then
+					if(not stop)then
+						SYNC<='1';
+					end if;
+					CA(7 downto 0)<=SL;
+					if(MAL='1')then
+						CHREG(CH2A+2)(7 downto 0)<=SL;
+					end if;
+					if(BUSY='1' and not stop)then
+						WA(0)<='1';
+					end if;
+				else
+					CC(7 downto 0)<=SL;
+					if(MAL='1')then
+						CHREG(CH2C+2)(7 downto 0)<=SL;
+					end if;
+					if(BUSY='1' and not stop)then
+						WC(0)<='1';
+					end if;
+				end if;
+			end if;
+			if(ch)then
+				if(cn=CH2A)then
+					if(not stop)then
+						SYNC<='1';
+					end if;
+					CA(15 downto 8)<=hd;
+					if(MAL='1')then
+						CHREG(CH2A+2)(15 downto 8)<=hd;
+					end if;
+					if(BUSY='1')then
+						WA(1)<='1';
+					end if;
+				else
+					CC(13 downto 8)<=hd(5 downto 0);
+					CM<=hd(7 downto 6);
+					if(MAL='1')then
+						CHREG(CH2C+2)(15 downto 8)<=hd;
+					end if;
+					if(BUSY='1')then
+						WC(1)<='1';
+					end if;
+				end if;
+			end if;
+			if((cl or ch) and (BUSY='0' or stop))then
+				WEC<=unsigned(WEC)+1;
+			end if;
 		 end if;
 
 			-- TC2 clears when the status has been read
@@ -240,7 +310,9 @@ begin
 
 			-- Channel 2 transfers, checked on every clock
 			if(BUSY='0')then
-				if(DMAREQ/=lDMAREQ and IOBUSY='0')then
+				-- (and not on the clock bytes go in, nor for TOH after a low byte goes in on its own, so
+				-- the row starts from them and TRAMCONV sees the request waiting)
+				if(DMAREQ/=lDMAREQ and IOBUSY='0' and not cl and not ch and TOH=0)then
 					lDMAREQ<=unsigned(lDMAREQ)+1;
 					if(MEN2='1' and STP='0')then
 						-- Autoload takes channel 3 when the next block starts
@@ -264,7 +336,7 @@ begin
 				end if;
 			elsif(BCNT/=0)then
 				BCNT<=BCNT-1;
-			elsif(IOBUSY='0')then
+			elsif(IOBUSY='0' and not cl and not ch)then
 				BUSY<='0';
 				nca:=CA;
 				ncc:=CC;
