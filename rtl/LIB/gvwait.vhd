@@ -3,6 +3,7 @@
 
 library IEEE;
 use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
 
 --Adds wait states to CPU reads and writes of graphic VRAM.
 --A real FH waits longer while the screen is drawn than in the vertical
@@ -30,10 +31,13 @@ use IEEE.std_logic_1164.all;
 --In 15kHz timing at 4MHz the FH waits one more state (3 instead of 2) on some
 --drawn accesses. The waits measured over many access intervals fit a model
 --where an access waits more when it starts in an 8% window of the 8-dot text
---clock. That clock runs on its own crystal; the length that fits best is
---2.2325 CPU states (2.2313 from the nominal crystals), so ph keeps its phase
---in CPU states (29355 of 65536 a state). Only the width of the window shows
---in the waits, not where it sits, so it is put at phase 0.
+--clock. That clock runs on its own crystal, 2.2313 CPU states from the nominal
+--crystals, so ph keeps its phase in CPU states (29370 of 65536 a state). On
+--the FH the edges of the window are not sharp: loops with one access each, 21
+--to 60 states long, fit only when the phase taken for the window is spread by
+--about 2% of the text clock. rnd gives that spread, a roughly uniform offset
+--of up to 3.5% either way, new for every access. Only the width of the window
+--shows in the waits, not where it sits, so it is put at phase 0.
 --This was measured in V2; the other modes that use these waits take the same
 --rule. As ph counts ce_f, it falls behind the real text clock while GVSTRETCH
 --slows the CPU in V1S and N. en is low all that time, so no wait here is taken
@@ -93,7 +97,7 @@ signal	lsel	:std_logic;
 signal	done	:std_logic;	-- the CPU has passed the wait in this access
 signal	lret	:std_logic;	-- VRTC taken when the access started
 signal	ret		:std_logic;
-constant PHSTEP	:integer:=29355;	-- 65536/2.2325 rounded down: one CPU state
+constant PHSTEP	:integer:=29370;	-- 65536/2.23135 rounded down: one CPU state
 constant PHW	:integer:=5243;		-- 8% of the text clock
 constant PHSTEP24:integer:=43185;	-- 65536/1.51757 rounded: one CPU state in 24kHz timing
 constant PHW24	:integer:=10486;	-- 16% of the 24kHz text clock
@@ -110,6 +114,8 @@ signal	lhret	:std_logic;
 signal	ln		:std_logic;	-- turns over at every line
 signal	lnrd	:std_logic;	-- the screen reads graphic VRAM on this line, and it is drawn
 signal	ph		:integer range 0 to 65535;
+signal	lfsr	:std_logic_vector(15 downto 0);
+signal	rnd		:integer range -2304 to 2303;	-- the spread of the window at 4MHz (no effect in 31kHz timing)
 signal	phlow	:std_logic;	-- ph is in the window (registered with ph)
 signal	phlb	:std_logic;	-- ph is in the head of the window (registered with ph)
 signal	ph2		:std_logic;	-- the access waits two more (8MHz)
@@ -130,6 +136,7 @@ begin
 	widb<=	PHW824B when PH24='1' else
 			PHW8B;
 	lnrd<='1' when HRET='0' and (L200='0' or ln='0') else '0';
+	rnd<=(to_integer(unsigned(lfsr(12 downto 0)))*9)/16-2304 when FAST='0' and PH24='0' else 0;
 	phhit<='1' when FAST='0' and phlow='1' and (PH15='1' or (PH24='1' and lnrd='1')) else
 			'1' when FAST='1' and phlow='1' and PH24='0' and HRET='0' else
 			'1' when FAST='1' and phlow='1' and PH24='1' and lnrd='1' else
@@ -153,6 +160,7 @@ begin
 
 	process(clk,rstn)
 	variable nph	:integer range 0 to 65535;
+	variable jph	:integer range -2304 to 67838;
 	begin
 		if(rstn='0')then
 			cnt<=0;
@@ -160,6 +168,7 @@ begin
 			done<='0';
 			lret<='0';
 			ph<=0;
+			lfsr<=x"ACE1";
 			phlow<='1';	-- 0 is in the window
 			phlb<='1';	-- and in the head of the window
 			lhit2<='0';
@@ -169,6 +178,7 @@ begin
 		elsif(clk' event and clk='1')then
 			lsel<=SEL;
 			lhret<=HRET;
+			lfsr<=lfsr(14 downto 0) & (lfsr(15) xor lfsr(13) xor lfsr(12) xor lfsr(10));
 			if(HRET='1' and lhret='0')then
 				ln<=not ln;
 			end if;
@@ -179,7 +189,13 @@ begin
 					nph:=ph+step;
 				end if;
 				ph<=nph;
-				if(nph<wid)then
+				jph:=nph+rnd;
+				if(jph<0)then
+					jph:=jph+65536;
+				elsif(jph>65535)then
+					jph:=jph-65536;
+				end if;
+				if(jph<wid)then
 					phlow<='1';
 				else
 					phlow<='0';
