@@ -39,7 +39,8 @@ port(
 	DMRLA	:out std_logic_vector(15 downto 0);
 	DMRLR	:out std_logic_vector(14 downto 0);
 	DMOK	:out std_logic;
-	-- Counts the CPU writes to the channel 2 address and count (TRAMCONV reads the rows not moved yet again)
+	-- Counts the CPU writes to the channel 2 address and count, those during a row transfer once at
+	-- the end of the row (TRAMCONV reads the rows not moved yet again)
 	DMWE	:out std_logic_vector(1 downto 0);
 	-- Channel 2 runs with autoload after a write of its address (DMOK without the timing),
 	-- and a row request is waiting to start
@@ -78,6 +79,13 @@ signal	WEC		:std_logic_vector(1 downto 0);
 signal	BUSY	:std_logic;
 signal	BCNT	:integer range 0 to DMABURST;
 signal	BLEN	:std_logic_vector(7 downto 0);
+-- Channel 2 is followed a row at a time, so a CPU write to 64h, 65h during a row transfer is
+-- taken as made after that row (fhp3 Q4: a FH draws whole rows from the old and the new address).
+-- The write goes in at once and is marked (WA, WC: low, high byte); the end of the row counts
+-- from where the row started (CA0, CC0) and leaves the bytes written.
+signal	CA0		:std_logic_vector(15 downto 0);
+signal	CC0		:std_logic_vector(13 downto 0);
+signal	WA,WC	:std_logic_vector(1 downto 0);
 signal	lDMAREQ	:std_logic_vector(1 downto 0);
 signal	IOBUSY	:std_logic;
 constant CH2A	:integer	:=conv_integer(unsigned(ADRTOP(2 downto 0)));
@@ -108,7 +116,11 @@ begin
 	DMOK<='1' when MEN2='1' and STP='0' and MAL='1' and SYNC='1' and BUSY='0' and DMAREQ=lDMAREQ else '0';
 	IOBUSY<='1' when ((IORDn='0' or IOWRn='0') and (CHSEL='1' or STSEL='1')) or RDST='1' else '0';
 
-	process(clk,rstn)begin
+	process(clk,rstn)
+	variable nca	:std_logic_vector(15 downto 0);
+	variable ncc	:std_logic_vector(13 downto 0);
+	variable ncm	:std_logic_vector(1 downto 0);
+	begin
 		if(rstn='0')then
 			CHREG<=(others=>(others=>'0'));
 			FL<='0';
@@ -129,6 +141,10 @@ begin
 			BUSY<='0';
 			BCNT<=0;
 			BLEN<=(others=>'0');
+			CA0<=(others=>'0');
+			CC0<=(others=>'0');
+			WA<="00";
+			WC<="00";
 			lDMAREQ<="00";
 		elsif(clk' event and clk='1')then
 		 if(ce='1')then
@@ -138,6 +154,11 @@ begin
 					if(DAT(2)='0')then
 						BUSY<='0';
 						SYNC<='0';
+						if(WA/="00" or WC/="00")then
+							WEC<=unsigned(WEC)+1;
+						end if;
+						WA<="00";
+						WC<="00";
 					end if;
 					MAL<=DAT(7);
 					-- Turning autoload off clears UPDATE, so channel 2 is not reloaded from channel 3 (8257)
@@ -155,9 +176,15 @@ begin
 					end if;
 					-- With autoload, a write to channel 2 also goes to channel 3
 					if(CHNO=CH2A)then
-						BUSY<='0';
 						SYNC<='1';
-						WEC<=unsigned(WEC)+1;
+						-- During a row transfer: counted at the end of the row
+						if(BUSY='0')then
+							WEC<=unsigned(WEC)+1;
+						elsif(FL='0')then
+							WA(0)<='1';
+						else
+							WA(1)<='1';
+						end if;
 						if(FL='0')then
 							CA(7 downto 0)<=DAT;
 							if(MAL='1')then
@@ -170,8 +197,13 @@ begin
 							end if;
 						end if;
 					elsif(CHNO=CH2C)then
-						BUSY<='0';
-						WEC<=unsigned(WEC)+1;
+						if(BUSY='0')then
+							WEC<=unsigned(WEC)+1;
+						elsif(FL='0')then
+							WC(0)<='1';
+						else
+							WC(1)<='1';
+						end if;
 						if(FL='0')then
 							CC(7 downto 0)<=DAT;
 							if(MAL='1')then
@@ -216,8 +248,15 @@ begin
 							CA<=CHREG(CH2A+2);
 							CC<=CHREG(CH2C+2)(13 downto 0);
 							CM<=CHREG(CH2C+2)(15 downto 14);
+							CA0<=CHREG(CH2A+2);
+							CC0<=CHREG(CH2C+2)(13 downto 0);
 							UPD<='0';
+						else
+							CA0<=CA;
+							CC0<=CC;
 						end if;
+						WA<="00";
+						WC<="00";
 						BUSY<='1';
 						BCNT<=DMABURST;
 						BLEN<=DMALEN;
@@ -227,23 +266,26 @@ begin
 				BCNT<=BCNT-1;
 			elsif(IOBUSY='0')then
 				BUSY<='0';
+				nca:=CA;
+				ncc:=CC;
+				ncm:=CM;
 				if(MEN2='1' and STP='0')then
 					-- TC inside the row with autoload: the rest of the row comes from channel 3 (FH)
-					if(unsigned(CC)<unsigned(BLEN)-1 and MAL='1' and unsigned(CHREG(CH2C+2)(13 downto 0))>=unsigned(BLEN)-unsigned(CC)-1)then
-						CA<=unsigned(CHREG(CH2A+2))+(unsigned(BLEN)-unsigned(CC)-1);
-						CC<=unsigned(CHREG(CH2C+2)(13 downto 0))-(unsigned(BLEN)-unsigned(CC)-1);
-						CM<=CHREG(CH2C+2)(15 downto 14);
+					if(unsigned(CC0)<unsigned(BLEN)-1 and MAL='1' and unsigned(CHREG(CH2C+2)(13 downto 0))>=unsigned(BLEN)-unsigned(CC0)-1)then
+						nca:=unsigned(CHREG(CH2A+2))+(unsigned(BLEN)-unsigned(CC0)-1);
+						ncc:=unsigned(CHREG(CH2C+2)(13 downto 0))-(unsigned(BLEN)-unsigned(CC0)-1);
+						ncm:=CHREG(CH2C+2)(15 downto 14);
 						TC2<='1';
-					elsif(unsigned(CC)<unsigned(BLEN)-1 and MAL='1' and unsigned(CHREG(CH2C+2)(13 downto 0))=unsigned(BLEN)-unsigned(CC)-2)then
+					elsif(unsigned(CC0)<unsigned(BLEN)-1 and MAL='1' and unsigned(CHREG(CH2C+2)(13 downto 0))=unsigned(BLEN)-unsigned(CC0)-2)then
 						-- channel 3 runs out at the end of the row too
-						CA<=unsigned(CHREG(CH2A+2))+(unsigned(BLEN)-unsigned(CC)-1);
-						CC<=(others=>'1');
-						CM<=CHREG(CH2C+2)(15 downto 14);
+						nca:=unsigned(CHREG(CH2A+2))+(unsigned(BLEN)-unsigned(CC0)-1);
+						ncc:=(others=>'1');
+						ncm:=CHREG(CH2C+2)(15 downto 14);
 						TC2<='1';
 						UPD<='1';
-					elsif(unsigned(CC)<unsigned(BLEN))then
-						CA<=unsigned(CA)+unsigned(CC)+1;
-						CC<=(others=>'1');
+					elsif(unsigned(CC0)<unsigned(BLEN))then
+						nca:=unsigned(CA0)+unsigned(CC0)+1;
+						ncc:=(others=>'1');
 						TC2<='1';
 						if(MAL='1')then
 							UPD<='1';
@@ -251,10 +293,29 @@ begin
 							STP<='1';
 						end if;
 					else
-						CA<=unsigned(CA)+unsigned(BLEN);
-						CC<=unsigned(CC)-unsigned(BLEN);
+						nca:=unsigned(CA0)+unsigned(BLEN);
+						ncc:=unsigned(CC0)-unsigned(BLEN);
 					end if;
 				end if;
+				-- Bytes the CPU wrote during the row stay as written
+				if(WA(0)='0')then
+					CA(7 downto 0)<=nca(7 downto 0);
+				end if;
+				if(WA(1)='0')then
+					CA(15 downto 8)<=nca(15 downto 8);
+				end if;
+				if(WC(0)='0')then
+					CC(7 downto 0)<=ncc(7 downto 0);
+				end if;
+				if(WC(1)='0')then
+					CC(13 downto 8)<=ncc(13 downto 8);
+					CM<=ncm;
+				end if;
+				if(WA/="00" or WC/="00")then
+					WEC<=unsigned(WEC)+1;
+				end if;
+				WA<="00";
+				WC<="00";
 			end if;
 		end if;
 	end process;
