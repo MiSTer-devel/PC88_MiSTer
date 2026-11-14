@@ -359,6 +359,10 @@ signal A_REVERSE :std_logic_vector(2 downto 0);
 --In black and white mode the reverse attribute also lights the dots with no text and
 --no graphics, so a reversed character is shown even when the graphics are off.
 signal R_BIT	:std_logic;
+signal L_BIT	:std_logic;
+signal L_EN		:std_logic;
+signal L_ENd	:std_logic;
+signal P_BIT	:std_logic;
 signal R_BITd	:std_logic;
 
 --24kHz, 15kHz: the CRTC parameters used for the frame being drawn, taken at the frame boundary
@@ -474,7 +478,19 @@ begin
 	COLNUMT(1)	<=T_FGCOLOR(1) when T_BIT='1' else T_BGCOLOR(1);
 	COLNUMT(2)	<=T_FGCOLOR(2) when T_BIT='1' else T_BGCOLOR(2);
 	
-	COLNUM<=COLNUMT when TXTMODE='1' else COLNUMN when (GCOLOR='1' or TXTEN='0') else COLNUMN xor A_REVERSE;
+	--Black and white graphics: COLNUMN is the text color or 0, so a reversed character flips it
+	--with the text color: the dots turn on and off and keep their color, and black stays 0
+	--(PC-8801FH), as do the rows TRAMCONV fills with x"80". White is the same as before.
+	COLNUM<=COLNUMT when TXTMODE='1' else COLNUMN when (GCOLOR='1' or TXTEN='0') else
+		COLNUMN xor (A_REVERSE and T_FGCOLOR);
+
+	--Black and white graphics, also on the line between 24kHz 200-line graphics lines: the palette
+	--is told whether the dot is lit (a text dot, or a graphics dot with the graphics on, flipped by
+	--reverse). A lit dot shows the text color, black too, and an unlit dot the background color,
+	--also with the graphics off (PC-8801FH).
+	L_BIT<=(T_BIT or (GM_BIT and GRAPHEN)) xor F_REVERSE;
+	L_EN<='1' when TXTMODE='0' and GCOLOR='0' and TXTEN='1' and CRTCEN='1' and (GE_BIT='1' or GG_BIT='1') else '0';
+	P_BIT<=L_BIT when L_EN='1' else X_BIT;
 
 	PAL	:rampalette port map(
 		IORQn	=>IORQn,
@@ -491,7 +507,7 @@ begin
 		
 		CRTCEN	=>CRTCEN,
 		GCOLOR	=>GCOLOR,
-		X_BIT	=>X_BIT,
+		X_BIT	=>P_BIT,
 
 		sclk		=>cpuclk,
 		sce			=>cpuce,
@@ -509,6 +525,7 @@ begin
 			GCOLORd<=GCOLOR;	-- taken with the palette output
 			X_BITd<=X_BIT;
 			R_BITd<=R_BIT;
+			L_ENd<=L_EN;
 			VIDEN<=VIDENb;
 			VISIBLEd<=VISIBLE;
 		 end if;
@@ -520,11 +537,12 @@ begin
 	BLE<=	PAL_BLE when PALEN='1' else (others=>COLNUMd(0));
 	
 	--No graphics here: black. The line between 24kHz 200-line graphics lines is black in color
-	--mode, and in black and white mode shows the background color like dots that are off (PC-8801FH)
+	--mode, and in black and white mode shows the background color like dots that are off (PC-8801FH).
+	--Not where L_ENd is '1': there the palette already shows an unlit dot in the background color.
 	NOGRP	<='1' when GRAPHEN='0' or (GE_BITd='0' and (GG_BITd='0' or GCOLORd='1')) else '0';
-	ROUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else RED;
-	GOUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else GRN;
-	BOUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and TXTMODE='0')) else BLE;
+	ROUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and L_ENd='0' and TXTMODE='0')) else RED;
+	GOUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and L_ENd='0' and TXTMODE='0')) else GRN;
+	BOUT	<="000" when (VISIBLEd='0' or (NOGRP='1' and X_BITd='0' and R_BITd='0' and L_ENd='0' and TXTMODE='0')) else BLE;
 
 	gclk<=clk3;
 	CE3<=ce3b;
