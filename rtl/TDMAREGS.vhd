@@ -38,7 +38,13 @@ port(
 	DMNXR	:out std_logic_vector(14 downto 0);
 	DMRLA	:out std_logic_vector(15 downto 0);
 	DMRLR	:out std_logic_vector(14 downto 0);
-	DMOK	:out std_logic
+	DMOK	:out std_logic;
+	-- Counts the CPU writes to the channel 2 address and count (TRAMCONV reads the rows not moved yet again)
+	DMWE	:out std_logic_vector(1 downto 0);
+	-- Channel 2 runs with autoload after a write of its address (DMOK without the timing),
+	-- and a row request is waiting to start
+	DMCF	:out std_logic;
+	DMPD	:out std_logic
 );
 end TDMAREGS;
 
@@ -68,6 +74,7 @@ signal	MAL,MTCS,MEN2,STP	:std_logic;
 signal	TC2,UPD	:std_logic;
 -- The channel 2 address has been written since 68h last stopped channel 2: only then can the display follow it
 signal	SYNC	:std_logic;
+signal	WEC		:std_logic_vector(1 downto 0);
 signal	BUSY	:std_logic;
 signal	BCNT	:integer range 0 to DMABURST;
 signal	BLEN	:std_logic_vector(7 downto 0);
@@ -95,6 +102,9 @@ begin
 	DMNXR<=unsigned('0' & CHREG(CH2C+2)(13 downto 0))+1 when UPD='1' else unsigned('0' & CC)+1;
 	DMRLA<=CHREG(CH2A+2);
 	DMRLR<=unsigned('0' & CHREG(CH2C+2)(13 downto 0))+1;
+	DMWE<=WEC;
+	DMCF<='1' when MEN2='1' and STP='0' and MAL='1' and SYNC='1' else '0';
+	DMPD<='1' when DMAREQ/=lDMAREQ else '0';
 	DMOK<='1' when MEN2='1' and STP='0' and MAL='1' and SYNC='1' and BUSY='0' and DMAREQ=lDMAREQ else '0';
 	IOBUSY<='1' when ((IORDn='0' or IOWRn='0') and (CHSEL='1' or STSEL='1')) or RDST='1' else '0';
 
@@ -115,6 +125,7 @@ begin
 			TC2<='0';
 			UPD<='0';
 			SYNC<='0';
+			WEC<="00";
 			BUSY<='0';
 			BCNT<=0;
 			BLEN<=(others=>'0');
@@ -146,6 +157,7 @@ begin
 					if(CHNO=CH2A)then
 						BUSY<='0';
 						SYNC<='1';
+						WEC<=unsigned(WEC)+1;
 						if(FL='0')then
 							CA(7 downto 0)<=DAT;
 							if(MAL='1')then
@@ -159,6 +171,7 @@ begin
 						end if;
 					elsif(CHNO=CH2C)then
 						BUSY<='0';
+						WEC<=unsigned(WEC)+1;
 						if(FL='0')then
 							CC(7 downto 0)<=DAT;
 							if(MAL='1')then

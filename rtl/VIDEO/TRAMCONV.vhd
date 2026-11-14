@@ -84,6 +84,9 @@ port(
 	DMRLA		:in std_logic_vector(15 downto 0)	:=(others=>'0');
 	DMRLR		:in std_logic_vector(14 downto 0)	:=(others=>'0');
 	DMOK		:in std_logic	:='0';
+	DMWE		:in std_logic_vector(1 downto 0)	:="00";	-- CPU writes to 64h, 65h (TDMAREGS)
+	DMCF		:in std_logic	:='0';	-- channel 2 can be followed (DMOK without the timing)
+	DMPD		:in std_logic	:='0';	-- a row request has not started yet
 	
 	CPUBUS		:in std_logic	:='0';	-- a CPU bus cycle (BUSSEL)
 	CPUM1n		:in std_logic	:='1';
@@ -251,6 +254,31 @@ signal	RLA			:std_logic_vector(15 downto 0);
 signal	RLR			:integer range 0 to 16384;
 signal	RDAT1		:std_logic;	-- the row after this one is a row of the screen
 signal	FOLL		:std_logic;	-- FOL, and this row is 120 bytes
+--A FH draws from the new address the rows the 8257 has not moved when 64h or 65h is written
+--(fhp3 Q4), and draws a frame after a CRTC or DMA restart black but its last row (Q6).
+signal	EPOCH		:std_logic_vector(1 downto 0);	-- counts the moves of row 0
+signal	REPOCH		:std_logic_vector(1 downto 0);	-- EPOCH of the frame being read
+signal	DNX			:integer range 0 to 27;	-- the next row the 8257 moves
+signal	lDMWE		:std_logic_vector(1 downto 0);
+--Rows from RRK on are read from RRA. QLP: the last row of a restart frame is read
+--from row 0 of the next frame (F0A), RRLA while it is read.
+signal	RRP,RRFO,RRLA,QLP	:std_logic;
+signal	QLE			:std_logic_vector(1 downto 0);
+--Row 0 waiting to be moved when 64h, 65h is written: its own mark, as more writes before
+--the frame starts mark row 1 on (RSA..RSC like RRA..RRC)
+signal	RSP			:std_logic;
+signal	RSE			:std_logic_vector(1 downto 0);
+signal	RSA,RSB		:std_logic_vector(15 downto 0);
+signal	RSR,RSC		:integer range 0 to 16384;
+signal	RRE			:std_logic_vector(1 downto 0);
+signal	RRK			:integer range 0 to 27;
+signal	RRA,RRB		:std_logic_vector(15 downto 0);
+signal	RRR,RRC		:integer range 0 to 16384;
+signal	BLKR		:std_logic;	-- this row is drawn blank (the 8257 did not move it)
+signal	EVK			:integer range 0 to 27;	-- the row a write to 64h, 65h now takes effect from
+signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
+type ATRK_T is array(0 to MAXLINES-1) of std_logic_vector(8 downto 0);
+signal	ATRK		:ATRK_T;	-- the attribute at the start of each row
 --The address of a byte in a row: past TC it comes from where the 8257 reloads
 function xl(a,s :std_logic_vector(15 downto 0); rm :integer; rla :std_logic_vector(15 downto 0); fol :std_logic) return std_logic_vector is
 begin
@@ -308,6 +336,12 @@ begin
 	FSX<=F0A when F0OK='1' and DMXF='1' else TADR_TOP;
 	RDAT1<='0' when capV1S='0' and LINECNT>LINES else '1';
 	FOLL<=FOL when LINEADD=x"0078" else '0';
+	--A request still waiting when 64h, 65h is written moves its row from the new values too
+	EVK<=	0		when DMPD='1' and DNX=0 else
+			DNX-2	when DMPD='1' and SMODE='1' and DNX>=2 else
+			DNX-1	when DMPD='1' else
+			DNX;
+	EVOK<='1' when DMWE/=lDMWE and TEXTENr='1' and DMCF='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LINEADD=x"0078" and EVK<capROWS else '0';
 	--M1 among the last 128 CPU bus cycles
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -359,6 +393,8 @@ begin
 	variable iNXTATR	:integer range 0 to 255;
 	variable iCOUNTER	:integer range 0 to 80;
 	variable iATTRCUL	:integer range 0 to 80;
+	variable iRRK		:integer range 0 to 27;
+	variable evu		:boolean;	-- a row start took the write seen in this step
 	begin
 		if(rstn='0')then
 			STATE<=ST_IDLE;
@@ -470,6 +506,28 @@ begin
 			RREM<=0;
 			RLA<=(others=>'0');
 			RLR<=0;
+			EPOCH<="00";
+			REPOCH<="00";
+			DNX<=0;
+			lDMWE<="00";
+			RRP<='0';
+			QLP<='0';
+			QLE<="00";
+			RSP<='0';
+			RSE<="00";
+			RSA<=(others=>'0');
+			RSB<=(others=>'0');
+			RSR<=0;
+			RSC<=0;
+			RRFO<='0';
+			RRLA<='0';
+			RRE<="00";
+			RRK<=0;
+			RRA<=(others=>'0');
+			RRB<=(others=>'0');
+			RRR<=0;
+			RRC<=0;
+			BLKR<='0';
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -488,6 +546,7 @@ begin
 				end if;
 				TVRAM_WR<='0';
 				DONE<='0';
+				evu:=false;
 				--The read-ahead row is converted with the live settings: one that changed
 				--while it ran is not used.
 				if(PFROW='1' and (SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR))then
@@ -546,6 +605,17 @@ begin
 							RREM<=F0R;
 							RLA<=F0B;
 							RLR<=F0C;
+							REPOCH<=EPOCH;
+							RRLA<='0';
+							if(RRE/=EPOCH)then
+								RRP<='0';
+							end if;
+							if(QLE/=EPOCH)then
+								QLP<='0';
+							end if;
+							if(RSE/=EPOCH)then
+								RSP<='0';
+							end if;
 							SDSTADR<=(others=>'0');
 							CDSTADR<=(others=>'0');
 							rTVRMODE<=hTVRMODE;
@@ -583,6 +653,17 @@ begin
 								RREM<=F0R;
 								RLA<=F0B;
 								RLR<=F0C;
+								REPOCH<=EPOCH;
+								RRLA<='0';
+								if(RRE/=EPOCH)then
+									RRP<='0';
+								end if;
+								if(QLE/=EPOCH)then
+									QLP<='0';
+								end if;
+								if(RSE/=EPOCH)then
+									RSP<='0';
+								end if;
 								SDSTADR<=(others=>'0');
 								CDSTADR<=(others=>'0');
 								rTVRMODE<=TVRMODE;
@@ -623,6 +704,36 @@ begin
 								CHARCNT<=0;
 								ATRCNT<=0;
 								LINECNT<=LINECNT+1;
+								BLKR<=not DMA0;
+								if(EVOK='1' and EPOCH=REPOCH and EVK=LINECNT and FOL='1')then
+									CTXTADR<=DMNXA;
+									STXTADR<=DMNXA;
+									CATRADR<=DMNXA+x"0050";
+									SATRADR<=DMNXA+x"0050";
+									RREM<=conv_integer(DMNXR);
+									RLA<=DMRLA;
+									RLR<=conv_integer(DMRLR);
+									RRP<='0';
+									evu:=true;
+								elsif(RSP='1' and RSE=REPOCH and LINECNT=0 and FOL='1')then
+									CTXTADR<=RSA;
+									STXTADR<=RSA;
+									CATRADR<=RSA+x"0050";
+									SATRADR<=RSA+x"0050";
+									RREM<=RSR;
+									RLA<=RSB;
+									RLR<=RSC;
+									RSP<='0';
+								elsif(RRP='1' and RRE=REPOCH and RRK=LINECNT and FOL='1')then
+									CTXTADR<=RRA;
+									STXTADR<=RRA;
+									CATRADR<=RRA+x"0050";
+									SATRADR<=RRA+x"0050";
+									RREM<=RRR;
+									RLA<=RRB;
+									RLR<=RRC;
+									RRP<='0';
+								end if;
 								if(VT24s='1' and LINECNT=0)then
 									NOHOLD<='1';
 								else
@@ -644,14 +755,48 @@ begin
 								--a row start.
 								XREQ<='0';
 								SHACT<='0';
-								STXTADR<=FSX;
-								SATRADR<=FSX+x"0050";
-								CTXTADR<=FSX;
-								CATRADR<=FSX+x"0050";
+								BLKR<='0';
+								if(EVOK='1' and EVK=0 and F0OK='1' and DMXF='1')then
+									--A write to 64h, 65h while row 0 waits to be moved: it comes from the new values
+									STXTADR<=DMNXA;
+									SATRADR<=DMNXA+x"0050";
+									CTXTADR<=DMNXA;
+									CATRADR<=DMNXA+x"0050";
+									RREM<=conv_integer(DMNXR);
+									RLA<=DMRLA;
+									RLR<=conv_integer(DMRLR);
+									RSP<='0';
+									evu:=true;
+								elsif(RSP='1' and RSE=EPOCH and F0OK='1' and DMXF='1')then
+									STXTADR<=RSA;
+									SATRADR<=RSA+x"0050";
+									CTXTADR<=RSA;
+									CATRADR<=RSA+x"0050";
+									RREM<=RSR;
+									RLA<=RSB;
+									RLR<=RSC;
+									RSP<='0';
+								else
+									STXTADR<=FSX;
+									SATRADR<=FSX+x"0050";
+									CTXTADR<=FSX;
+									CATRADR<=FSX+x"0050";
+									RREM<=F0R;
+									RLA<=F0B;
+									RLR<=F0C;
+								end if;
 								FOL<=F0OK and DMXF;
-								RREM<=F0R;
-								RLA<=F0B;
-								RLR<=F0C;
+								REPOCH<=EPOCH;
+								RRLA<='0';
+								if(RRE/=EPOCH)then
+									RRP<='0';
+								end if;
+								if(QLE/=EPOCH)then
+									QLP<='0';
+								end if;
+								if(RSE/=EPOCH)then
+									RSP<='0';
+								end if;
 								SDSTADR<=(others=>'0');
 								CDSTADR<=(others=>'0');
 								CURATR<=ATRCARRY;
@@ -723,6 +868,17 @@ begin
 							RREM<=F0R;
 							RLA<=F0B;
 							RLR<=F0C;
+							REPOCH<=EPOCH;
+							RRLA<='0';
+							if(RRE/=EPOCH)then
+								RRP<='0';
+							end if;
+							if(QLE/=EPOCH)then
+								QLP<='0';
+							end if;
+							if(RSE/=EPOCH)then
+								RSP<='0';
+							end if;
 							SDSTADR<=(others=>'0');
 							CDSTADR<=(others=>'0');
 							rTVRMODE<=TVRMODE;
@@ -733,12 +889,95 @@ begin
 							CURATR<=ATRCARRY;
 							RSTP<='0';
 							LINESKIP<='0';
+						elsif(QLP='1' and QLE=REPOCH and capROWS<=LINECNT)then
+							--A restart frame: its last row shows row 0 of the next frame
+							LINECNT<=capROWS-1;
+							if(F0OK='1')then
+								CTXTADR<=F0A;
+								STXTADR<=F0A;
+								CATRADR<=F0A+x"0050";
+								SATRADR<=F0A+x"0050";
+							else
+								CTXTADR<=TADR_TOP;
+								STXTADR<=TADR_TOP;
+								CATRADR<=TADR_TOP+x"0050";
+								SATRADR<=TADR_TOP+x"0050";
+							end if;
+							RREM<=F0R;
+							RLA<=F0B;
+							RLR<=F0C;
+							FOL<=F0OK;
+							SDSTADR<=conv_std_logic_vector((capROWS-1)*LINECHARS*2,12);
+							CDSTADR<=conv_std_logic_vector((capROWS-1)*LINECHARS*2,12);
+							--the attribute the frame started with (the blank rows still decode theirs)
+							CURATR<=ATRK(0);
+							LINESKIP<='0';
+							RRLA<='1';
+							QLP<='0';
+							--a mark for this frame's rows would only blank them again: drop it so
+							--that it cannot take the place of this read
+							if(RRE=REPOCH)then
+								RRP<='0';
+							end if;
+						elsif(RRP='1' and RRE=REPOCH and RRK<LINECNT and FOL='1')then
+							--Read again from row RRK: the rows the 8257 moves after a write to 64h or 65h
+							LINECNT<=RRK;
+							CTXTADR<=RRA;
+							STXTADR<=RRA;
+							CATRADR<=RRA+x"0050";
+							SATRADR<=RRA+x"0050";
+							RREM<=RRR;
+							RLA<=RRB;
+							RLR<=RRC;
+							FOL<=RRFO;
+							SDSTADR<=conv_std_logic_vector(RRK*LINECHARS*2,12);
+							CDSTADR<=conv_std_logic_vector(RRK*LINECHARS*2,12);
+							CURATR<=ATRK(RRK);
+							LINESKIP<='0';
+							RRP<='0';
 						elsif(lHRET='1' and HRETr='0' and TEXTENr='1')then
 							CHARCNT<=0;
 							ATRCNT<=0;
 							if(LINECNT<MAXLINES)then
 		--					if(LINECNT<LINES-1)then
 								LINECNT<=LINECNT+1;
+								ATRK(LINECNT)<=CURATR;
+								if(EVOK='1' and EPOCH=REPOCH and EVK=LINECNT and FOL='1')then
+									--This row is moved after the write to 64h, 65h seen now: from the new values
+									CTXTADR<=DMNXA;
+									STXTADR<=DMNXA;
+									CATRADR<=DMNXA+x"0050";
+									SATRADR<=DMNXA+x"0050";
+									RREM<=conv_integer(DMNXR);
+									RLA<=DMRLA;
+									RLR<=conv_integer(DMRLR);
+									RRP<='0';
+									evu:=true;
+								elsif(RSP='1' and RSE=REPOCH and LINECNT=0 and FOL='1')then
+									CTXTADR<=RSA;
+									STXTADR<=RSA;
+									CATRADR<=RSA+x"0050";
+									SATRADR<=RSA+x"0050";
+									RREM<=RSR;
+									RLA<=RSB;
+									RLR<=RSC;
+									RSP<='0';
+								elsif(RRP='1' and RRE=REPOCH and RRK=LINECNT and FOL='1')then
+									--This row is moved after an earlier write to 64h, 65h: from the values taken then
+									CTXTADR<=RRA;
+									STXTADR<=RRA;
+									CATRADR<=RRA+x"0050";
+									SATRADR<=RRA+x"0050";
+									RREM<=RRR;
+									RLA<=RRB;
+									RLR<=RRC;
+									RRP<='0';
+								end if;
+								if(DMA0='0' and RRLA='0')then
+									BLKR<='1';
+								else
+									BLKR<='0';
+								end if;
 								if(rTMODE='1')then
 									STATE<=ST_GETBUS;
 									BUSREQi<='0';
@@ -788,7 +1027,7 @@ begin
 						if(rTMODE='0' or MRAM_WAITr='0')then
 							MRAM_RDn<='1';
 							TVRAM_ADR<=CDSTADR;
-							if (LINESKIP='1')then
+							if (LINESKIP='1' or BLKR='1')then
 								TVRAM_WDAT<='0' & x"00";
 							else
 								TVRAM_WDAT<='0' & RDDAT;
@@ -896,7 +1135,9 @@ begin
 						end if;
 					when ST_SETATR =>
 						TVRAM_ADR<=CDSTADR;
-						if(FIXATR='1')then
+						if(BLKR='1')then
+							TVRAM_WDAT<='0' & x"80";
+						elsif(FIXATR='1')then
 							TVRAM_WDAT<=FIXVAL;
 						else
 							TVRAM_WDAT<=CURATR;
@@ -935,8 +1176,8 @@ begin
 							CURATR(8)<='0';
 							CURATR(6)<='0';
 							FIXATR<='0';
-							--A row read ahead leaves it as it is.
-							if(PFROW='0' and RSTP='0')then
+							--A row read ahead, or the last row of a restart frame, leaves it as it is.
+							if(PFROW='0' and RSTP='0' and RRLA='0')then
 								ATRCARRY<='0' & CURATR(7) & '0' & CURATR(5 downto 0);
 							end if;
 							if(PFROW='1')then
@@ -1035,6 +1276,9 @@ begin
 					DMXF<='0';
 					DMA0<='0';
 					F0OK<='0';
+					RRP<='0';
+					QLP<='0';
+					RSP<='0';
 				end if;
 				pVRET<=VRETr;
 				pHRET<=HRETr;
@@ -1126,7 +1370,22 @@ begin
 							and (SMODE='0' or REQ>=capROWS or (REQ mod 2)=0))then
 							DMAT<=DMAT+1;
 							DMAN<=LINEADD(7 downto 0);
+							if(REQ>=capROWS and SMODE='1')then
+								DNX<=2;
+							elsif(REQ>=capROWS)then
+								DNX<=1;
+							elsif(SMODE='1')then
+								DNX<=REQ+2;
+							else
+								DNX<=REQ+1;
+							end if;
 							if(REQ>=capROWS)then
+								EPOCH<=EPOCH+1;
+								--V2, a restart frame: its last row shows the row 0 moved now
+								if(DMA0='0' and capV1S='0' and capROWS>=2)then
+									QLP<='1';
+									QLE<=REPOCH;
+								end if;
 								DMXF<='1';
 								F0A<=DMNXA;
 								F0R<=conv_integer(DMNXR);
@@ -1157,6 +1416,52 @@ begin
 					PFOK<='0';
 					if(PFHOLD='1')then
 						PFRST<='1';
+					end if;
+				end if;
+				--A write to 64h or 65h: the rows the 8257 moves from now on come from the new values
+				lDMWE<=DMWE;
+				if(DMWE/=lDMWE and TEXTENr='1' and not evu)then
+					iRRK:=EVK;
+					if(EVOK='1' and iRRK=0 and not (capV1S='1' and PFROW='1'))then
+						--row 0 of the next frame, still waiting to be moved
+						RSP<='1';
+						RSE<=EPOCH;
+						RSA<=DMNXA;
+						RSR<=conv_integer(DMNXR);
+						RSB<=DMRLA;
+						RSC<=conv_integer(DMRLR);
+					elsif(EVOK='1')then
+						RRP<='1';
+						RRFO<='1';
+						RRK<=iRRK;
+						RRE<=EPOCH;
+						RRA<=DMNXA;
+						RRR<=conv_integer(DMNXR);
+						RRB<=DMRLA;
+						RRC<=conv_integer(DMRLR);
+						--V1S has started reading that row (with the bus, not read again): the new values
+						--take effect one row later
+						if(capV1S='1' and EPOCH=REPOCH and ((PFROW='1' and iRRK=0) or (PFROW='0' and iRRK+1=LINECNT)))then
+							--(S=1: the next row with text, as the blank row between moves the address on)
+							if(PFROW='1' and SMODE='1')then
+								RRK<=2;
+							elsif(PFROW='1')then
+								RRK<=1;
+							elsif(SMODE='1')then
+								RRK<=LINECNT+1;
+							else
+								RRK<=LINECNT;
+							end if;
+							RRA<=nxa(DMNXA,LINEADD,conv_integer(DMNXR),DMRLA,'1');
+							RRR<=nxr(LINEADD,conv_integer(DMNXR),conv_integer(DMRLR),'1');
+						end if;
+					elsif(iRRK<capROWS)then
+						--Not one to follow: the rest is drawn as before (this frame and the next, as
+						--a frame may start in this same step)
+						RRP<='0';
+						RSP<='0';
+						FOL<='0';
+						F0OK<='0';
 					end if;
 				end if;
 				--Rows that are not 120 bytes stop following the 8257 for the rest of the frame
