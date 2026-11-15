@@ -950,7 +950,11 @@ port(
 	DMOK	:out std_logic;
 	DMWE	:out std_logic_vector(1 downto 0);
 	DMCF	:out std_logic;
-	DMPD	:out std_logic
+	DMPD	:out std_logic;
+	DMSPL	:out std_logic;
+	DMSPM	:out std_logic_vector(7 downto 0);
+	DMSPA	:out std_logic_vector(15 downto 0);
+	DMRSA	:out std_logic_vector(15 downto 0)
 );
 end component;
 
@@ -1006,6 +1010,10 @@ port(
 	DMWE		:in std_logic_vector(1 downto 0);
 	DMCF		:in std_logic;
 	DMPD		:in std_logic;
+	DMSPL		:in std_logic;
+	DMSPM		:in std_logic_vector(7 downto 0);
+	DMSPA		:in std_logic_vector(15 downto 0);
+	DMRSA		:in std_logic_vector(15 downto 0);
 	
 	CPUBUS		:in std_logic;
 	CPUM1n		:in std_logic;
@@ -1792,6 +1800,9 @@ signal	TDMA_RLR	:std_logic_vector(14 downto 0);
 signal	TDMA_OK		:std_logic;
 signal	TDMA_WE		:std_logic_vector(1 downto 0);
 signal	TDMA_CF,TDMA_PD	:std_logic;
+signal	TDMA_SPL	:std_logic;
+signal	TDMA_SPM	:std_logic_vector(7 downto 0);
+signal	TDMA_SPA,TDMA_RSA	:std_logic_vector(15 downto 0);
 signal	DMA_OE		:std_logic;
 signal	IDAT_IOR71	:std_logic_vector(7 downto 0);
 signal	IOR71_OE	:std_logic;
@@ -2952,6 +2963,10 @@ port map(
 	DMWE		=>TDMA_WE,
 	DMCF		=>TDMA_CF,
 	DMPD		=>TDMA_PD,
+	DMSPL		=>TDMA_SPL,
+	DMSPM		=>TDMA_SPM,
+	DMSPA		=>TDMA_SPA,
+	DMRSA		=>TDMA_RSA,
 	
 	CPUBUS		=>BUSSEL,
 	CPUM1n		=>M1_n,
@@ -3152,7 +3167,7 @@ port map(
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'0','0','1','0','0','0','0');
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);
 	IOWaa	:IO_WRS generic map(x"aa")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,S2INTM,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
-	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE,TDMA_REQ,TDMA_LEN,TDMA_NXA,TDMA_NXR,TDMA_RLA,TDMA_RLR,TDMA_OK,TDMA_WE,TDMA_CF,TDMA_PD);
+	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE,TDMA_REQ,TDMA_LEN,TDMA_NXA,TDMA_NXR,TDMA_RLA,TDMA_RLR,TDMA_OK,TDMA_WE,TDMA_CF,TDMA_PD,TDMA_SPL,TDMA_SPM,TDMA_SPA,TDMA_RSA);
 	pStrA<=pStr;
 	pStrB<=pStr;
 	
