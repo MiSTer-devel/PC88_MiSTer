@@ -287,7 +287,7 @@ signal	RRR,RRC		:integer range 0 to RMAX;
 signal	BLKR		:std_logic;	-- this row is drawn blank (the 8257 did not move it)
 --A FH switches the address in the middle of a row when 64h is written while it moves (fhp5): row SPK
 --(of frame SPE) starts at SPRA and takes bytes SPMr on from SPAr (SPP, a mark of its own, as later writes
---mark the rows after it). While SPLON, the row being read takes bytes SPLMa on from SPLAa (sx, nxs).
+--mark the rows after it). While SPLON, the row being read takes bytes SPLMa on from SPLAa (ra, nxs).
 signal	SPP,SPLON	:std_logic;
 signal	SPK			:integer range 0 to 27;
 signal	SPE			:std_logic_vector(1 downto 0);
