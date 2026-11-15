@@ -71,6 +71,10 @@ The OSD option Keyboard layout sets how the PC keyboard maps to the PC-8801.
 - JP (default): by key position, for Japanese keyboards. This is the table above.
 - US: the symbol keys give the characters on US keycaps. \ gives ¥ and Shift+- gives _. ` has no PC-8801 key and gives nothing, so Full-width is not on the keyboard. For @, ^, :, = and ', the core changes the PC-8801 SHIFT while the key is held, so other keys typed while it is held, or just after a short tap, can get the wrong SHIFT, and the function key labels switch while it is held. Right Alt is KANA (each press toggles kana; the Scroll Lock LED shows the state) and Left Alt is GRPH. With kana or GRPH on when a key is pressed, the key keeps its position.
 
+### FH/MA keyboard on the SNAC
+
+A PC-8801 FH/MA keyboard (the one with the 5-pin mini DIN plug) can be used with SNAC set to Keyboard on the OSD. Its data line goes to D+ of the user port through a 5V to 3.3V level shifter, and the keyboard takes +5V and GND from the port. It works with the common SNAC level converter board: data to D+, +5V to 5V and GND to GND on its 5V side, with its jumper installed. The PS/2 keyboard still works with SNAC set to Keyboard. With SNAC set to Off, the keyboard can stay connected and its keys are ignored.
+
 ## Sound Board
 
 The Sound Board option on the OSD selects the sound chips.
