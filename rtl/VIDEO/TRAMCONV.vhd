@@ -109,7 +109,7 @@ constant MAXLINES	:integer	:=25;
 --The start of the row being read. Its text is read from byte CHARCNT of the row, its
 --attributes from byte AOFF (from 80 on).
 signal	STXTADR	:std_logic_vector(15 downto 0);
-signal	AOFF	:std_logic_vector(7 downto 0);
+signal	AOFF	:std_logic_vector(15 downto 0);
 signal	SDSTADR	:std_logic_vector(11 downto 0);
 signal	CDSTADR	:std_logic_vector(11 downto 0);
 signal	ATRCNT	:integer range 0 to 19;
@@ -302,17 +302,17 @@ signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
 --them clear between rows): bits 7 and 5..0
 type ATRK_T is array(0 to MAXLINES-1) of std_logic_vector(6 downto 0);
 signal	ATRK		:ATRK_T;
-signal	RDOFS		:std_logic_vector(7 downto 0);	-- the byte of the row read now (text or attribute)
+signal	RDOFS		:std_logic_vector(15 downto 0);	-- the byte of the row read now (text or attribute)
 signal	RDA			:std_logic_vector(15 downto 0);	-- its address
 --The address of byte o of a row that starts at s: past TC (rm bytes on) it comes from where the
 --8257 reloads (rla), and in a row that changes over to another address at byte sm, from sa
-function ra(s :std_logic_vector(15 downto 0); o :std_logic_vector(7 downto 0); rm :integer; rla :std_logic_vector(15 downto 0); fol :std_logic;
+function ra(s,o :std_logic_vector(15 downto 0); rm :integer; rla :std_logic_vector(15 downto 0); fol :std_logic;
 	spl :std_logic; sm :std_logic_vector(7 downto 0); sa :std_logic_vector(15 downto 0)) return std_logic_vector is
 begin
-	if(spl='1' and o>=sm)then
-		return sa+(o-sm);
+	if(spl='1' and o>=(x"00" & sm))then
+		return sa+(o-(x"00" & sm));
 	elsif(fol='1' and conv_integer(o)>=rm)then
-		return rla+(o-conv_std_logic_vector(rm,8));
+		return rla+(o-conv_std_logic_vector(rm,16));
 	else
 		return s+o;
 	end if;
@@ -383,7 +383,7 @@ begin
 	RDAT1<='0' when capV1S='0' and LINECNT>LINES else '1';
 	FOLL<=FOL when LINEADD=x"0078" else '0';
 	--The byte read now: text bytes in ST_RDTXT, attribute bytes in ST_RDATR and ST_RDATR2
-	RDOFS<=conv_std_logic_vector(CHARCNT,8) when STATE=ST_RDTXT else AOFF;
+	RDOFS<=conv_std_logic_vector(CHARCNT,16) when STATE=ST_RDTXT else AOFF;
 	RDA<=ra(STXTADR,RDOFS,RREM,RLA,FOLL,SPLON and FOLL,SPLMa,SPLAa);
 	--A request still waiting when 64h, 65h is written moves its row from the new values too
 	EVK<=	0		when DMPD='1' and DNX=0 else
@@ -451,7 +451,7 @@ begin
 		if(rstn='0')then
 			STATE<=ST_IDLE;
 			STXTADR<=(others=>'0');
-			AOFF<=x"50";
+			AOFF<=x"0050";
 			ATRCNT<=0;
 			CURATR<="000000111";
 			ATRCARRY<="000000111";
@@ -1108,7 +1108,7 @@ begin
 						else
 							CDSTADR<=SDSTADR+"001";
 							CHARCNT<=0;
-							AOFF<=x"50";
+							AOFF<=x"0050";
 							if (LINESKIP='1')then
 								STATE<=ST_SKIPATR;
 							elsif (SPCHR='1')then
@@ -1145,7 +1145,7 @@ begin
 							end case;
 							MRAM_RDn<='1';
 							if (ATRCNT=iATTRLEN)then
-								AOFF<=x"51";
+								AOFF<=x"0051";
 								ATRCNT<=0;
 								if (fATTR(0)='1' or iATTRCUL=0)then
 									STATE<=ST_RDATR2;
