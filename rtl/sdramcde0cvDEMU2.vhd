@@ -1292,9 +1292,12 @@ begin
 								STATE<=ST_FDEREAD;
 							elsif(FDEJOB=JOB_WR)then
 								STATE<=ST_FDEWRITE;
-							elsif(FECJOB=JOB_RD)then
+							-- A waiting main CPU access goes before the FDC-EC: an image sync to SD
+							-- reads and writes the image through it back to back, which would
+							-- slow the CPU by about 3.5%.
+							elsif(FECJOB=JOB_RD and CPUJOB=JOB_NOP)then
 								STATE<=ST_FECREAD;
-							elsif(FECJOB=JOB_WR)then
+							elsif(FECJOB=JOB_WR and CPUJOB=JOB_NOP)then
 								STATE<=ST_FECWRITE;
 							elsif(SNDJOB=JOB_RD)then
 								STATE<=ST_SNDREAD;
