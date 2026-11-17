@@ -324,11 +324,11 @@ signal	SBLK		:std_logic;	-- this row is such a row: no attributes, and in V1S no
 --FH keeps them, in two row buffers (PBUF, PSL: the one for the row read now, and so the older one); such a row (RPTR)
 --is read from there, without the bus or a hold.
 signal	SRPT,RPTR	:std_logic;
-type PBUF_T is array(0 to 255) of std_logic_vector(7 downto 0);
+type PBUF_T is array(0 to 511) of std_logic_vector(7 downto 0);
 signal	PBUF		:PBUF_T;
 signal	PSL			:std_logic;
 signal	PBWE		:std_logic;
-signal	PBWA,PBRA	:std_logic_vector(7 downto 0);
+signal	PBWA,PBRA	:std_logic_vector(8 downto 0);
 signal	PBWD,PBQ	:std_logic_vector(7 downto 0);
 signal	PKA			:std_logic_vector(11 downto 0);	-- (the read of row 0 leaves RDADR as it is)
 --The attribute at the start of each row, without the over and under lines (CURATR has
@@ -406,7 +406,7 @@ signal	VMODEs1,GVSTRs1,VT24s1,VT15s1	:std_logic;
 begin
 
 	RDDAT<=PBQ when RPTR='1' else MRAM_DAT when rTMODE='1' else TRAM_DAT;
-	--the two row buffers (a block RAM: 2 x 128 bytes)
+	--the two row buffers (a block RAM: 2 x 256 bytes, for rows up to 80 + 2 x 32 = 144 bytes)
 	process(clk)begin
 		if(clk' event and clk='1')then
 			if(PBWE='1')then
@@ -1176,7 +1176,7 @@ begin
 						end if;
 					when ST_RDTXT =>
 						MRAM_RDn<='0';
-						PBRA<=PSL & conv_std_logic_vector(CHARCNT,7);
+						PBRA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 						RDADR<=RDA;
 						STATE<=ST_RDTXT1;
 						if(rTMODE='1')then
@@ -1187,7 +1187,7 @@ begin
 						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1' or RPTR='1')then
 							MRAM_RDn<='1';
 							PBWE<=not RPTR;
-							PBWA<=PSL & conv_std_logic_vector(CHARCNT,7);
+							PBWA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 							PBWD<=RDDAT;
 							TVRAM_ADR<=CDSTADR;
 							if (LINESKIP='1' or BLKR='1')then
@@ -1225,7 +1225,7 @@ begin
 						STATE<=ST_SETATR;
 					when ST_RDATR =>
 						MRAM_RDn<='0';
-						PBRA<=PSL & AOFF(6 downto 0);
+						PBRA<=PSL & AOFF(7 downto 0);
 						RDADR<=RDA;
 						STATE<=ST_RDATR1;
 						if(rTMODE='1')then
@@ -1235,7 +1235,7 @@ begin
 					when ST_RDATR1 =>
 						if(rTMODE='0' or MRAM_WAITr='0' or RPTR='1')then
 							PBWE<=not RPTR;
-							PBWA<=PSL & AOFF(6 downto 0);
+							PBWA<=PSL & AOFF(7 downto 0);
 							PBWD<=RDDAT;
 							case(RDDAT(6 downto 4))is
 								when o"0"|o"1"|o"2"|o"3"|o"4" =>
@@ -1271,7 +1271,7 @@ begin
 							end if;
 						end if;
 					when ST_RDATR2 =>
-						PBRA<=PSL & AOFF(6 downto 0);
+						PBRA<=PSL & AOFF(7 downto 0);
 						RDADR<=RDA;
 						MRAM_RDn<='0';
 						STATE<=ST_RDATR3;
@@ -1282,7 +1282,7 @@ begin
 					when ST_RDATR3 =>
 						if(rTMODE='0' or MRAM_WAITr='0' or RPTR='1')then
 							PBWE<=not RPTR;
-							PBWA<=PSL & AOFF(6 downto 0);
+							PBWA<=PSL & AOFF(7 downto 0);
 							PBWD<=RDDAT;
 							if(COLOR='0' or ATTRCOLOR='0')then
 								CURATR(0)<='1';
