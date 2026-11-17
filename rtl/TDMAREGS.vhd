@@ -92,10 +92,15 @@ signal	BLEN	:std_logic_vector(7 downto 0);
 -- the bytes moved so far (spread evenly over DMABURST), and a write of either byte of 64h during a
 -- row makes the address at that byte the start of a new run: from byte M0A on, the bytes come
 -- from SEGA. The end of the row is then SEGA plus the bytes left. CA0, CC0: where the row started.
--- A write to 65h during a row is taken as made after it (WC: low, high byte written).
+-- A write of either byte of 65h during a row takes effect at once too (fhp7 CP, CL, CH): the count runs
+-- down from the new value with the next byte, and the other byte stays as it has run down to. CC0 is
+-- then set so that CC0 minus MB is the new count (CCW: written in this row). CC0 has one bit more than
+-- the count, so that a count too large to run out in this row does not wrap into it.
 signal	CA0		:std_logic_vector(15 downto 0);
-signal	CC0		:std_logic_vector(13 downto 0);
-signal	WC		:std_logic_vector(1 downto 0);
+signal	CC0		:std_logic_vector(14 downto 0);
+signal	CCL		:std_logic_vector(13 downto 0);
+signal	CUC		:std_logic_vector(13 downto 0);
+signal	CCW		:std_logic;
 signal	SEGA	:std_logic_vector(15 downto 0);
 signal	M0A		:std_logic_vector(7 downto 0);
 signal	MB		:std_logic_vector(7 downto 0);
@@ -128,14 +133,17 @@ begin
 	RLD<='1' when ALR='1' and unsigned(MB)>unsigned(CC0)+1 else '0';
 	-- (BUSY: a row that ends with MB still at CC0+1 must not leave UPDATE set until the next row)
 	UPW<='1' when ALR='1' and BUSY='1' and unsigned(MB)=unsigned(CC0)+1 else '0';
-	NB<=unsigned(std_logic_vector'("000000" & MB))-unsigned(CC0)-1;
+	NB<=unsigned(std_logic_vector'("000000" & MB))-unsigned(CCL)-1;
+	CCL<=CC0(13 downto 0);
+	-- The count as it has run down in this row (before TC, or past it without autoload or stop)
+	CUC<=unsigned(CCL)-unsigned(MB);
 	CUR<=unsigned(CHREG(CH2A+2))+unsigned(NB) when RLD='1' else unsigned(SEGA)+(unsigned(MB)-unsigned(M0A));
 	CHDAT<=	CUR						when CHNO=CH2A and BUSY='1' else
 			CA						when CHNO=CH2A else
 			-- (without autoload or stop the count runs on past TC and wraps: fhp6 TW)
-			CM & std_logic_vector'(unsigned(CC0)-unsigned(MB))	when CHNO=CH2C and BUSY='1' and WC="00" and (unsigned(MB)<=unsigned(CC0) or (MAL='0' and MTCS='0')) else
-			CHREG(CH2C+2)(15 downto 14) & std_logic_vector'(unsigned(CHREG(CH2C+2)(13 downto 0))-unsigned(NB))	when CHNO=CH2C and BUSY='1' and WC="00" and RLD='1' else
-			CM & "11111111111111"	when CHNO=CH2C and BUSY='1' and WC="00" else
+			CM & CUC				when CHNO=CH2C and BUSY='1' and (unsigned(MB)<=unsigned(CC0) or (MAL='0' and MTCS='0')) else
+			CHREG(CH2C+2)(15 downto 14) & std_logic_vector'(unsigned(CHREG(CH2C+2)(13 downto 0))-unsigned(NB))	when CHNO=CH2C and BUSY='1' and RLD='1' else
+			CM & "11111111111111"	when CHNO=CH2C and BUSY='1' else
 			CM & CC					when CHNO=CH2C else
 			CHREG(CHNO);
 	RDAT<=	"000" & (UPD or UPW) & '0' & TC2 & "00"	when STSEL='1' else
@@ -188,7 +196,7 @@ begin
 			BLEN<=(others=>'0');
 			CA0<=(others=>'0');
 			CC0<=(others=>'0');
-			WC<="00";
+			CCW<='0';
 			SEGA<=(others=>'0');
 			M0A<=(others=>'0');
 			MB<=(others=>'0');
@@ -212,11 +220,15 @@ begin
 						if(BUSY='1' and WAF='1')then
 							CA<=CUR;
 						end if;
-						if(BUSY='1' and (WAF='1' or WC/="00"))then
+						-- and a count written in it stays where it has run down to
+						if(BUSY='1' and CCW='1')then
+							CC<=CUC;
+						end if;
+						if(BUSY='1' and (WAF='1' or CCW='1'))then
 							WEC<=unsigned(WEC)+1;
 						end if;
 						WAF<='0';
-						WC<="00";
+						CCW<='0';
 					end if;
 					MAL<=DAT(7);
 					-- Turning autoload off clears UPDATE, so channel 2 is not reloaded from channel 3 (8257)
@@ -259,13 +271,17 @@ begin
 							end if;
 						end if;
 					elsif(CHNO=CH2C)then
-						-- During a row transfer: counted at the end of the row
+						-- During a row transfer: the count runs down from the new value from the next byte on
+						-- (counted at the end of the row)
 						if(BUSY='0')then
 							WEC<=unsigned(WEC)+1;
-						elsif(FL='0')then
-							WC(0)<='1';
 						else
-							WC(1)<='1';
+							CCW<='1';
+							if(FL='0')then
+								CC0<=unsigned(std_logic_vector'('0' & CUC(13 downto 8) & DAT))+unsigned(MB);
+							else
+								CC0<=unsigned(std_logic_vector'('0' & DAT(5 downto 0) & CUC(7 downto 0)))+unsigned(MB);
+							end if;
 						end if;
 						if(FL='0')then
 							CC(7 downto 0)<=DAT;
@@ -312,19 +328,19 @@ begin
 							CC<=CHREG(CH2C+2)(13 downto 0);
 							CM<=CHREG(CH2C+2)(15 downto 14);
 							CA0<=CHREG(CH2A+2);
-							CC0<=CHREG(CH2C+2)(13 downto 0);
+							CC0<='0' & CHREG(CH2C+2)(13 downto 0);
 							SEGA<=CHREG(CH2A+2);
 							UPD<='0';
 						else
 							CA0<=CA;
-							CC0<=CC;
+							CC0<='0' & CC;
 							SEGA<=CA;
 						end if;
 						M0A<=(others=>'0');
 						MB<=(others=>'0');
 						ACC<=0;
 						WAF<='0';
-						WC<="00";
+						CCW<='0';
 						TCR<='0';
 						BUSY<='1';
 						BCNT<=DMABURST;
@@ -363,7 +379,7 @@ begin
 					-- TC inside the row with autoload: the rest of the row comes from channel 3 (FH)
 					if(unsigned(CC0)<unsigned(BLEN)-1 and MAL='1' and unsigned(CHREG(CH2C+2)(13 downto 0))>=unsigned(BLEN)-unsigned(CC0)-1)then
 						nca:=unsigned(CHREG(CH2A+2))+(unsigned(BLEN)-unsigned(CC0)-1);
-						ncc:=unsigned(CHREG(CH2C+2)(13 downto 0))-(unsigned(BLEN)-unsigned(CC0)-1);
+						ncc:=unsigned(CHREG(CH2C+2)(13 downto 0))-(unsigned(BLEN)-unsigned(CCL)-1);
 						ncm:=CHREG(CH2C+2)(15 downto 14);
 						if(TCR='0')then
 							TC2<='1';
@@ -378,7 +394,7 @@ begin
 					elsif(MID='1' and MAL='0' and MTCS='0')then
 						-- TC inside the row without autoload or stop: the row runs on, the count wraps (fhp6 TW)
 						nca:=unsigned(CA0)+unsigned(BLEN);
-						ncc:=unsigned(CC0)-unsigned(BLEN);
+						ncc:=unsigned(CCL)-unsigned(BLEN);
 						nrm:=true;
 						if(TCR='0')then
 							TC2<='1';
@@ -397,7 +413,7 @@ begin
 						end if;
 					else
 						nca:=unsigned(CA0)+unsigned(BLEN);
-						ncc:=unsigned(CC0)-unsigned(BLEN);
+						ncc:=unsigned(CCL)-unsigned(BLEN);
 						nrm:=true;
 					end if;
 					-- An address written during the row: the row ended where the new run reached (also when the
@@ -408,15 +424,9 @@ begin
 					end if;
 				end if;
 				CA<=nca;
-				-- Bytes of 65h written during the row stay as written
-				if(WC(0)='0')then
-					CC(7 downto 0)<=ncc(7 downto 0);
-				end if;
-				if(WC(1)='0')then
-					CC(13 downto 8)<=ncc(13 downto 8);
-					CM<=ncm;
-				end if;
-				if(WAF='1' or WC/="00")then
+				CC<=ncc;
+				CM<=ncm;
+				if(WAF='1' or CCW='1')then
 					WEC<=unsigned(WEC)+1;
 				end if;
 				-- (also when the count runs out just at the end of the row: the next row is reloaded, TRAMCONV
@@ -428,7 +438,7 @@ begin
 				SPA<=SEGA;
 				RSA<=CA0;
 				WAF<='0';
-				WC<="00";
+				CCW<='0';
 			end if;
 		end if;
 	end process;
