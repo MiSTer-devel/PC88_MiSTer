@@ -320,11 +320,16 @@ signal	STPR		:std_logic;	-- the row starting now is after a stop: drawn black, n
 signal	SBLK		:std_logic;	-- this row is such a row: no attributes, and in V1S no bus
 --The value of that last pair with bit 1 clear (SRPT): a FH shows the rows after it from its two row buffers,
 --the two rows before them in turn, not black (fhp13: 01h, 05h, 09h, 11h, 21h, 41h, 81h, 31h; black with
---03h, 4Fh, FFh). Such a row (RPTR) is read again from the start of the row before (ROWA1) or of the last row
---(ROWA0) read, without a hold.
+--03h, 4Fh, FFh), drawn again with the attributes they end with (fhp14). The bytes of the rows read are kept as a
+--FH keeps them, in two row buffers (PBUF, PSL: the one for the row read now, and so the older one); such a row (RPTR)
+--is read from there, without the bus or a hold.
 signal	SRPT,RPTR	:std_logic;
-signal	STPO		:std_logic;	-- the row starting now is an odd number of rows after STK
-signal	ROWA0,ROWA1	:std_logic_vector(15 downto 0);
+type PBUF_T is array(0 to 255) of std_logic_vector(7 downto 0);
+signal	PBUF		:PBUF_T;
+signal	PSL			:std_logic;
+signal	PBWE		:std_logic;
+signal	PBWA,PBRA	:std_logic_vector(7 downto 0);
+signal	PBWD,PBQ	:std_logic_vector(7 downto 0);
 signal	PKA			:std_logic_vector(11 downto 0);	-- (the read of row 0 leaves RDADR as it is)
 --The attribute at the start of each row, without the over and under lines (CURATR has
 --them clear between rows): bits 7 and 5..0
@@ -400,13 +405,21 @@ signal	VMODEs1,GVSTRs1,VT24s1,VT15s1	:std_logic;
 
 begin
 
-	RDDAT<=MRAM_DAT when rTMODE='1' else TRAM_DAT;
+	RDDAT<=PBQ when RPTR='1' else MRAM_DAT when rTMODE='1' else TRAM_DAT;
+	--the two row buffers (a block RAM: 2 x 128 bytes)
+	process(clk)begin
+		if(clk' event and clk='1')then
+			if(PBWE='1')then
+				PBUF(conv_integer(PBWA))<=PBWD;
+			end if;
+			PBQ<=PBUF(conv_integer(PBRA));
+		end if;
+	end process;
 	TRAM_ADR<=PKA when PKM='1' else RDADR(11 downto 0);
 	STRI<=0 when PFROW='1' or LINECNT=0 else LINECNT-1;
 	STEL<='1' when BLKR='0' and LINESKIP='0' and RRLA='0' and RPTR='0' and EPOCH=REPOCH
 		and ((capV1S='0' and LINECNT>=2) or (capV1S='1' and (PFROW='1' or LINECNT>=1))) else '0';
 	STPR<='1' when STP='1' and STK<LINECNT and EPOCH=REPOCH and RRLA='0' else '0';
-	STPO<='1' when ((LINECNT+STK) mod 2)=1 else '0';
 	MRAM_ADR<=RDADR;
 	iATTRLEN<=conv_integer(ATTRLEN);
 	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
@@ -639,8 +652,11 @@ begin
 			SBLK<='0';
 			SRPT<='0';
 			RPTR<='0';
-			ROWA0<=(others=>'0');
-			ROWA1<=(others=>'0');
+			PSL<='0';
+			PBWE<='0';
+			PBWA<=(others=>'0');
+			PBRA<=(others=>'0');
+			PBWD<=(others=>'0');
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -658,6 +674,7 @@ begin
 					TSok<=TSr3;
 				end if;
 				TVRAM_WR<='0';
+				PBWE<='0';
 				DONE<='0';
 				evu:=false;
 				if(SPP='1' and SPE=REPOCH and SPK<LINECNT and FOL='1')then
@@ -851,17 +868,10 @@ begin
 									NOHOLD<='0';
 								end if;
 								if(STPR='1' and SRPT='1')then
-									--(a row after the stop shown from the row buffers: read again, no hold)
-									if(STPO='1')then
-										STXTADR<=ROWA1;
-									else
-										STXTADR<=ROWA0;
-									end if;
-									RREM<=RMAX;
-									SPLON<='0';
+									--(a row after the stop shown from the row buffers: no bus, no hold)
 									NOHOLD<='1';
 								end if;
-								if(rTMODE='1' and (STPR='0' or SRPT='1'))then
+								if(rTMODE='1' and STPR='0')then
 									STATE<=ST_GETBUS;
 									BUSREQi<='0';
 								elsif(rTVRMODE='1')then
@@ -1112,16 +1122,7 @@ begin
 								end if;
 								SBLK<=STPR and not SRPT;
 								RPTR<=STPR and SRPT;
-								if(STPR='1' and SRPT='1')then
-									if(STPO='1')then
-										STXTADR<=ROWA1;
-									else
-										STXTADR<=ROWA0;
-									end if;
-									RREM<=RMAX;
-									SPLON<='0';
-								end if;
-								if(rTMODE='1')then
+								if(rTMODE='1' and (STPR='0' or SRPT='0'))then
 									STATE<=ST_GETBUS;
 									BUSREQi<='0';
 								elsif(rTVRMODE='1')then
@@ -1175,20 +1176,19 @@ begin
 						end if;
 					when ST_RDTXT =>
 						MRAM_RDn<='0';
+						PBRA<=PSL & conv_std_logic_vector(CHARCNT,7);
 						RDADR<=RDA;
-						if(CHARCNT=0 and SBLK='0' and RPTR='0')then
-							--the starts of the last two rows read (the row buffers of a FH)
-							ROWA1<=ROWA0;
-							ROWA0<=STXTADR;
-						end if;
 						STATE<=ST_RDTXT1;
 						if(rTMODE='1')then
 							--One cycle more, to pay back the cycle spent registering MRAM_WAIT.
 							waitcount<=3;
 						end if;
 					when ST_RDTXT1 =>
-						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1')then
+						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1' or RPTR='1')then
 							MRAM_RDn<='1';
+							PBWE<=not RPTR;
+							PBWA<=PSL & conv_std_logic_vector(CHARCNT,7);
+							PBWD<=RDDAT;
 							TVRAM_ADR<=CDSTADR;
 							if (LINESKIP='1' or BLKR='1')then
 								TVRAM_WDAT<='0' & x"00";
@@ -1225,6 +1225,7 @@ begin
 						STATE<=ST_SETATR;
 					when ST_RDATR =>
 						MRAM_RDn<='0';
+						PBRA<=PSL & AOFF(6 downto 0);
 						RDADR<=RDA;
 						STATE<=ST_RDATR1;
 						if(rTMODE='1')then
@@ -1232,7 +1233,10 @@ begin
 							waitcount<=3;
 						end if;
 					when ST_RDATR1 =>
-						if(rTMODE='0' or MRAM_WAITr='0')then
+						if(rTMODE='0' or MRAM_WAITr='0' or RPTR='1')then
+							PBWE<=not RPTR;
+							PBWA<=PSL & AOFF(6 downto 0);
+							PBWD<=RDDAT;
 							case(RDDAT(6 downto 4))is
 								when o"0"|o"1"|o"2"|o"3"|o"4" =>
 									--The column is the lower 7 bits.
@@ -1267,6 +1271,7 @@ begin
 							end if;
 						end if;
 					when ST_RDATR2 =>
+						PBRA<=PSL & AOFF(6 downto 0);
 						RDADR<=RDA;
 						MRAM_RDn<='0';
 						STATE<=ST_RDATR3;
@@ -1275,7 +1280,10 @@ begin
 							waitcount<=3;
 						end if;
 					when ST_RDATR3 =>
-						if(rTMODE='0' or MRAM_WAITr='0')then
+						if(rTMODE='0' or MRAM_WAITr='0' or RPTR='1')then
+							PBWE<=not RPTR;
+							PBWA<=PSL & AOFF(6 downto 0);
+							PBWD<=RDDAT;
 							if(COLOR='0' or ATTRCOLOR='0')then
 								CURATR(0)<='1';
 								CURATR(1)<='1';
@@ -1389,6 +1397,8 @@ begin
 							SDSTADR<=SDSTADR+x"0a0";
 							CHARCNT<=0;
 							ATRCNT<=0;
+							--the other row buffer for the next row
+							PSL<=not PSL;
 							--The over and under lines end with the row.
 							CURATR(8)<='0';
 							CURATR(6)<='0';
