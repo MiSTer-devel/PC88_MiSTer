@@ -297,6 +297,11 @@ signal	SPRR,SPRC	:integer range 0 to RMAX;
 signal	SPMr,SPLMa	:std_logic_vector(7 downto 0);
 signal	SPAr,SPLAa	:std_logic_vector(15 downto 0);
 signal	SPOK		:std_logic;	-- a write seen now made the row just moved change over in its middle
+--A write that leaves channel 3 shorter than a row only for a moment (65h written in the retrace: with
+--autoload its low byte goes to channel 3 before 66h, 67h are written, fhp9): stop following only if no
+--write that can be followed comes before the next row request (PDR, PDQ: the request as last seen)
+signal	PDR			:std_logic;
+signal	PDQ			:std_logic_vector(1 downto 0);
 signal	EVK			:integer range 0 to 27;	-- the row a write to 64h, 65h now takes effect from
 signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
 --The attribute at the start of each row, without the over and under lines (CURATR has
@@ -566,6 +571,8 @@ begin
 			DNX<=0;
 			lDMWE<="00";
 			lDMSPL<='0';
+			PDR<='0';
+			PDQ<="00";
 			SPP<='0';
 			SPLON<='0';
 			SPK<=0;
@@ -1511,6 +1518,9 @@ begin
 				end if;
 				if(DMWE/=lDMWE and TEXTENr='1' and not evu)then
 					iRRK:=EVK;
+					if(EVOK='1')then
+						PDR<='0';
+					end if;
 					if(EVOK='1' and iRRK=0 and not (capV1S='1' and PFROW='1'))then
 						--row 0 of the next frame, still waiting to be moved
 						RSP<='1';
@@ -1543,6 +1553,9 @@ begin
 							RRA<=nxa(DMNXA,LINEADD,conv_integer(DMNXR),DMRLA,'1');
 							RRR<=sat(nxr(LINEADD,conv_integer(DMNXR),conv_integer(DMRLR),'1'));
 						end if;
+					elsif(iRRK<capROWS and DMCF='1' and conv_integer(DMRLR)<120 and LINEADD=x"0078")then
+						--channel 3 shorter than a row: may be for a moment (PDR)
+						PDR<='1';
 					elsif(iRRK<capROWS)then
 						--Not one to follow: the rest is drawn as before (this frame and the next, as
 						--a frame may start in this same step)
@@ -1551,7 +1564,18 @@ begin
 						SPP<='0';
 						FOL<='0';
 						F0OK<='0';
+						PDR<='0';
 					end if;
+				end if;
+				--Still so at the next row request: not one to follow, as above
+				PDQ<=DMAT;
+				if(PDR='1' and PDQ/=DMAT and not (DMWE/=lDMWE and EVOK='1'))then
+					RRP<='0';
+					RSP<='0';
+					SPP<='0';
+					FOL<='0';
+					F0OK<='0';
+					PDR<='0';
 				end if;
 				--Rows that are not 120 bytes stop following the 8257 for the rest of the frame
 				--(last, so a frame start in the same step does not set it again)

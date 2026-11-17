@@ -39,7 +39,7 @@ port(
 	DMRLA	:out std_logic_vector(15 downto 0);
 	DMRLR	:out std_logic_vector(14 downto 0);
 	DMOK	:out std_logic;
-	-- Counts the writes to the channel 2 address and count: each byte written outside a row transfer,
+	-- Counts the writes to the channel 2 and 3 address and count: each byte written outside a row transfer,
 	-- and the writes during a row once, at the end of that row (TRAMCONV reads again the rows not yet moved)
 	DMWE	:out std_logic_vector(1 downto 0);
 	-- Channel 2 runs with autoload after a write of its address (DMOK without the timing),
@@ -109,6 +109,7 @@ signal	CCW		:std_logic;
 -- written value; at TC again they go on from the start of channel 3. SP1M, SP1A: where the row first
 -- changed over to channel 3. PTC: past the TC in the row (with autoload), RNC: the count then.
 signal	SGF,PTC	:std_logic;
+signal	C3W		:std_logic;	-- channel 3 written during this row
 signal	SP1M	:std_logic_vector(7 downto 0);
 signal	SP1A	:std_logic_vector(15 downto 0);
 signal	RNC		:std_logic_vector(13 downto 0);
@@ -211,6 +212,7 @@ begin
 			CC0<=(others=>'0');
 			CCW<='0';
 			SGF<='0';
+			C3W<='0';
 			SP1M<=(others=>'0');
 			SP1A<=(others=>'0');
 			SEGA<=(others=>'0');
@@ -240,12 +242,13 @@ begin
 						if(BUSY='1' and CCW='1')then
 							CC<=CUC;
 						end if;
-						if(BUSY='1' and (WAF='1' or CCW='1'))then
+						if(BUSY='1' and (WAF='1' or CCW='1' or C3W='1'))then
 							WEC<=unsigned(WEC)+1;
 						end if;
 						WAF<='0';
 						CCW<='0';
 						SGF<='0';
+						C3W<='0';
 					end if;
 					MAL<=DAT(7);
 					-- Turning autoload off clears UPDATE, so channel 2 is not reloaded from channel 3 (8257)
@@ -322,6 +325,15 @@ begin
 								CHREG(CH2C+2)(15 downto 8)<=DAT;
 							end if;
 						end if;
+					elsif(CHNO=CH2A+2 or CHNO=CH2C+2)then
+						-- Channel 3 written (66h, 67h): counted too, so TRAMCONV takes the new values for the
+						-- rows that go on from it (H0, fhp7: written after 64h, 65h in the retrace). During a
+						-- row transfer: at the end of the row
+						if(BUSY='0')then
+							WEC<=unsigned(WEC)+1;
+						else
+							C3W<='1';
+						end if;
 					end if;
 					FL<=not FL;
 				end if;
@@ -369,6 +381,7 @@ begin
 						WAF<='0';
 						CCW<='0';
 						SGF<='0';
+						C3W<='0';
 						TCR<='0';
 						BUSY<='1';
 						BCNT<=DMABURST;
@@ -456,7 +469,7 @@ begin
 				CA<=nca;
 				CC<=ncc;
 				CM<=ncm;
-				if(WAF='1' or CCW='1')then
+				if(WAF='1' or CCW='1' or C3W='1')then
 					WEC<=unsigned(WEC)+1;
 				end if;
 				-- (also when the count runs out just at the end of the row: the next row is reloaded, TRAMCONV
@@ -493,6 +506,7 @@ begin
 				WAF<='0';
 				CCW<='0';
 				SGF<='0';
+				C3W<='0';
 			end if;
 		end if;
 	end process;
