@@ -249,7 +249,8 @@ signal	DMXF		:std_logic;	-- row 0 of the next frame was moved
 signal	DMA0		:std_logic;	-- row 0 of this frame was moved in the last frame
 --A FH draws the rows in the order the 8257 moves them (vramtest K, fhp2, fhp3). Taken when
 --row 0 of the next frame is moved: where it starts, the bytes to TC, the autoload values.
---The rows follow it only when they are 120 bytes (20 attributes), as measured on a FH.
+--The rows follow it when they have 1 to 20 attributes (82 to 120 bytes, measured on a FH: fhp3, fhp12 N1 to N9),
+--not without attributes (SPCHR) or above 20 (LFOL).
 signal	F0A,F0B		:std_logic_vector(15 downto 0);
 --Byte counts to TC stop at RMAX: a frame moves at most 26 rows before they are taken again,
 --and a count above 26*120+255 reads the same as any other there.
@@ -263,7 +264,8 @@ signal	RREM		:integer range 0 to RMAX;
 signal	RLA			:std_logic_vector(15 downto 0);
 signal	RLR			:integer range 0 to RMAX;
 signal	RDAT1		:std_logic;	-- the row after this one is a row of the screen
-signal	FOLL		:std_logic;	-- FOL, and this row is 120 bytes
+signal	FOLL		:std_logic;	-- FOL, and this row can be followed (LFOL)
+signal	LFOL		:std_logic;	-- the rows have 1 to 20 attributes
 --A FH draws from the new address the rows the 8257 has not moved when 64h or 65h is written
 --(fhp3 Q4), and draws a frame after a CRTC or DMA restart black but its last row (Q6).
 signal	EPOCH		:std_logic_vector(1 downto 0);	-- counts the moves of row 0
@@ -407,7 +409,8 @@ begin
 	FSA<=F0A when F0OK='1' else TADR_TOP;
 	FSX<=F0A when F0OK='1' and DMXF='1' else TADR_TOP;
 	RDAT1<='0' when capV1S='0' and LINECNT>LINES else '1';
-	FOLL<=FOL when LINEADD=x"0078" else '0';
+	LFOL<='1' when SPCHR='0' and ATTRLEN<="10011" else '0';
+	FOLL<=FOL when LFOL='1' else '0';
 	--The byte read now: text bytes in ST_RDTXT, attribute bytes in ST_RDATR and ST_RDATR2
 	RDOFS<=conv_std_logic_vector(CHARCNT,16) when STATE=ST_RDTXT else AOFF;
 	RDA<=ra(STXTADR,RDOFS,RREM,RLA,FOLL,SPLON and FOLL,SPLMa,SPLAa);
@@ -416,8 +419,8 @@ begin
 			DNX-2	when DMPD='1' and SMODE='1' and DNX>=2 else
 			DNX-1	when DMPD='1' else
 			DNX;
-	EVOK<='1' when DMWE/=lDMWE and TEXTENr='1' and DMCF='1' and conv_integer(DMRLR)>=120 and LINEADD=x"0078" and EVK<capROWS else '0';
-	SPOK<='1' when DMWE/=lDMWE and TEXTENr='1' and DMCF='1' and conv_integer(DMRLR)>=120 and LINEADD=x"0078"
+	EVOK<='1' when DMWE/=lDMWE and TEXTENr='1' and DMCF='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LFOL='1' and EVK<capROWS else '0';
+	SPOK<='1' when DMWE/=lDMWE and TEXTENr='1' and DMCF='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LFOL='1'
 		and DMSPL/=lDMSPL and capV1S='0' and SMODE='0' and EVK>=1 and EVK<=capROWS else '0';
 	--M1 among the last 128 CPU bus cycles
 	process(clk,rstn)begin
@@ -1571,7 +1574,7 @@ begin
 								F0R<=sat(conv_integer(DMNXR));
 								F0B<=DMRLA;
 								F0C<=sat(conv_integer(DMRLR));
-								if(DMOK='1' and conv_integer(DMRLR)>=120 and LINEADD=x"0078")then
+								if(DMOK='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LFOL='1')then
 									F0OK<='1';
 								else
 									F0OK<='0';
@@ -1659,7 +1662,7 @@ begin
 							RRA<=nxa(DMNXA,LINEADD,conv_integer(DMNXR),DMRLA,'1');
 							RRR<=sat(nxr(LINEADD,conv_integer(DMNXR),conv_integer(DMRLR),'1'));
 						end if;
-					elsif(iRRK<capROWS and DMCF='1' and conv_integer(DMRLR)<120 and LINEADD=x"0078")then
+					elsif(iRRK<capROWS and DMCF='1' and conv_integer(DMRLR)<conv_integer(LINEADD) and LFOL='1')then
 						--channel 3 shorter than a row: may be for a moment (PDR)
 						PDR<='1';
 					elsif(iRRK<capROWS)then
@@ -1683,9 +1686,9 @@ begin
 					F0OK<='0';
 					PDR<='0';
 				end if;
-				--Rows that are not 120 bytes stop following the 8257 for the rest of the frame
+				--Rows that cannot be followed stop following the 8257 for the rest of the frame
 				--(last, so a frame start in the same step does not set it again)
-				if(LINEADD/=x"0078")then
+				if(LFOL='0')then
 					FOL<='0';
 					SPP<='0';
 					SPLON<='0';
