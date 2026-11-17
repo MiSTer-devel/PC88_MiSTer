@@ -50,6 +50,8 @@ port(
 	-- byte DMSPM on, it came from DMSPA (the row started at DMRSA). DMSPL toggles at the end of such a
 	-- row, in the same clock as DMWE moves on, and stays until the next such row (TRAMCONV keeps the last
 	-- value it has taken, so a write that follows at once does not hide it).
+	-- Also after a count written while it moved: from DMSPM on it came from channel 3, or DMSPM is the
+	-- length of the row when it did not change over.
 	DMSPL	:out std_logic;
 	DMSPM	:out std_logic_vector(7 downto 0);
 	DMSPA	:out std_logic_vector(15 downto 0);
@@ -436,6 +438,20 @@ begin
 				end if;
 				SPM<=M0A;
 				SPA<=SEGA;
+				-- A count written during the row (and no address): the row is drawn again too, as it may run
+				-- out in it now, or no more (fhp7 CP, CL, CH). With autoload and TC inside the row, the bytes
+				-- after the TC byte came from channel 3; otherwise the row did not change over (TRAMCONV
+				-- takes the next row from SPA plus the bytes after SPM, so SPA is where the next row starts)
+				if(WAF='0' and CCW='1' and MEN2='1' and STP='0')then
+					SPT<=not SPT;
+					if(MID='1' and MAL='1')then
+						SPM<=unsigned(CC0(7 downto 0))+1;
+						SPA<=CHREG(CH2A+2);
+					else
+						SPM<=BLEN;
+						SPA<=nca;
+					end if;
+				end if;
 				RSA<=CA0;
 				WAF<='0';
 				CCW<='0';
