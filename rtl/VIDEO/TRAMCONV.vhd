@@ -311,6 +311,10 @@ function ra(s,o :std_logic_vector(15 downto 0); rm :integer; rla :std_logic_vect
 	spl :std_logic; sm :std_logic_vector(7 downto 0); sa :std_logic_vector(15 downto 0)) return std_logic_vector is
 begin
 	if(spl='1' and o>=(x"00" & sm))then
+		--(the run from sa may run out again in the row: from byte rm on, the bytes come from rla)
+		if(fol='1' and conv_integer(o)>=rm)then
+			return rla+(o-conv_std_logic_vector(rm,16));
+		end if;
 		return sa+(o-(x"00" & sm));
 	elsif(fol='1' and conv_integer(o)>=rm)then
 		return rla+(o-conv_std_logic_vector(rm,16));
@@ -330,7 +334,7 @@ end function;
 function nxs(s,l :std_logic_vector(15 downto 0); rm :integer; rla :std_logic_vector(15 downto 0); fol :std_logic;
 	spl :std_logic; sm :std_logic_vector(7 downto 0); sa :std_logic_vector(15 downto 0)) return std_logic_vector is
 begin
-	if(spl='1')then
+	if(spl='1' and not (fol='1' and rm<=conv_integer(l)))then
 		return sa+l-(x"00" & sm);
 	else
 		return nxa(s,l,rm,rla,fol);
@@ -1494,10 +1498,15 @@ begin
 					SPK<=EVK-1;
 					SPE<=EPOCH;
 					SPRA<=DMRSA;
-					SPRR<=sat(conv_integer(DMNXR)+conv_integer(LINEADD));
+					--(DMSPM bit 7: the run from DMSPA ran out again in the row, at byte DMNXR+LINEADD-DMRLR, TDMAREGS)
+					if(DMSPM(7)='1')then
+						SPRR<=sat(conv_integer(DMNXR)+conv_integer(LINEADD)-conv_integer(DMRLR));
+					else
+						SPRR<=sat(conv_integer(DMNXR)+conv_integer(LINEADD));
+					end if;
 					SPRB<=DMRLA;
 					SPRC<=sat(conv_integer(DMRLR));
-					SPMr<=DMSPM;
+					SPMr<='0' & DMSPM(6 downto 0);
 					SPAr<=DMSPA;
 				end if;
 				if(DMWE/=lDMWE and TEXTENr='1' and not evu)then
