@@ -250,11 +250,11 @@ signal	DMXF		:std_logic;	-- row 0 of the next frame was moved
 signal	DMA0		:std_logic;	-- row 0 of this frame was moved in the last frame
 --A FH draws the rows in the order the 8257 moves them (vramtest K, fhp2, fhp3). Taken when
 --row 0 of the next frame is moved: where it starts, the bytes to TC, the autoload values.
---The rows follow it when they have 1 to 20 attributes (82 to 120 bytes, measured on a FH: fhp3, fhp12 N1 to N9),
---not without attributes (SPCHR) or above 20 (LFOL).
+--The rows follow it when they have attributes, 1 to 32 (82 to 144 bytes, measured on a FH: fhp3, fhp12 N1 to N9,
+--fhp15 W1 and X1), not without attributes (SPCHR) (LFOL).
 signal	F0A,F0B		:std_logic_vector(15 downto 0);
 --Byte counts to TC stop at RMAX: a frame moves at most 26 rows before they are taken again,
---and a count above 26*120+255 reads the same as any other there.
+--and a count above 26*144+255 reads the same as any other there.
 constant RMAX		:integer	:=4095;
 signal	F0R,F0C		:integer range 0 to RMAX;
 signal	F0OK		:std_logic;
@@ -266,7 +266,8 @@ signal	RLA			:std_logic_vector(15 downto 0);
 signal	RLR			:integer range 0 to RMAX;
 signal	RDAT1		:std_logic;	-- the row after this one is a row of the screen
 signal	FOLL		:std_logic;	-- FOL, and this row can be followed (LFOL)
-signal	LFOL		:std_logic;	-- the rows have 1 to 20 attributes
+signal	LFOL		:std_logic;	-- the rows have attributes (1 to 32: fhp15 W1/X1 follow the 8257 too)
+signal	FATL		:std_logic_vector(4 downto 0);	-- the attribute count when row 0 was taken (a change stops following)
 --A FH draws from the new address the rows the 8257 has not moved when 64h or 65h is written
 --(fhp3 Q4), and draws a frame after a CRTC or DMA restart black but its last row (Q6).
 signal	EPOCH		:std_logic_vector(1 downto 0);	-- counts the moves of row 0
@@ -431,7 +432,7 @@ begin
 	FSA<=F0A when F0OK='1' else TADR_TOP;
 	FSX<=F0A when F0OK='1' and DMXF='1' else TADR_TOP;
 	RDAT1<='0' when capV1S='0' and LINECNT>LINES else '1';
-	LFOL<='1' when SPCHR='0' and ATTRLEN<="10011" else '0';
+	LFOL<='1' when SPCHR='0' else '0';
 	FOLL<=FOL when LFOL='1' else '0';
 	--The byte read now: text bytes in ST_RDTXT, attribute bytes in ST_RDATR and ST_RDATR2
 	RDOFS<=conv_std_logic_vector(CHARCNT,16) when STATE=ST_RDTXT else AOFF;
@@ -604,6 +605,7 @@ begin
 			F0C<=0;
 			F0OK<='0';
 			FOL<='0';
+			FATL<=(others=>'0');
 			RREM<=0;
 			RLA<=(others=>'0');
 			RLR<=0;
@@ -1629,6 +1631,7 @@ begin
 								F0C<=sat(conv_integer(DMRLR));
 								if(DMOK='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LFOL='1')then
 									F0OK<='1';
+									FATL<=ATTRLEN;
 								else
 									F0OK<='0';
 								end if;
@@ -1640,14 +1643,14 @@ begin
 					end if;
 				end if;
 
-				--CRTC RESET: white from now on (the decoration kept); the next frame starts so. A row 0 read ahead
+				--CRTC RESET: white and no decoration from now on; the next frame starts so. A row 0 read ahead
 				--with the old attribute is not used: one still running or ended before the
 				--retrace is dropped, and one already taken is read again at its row.
 				rCRTRST<=CRTRST;
 				if(CRTRST/=rCRTRST)then
-					--white, the decoration kept (fhp13 AX: a reverse stays over a RESET)
-					ATRCARRY<=ATRCARRY(8) & '0' & ATRCARRY(6 downto 3) & "111";
-					CURATR<=CURATR(8) & '0' & CURATR(6 downto 3) & "111";
+					--white, the decoration cleared (fhp15 RK: a reverse carried from the rows ends at a reset)
+					ATRCARRY<="000000111";
+					CURATR<="000000111";
 					RSTP<='1';
 					PFDIRTY<='1';
 					PFOK<='0';
@@ -1740,9 +1743,9 @@ begin
 					F0OK<='0';
 					PDR<='0';
 				end if;
-				--Rows that cannot be followed stop following the 8257 for the rest of the frame
+				--Rows that cannot be followed, or whose length changed, stop following the 8257 for the rest of the frame
 				--(last, so a frame start in the same step does not set it again)
-				if(LFOL='0')then
+				if(LFOL='0' or (FOL='1' and ATTRLEN/=FATL))then
 					FOL<='0';
 					SPP<='0';
 					SPLON<='0';
