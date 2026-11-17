@@ -128,7 +128,7 @@ signal	FIXVAL		:std_logic_vector(8 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to MAXLINES;
-type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR,ST_HOLD,ST_BLANK,ST_BLANK1,ST_BLANK2);
+type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR,ST_HOLD,ST_BLANK,ST_BLANK1,ST_BLANK2,ST_STPCK,ST_STPCK1);
 signal	STATE	:STATE_T;
 --signal	STATE	:integer range 0 to 12;
 --	constant ST_IDLE	:integer	:=0;
@@ -304,6 +304,14 @@ signal	PDR			:std_logic;
 signal	PDQ			:std_logic_vector(1 downto 0);
 signal	EVK			:integer range 0 to 27;	-- the row a write to 64h, 65h now takes effect from
 signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
+--V2: a FH moves no more rows in the frame after a row whose last attribute pair has a column with
+--bits 6..4 = 110 and an odd value, up to the row it moves for the next frame (that row comes from where
+--the 8257 stopped), and shows the rows after it black (fhp9, fhp10, fhp11). STP: row STK is such a row.
+--PKQ: row 0 of the next frame was just moved, its last pair is still to be read (PKM, PKP: being read,
+--PKP while its column is read).
+signal	STP,PKQ,PKM,PKP	:std_logic;
+signal	STK			:integer range 0 to MAXLINES-1;
+signal	PKA			:std_logic_vector(11 downto 0);	-- (the read of row 0 leaves RDADR as it is)
 --The attribute at the start of each row, without the over and under lines (CURATR has
 --them clear between rows): bits 7 and 5..0
 type ATRK_T is array(0 to MAXLINES-1) of std_logic_vector(6 downto 0);
@@ -379,7 +387,7 @@ signal	VMODEs1,GVSTRs1,VT24s1,VT15s1	:std_logic;
 begin
 
 	RDDAT<=MRAM_DAT when rTMODE='1' else TRAM_DAT;
-	TRAM_ADR<=RDADR(11 downto 0);
+	TRAM_ADR<=PKA when PKM='1' else RDADR(11 downto 0);
 	MRAM_ADR<=RDADR;
 	iATTRLEN<=conv_integer(ATTRLEN);
 	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
@@ -602,6 +610,12 @@ begin
 			RRR<=0;
 			RRC<=0;
 			BLKR<='0';
+			STP<='0';
+			STK<=0;
+			PKQ<='0';
+			PKM<='0';
+			PKP<='0';
+			PKA<=(others=>'0');
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -924,6 +938,7 @@ begin
 								end if;
 							end if;
 						elsif(lVRET='1' and VRETr='0')then
+							PKQ<='0';
 							STXTADR<=FSA;
 							SDSTADR<=(others=>'0');
 							FOL<=F0OK;
@@ -1050,7 +1065,7 @@ begin
 									RLR<=RRC;
 									RRP<='0';
 								end if;
-								if(DMA0='0' and RRLA='0')then
+								if((DMA0='0' or (STP='1' and STK<LINECNT and EPOCH=REPOCH)) and RRLA='0')then
 									BLKR<='1';
 								else
 									BLKR<='0';
@@ -1072,6 +1087,21 @@ begin
 							end loop;
 							if(LINECNT>LINES)then
 								LINESKIP<='1';
+							end if;
+						elsif(PKQ='1' and LINECNT=MAXLINES)then
+							--Read the last attribute pair of row 0 of the next frame, moved just now
+							PKQ<='0';
+							if(rTMODE='0' and capV1S='0')then
+								--(where the 8257 moved it from, followed or not)
+								STXTADR<=F0A;
+								FOL<='1';
+								RREM<=F0R;
+								RLA<=F0B;
+								SPLON<='0';
+								AOFF<=x"0050"+(x"00" & "00" & ATTRLEN & "0");
+								PKM<='1';
+								PKP<='1';
+								STATE<=ST_STPCK;
 							end if;
 						end if;
 					when ST_GETBUS =>
@@ -1157,12 +1187,22 @@ begin
 							end case;
 							MRAM_RDn<='1';
 							if (ATRCNT=iATTRLEN)then
-								AOFF<=x"0051";
 								ATRCNT<=0;
-								if (fATTR(0)='1' or iATTRCUL=0)then
-									STATE<=ST_RDATR2;
+								if(RDDAT(6 downto 4)="110" and capV1S='0' and BLKR='0' and LINESKIP='0' and RRLA='0' and EPOCH=REPOCH and LINECNT>=2)then
+									--The last pair may stop the rows after this one: read its value
+									AOFF(0)<='1';
+									STATE<=ST_STPCK;
 								else
-									STATE<=ST_SETATR;
+									if(STP='1' and STK=LINECNT-1 and LINECNT>=2 and BLKR='0' and EPOCH=REPOCH)then
+										--(this row, read again, no longer stops them)
+										STP<='0';
+									end if;
+									AOFF<=x"0051";
+									if (fATTR(0)='1' or iATTRCUL=0)then
+										STATE<=ST_RDATR2;
+									else
+										STATE<=ST_SETATR;
+									end if;
 								end if;
 							else
 								AOFF<=AOFF+2;
@@ -1209,6 +1249,52 @@ begin
 							ATRCNT<=ATRCNT+1;
 							MRAM_RDn<='1';
 							STATE<=ST_SETATR;
+						end if;
+					when ST_STPCK =>
+						if(PKM='1')then
+							PKA<=RDA(11 downto 0);
+						else
+							MRAM_RDn<='0';
+							RDADR<=RDA;
+						end if;
+						STATE<=ST_STPCK1;
+						if(rTMODE='1')then
+							waitcount<=3;
+						end if;
+					when ST_STPCK1 =>
+						if(rTMODE='0' or MRAM_WAITr='0')then
+							MRAM_RDn<='1';
+							if(PKP='1')then
+								--row 0 of the next frame: its column, then its value
+								PKP<='0';
+								if(RDDAT(6 downto 4)="110")then
+									AOFF(0)<='1';
+									STATE<=ST_STPCK;
+								else
+									PKM<='0';
+									STATE<=ST_IDLE;
+								end if;
+							elsif(PKM='1')then
+								PKM<='0';
+								if(RDDAT(0)='1')then
+									STP<='1';
+									STK<=0;
+								end if;
+								STATE<=ST_IDLE;
+							else
+								if(RDDAT(0)='1')then
+									STP<='1';
+									STK<=LINECNT-1;
+								elsif(STP='1' and STK=LINECNT-1)then
+									STP<='0';
+								end if;
+								AOFF<=x"0051";
+								if (fATTR(0)='1')then
+									STATE<=ST_RDATR2;
+								else
+									STATE<=ST_SETATR;
+								end if;
+							end if;
 						end if;
 					when ST_SETATR =>
 						TVRAM_ADR<=CDSTADR;
@@ -1346,6 +1432,8 @@ begin
 
 				--V1S: count rasters and row requests.
 				if(TEXTENr='0')then
+					STP<='0';
+					PKQ<='0';
 					DMXF<='0';
 					DMA0<='0';
 					F0OK<='0';
@@ -1441,6 +1529,7 @@ begin
 						end if;
 						if(CAPD='1' and RASTER+1=REQLINE and TEXTENr='1'
 							and ((REQ>0 and REQ<capROWS and DMA0='1') or (REQ>=capROWS and DMAX='0'))
+							and (STP='0' or REQ<=STK or REQ>=capROWS)
 							and (SMODE='0' or REQ>=capROWS or (REQ mod 2)=0))then
 							DMAT<=DMAT+1;
 							DMAN<=LINEADD(7 downto 0);
@@ -1455,6 +1544,9 @@ begin
 							end if;
 							if(REQ>=capROWS)then
 								EPOCH<=EPOCH+1;
+								--the rows stopped end here; read the last pair of the row moved now
+								STP<='0';
+								PKQ<=not capV1S;
 								--V2, a restart frame: its last row shows the row 0 moved now
 								if(DMA0='0' and capV1S='0' and capROWS>=2)then
 									QLP<='1';
