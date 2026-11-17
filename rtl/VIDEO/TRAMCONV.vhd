@@ -117,7 +117,8 @@ signal	ATRCNT	:integer range 0 to 19;
 signal	CURATR	:std_logic_vector(8 downto 0);
 --The attribute at the end of the last row, without the over and under lines: a
 --frame starts with it, as a real PC-8801FH does not reset the attribute at the
---start of a frame (Valis II demo). The CRTC RESET command sets it to white.
+--start of a frame (Valis II demo). The CRTC RESET command sets its color to white and keeps the
+--reverse, secret and blink (fhp13 AX).
 signal	ATRCARRY	:std_logic_vector(8 downto 0);
 signal	rCRTRST		:std_logic;
 --A RESET came in this frame: rows ending before the next frame start leave ATRCARRY white.
@@ -317,6 +318,13 @@ signal	STEL		:std_logic;	-- the row being read can stop the rows after it (row S
 signal	STRI		:integer range 0 to MAXLINES-1;
 signal	STPR		:std_logic;	-- the row starting now is after a stop: drawn black, not moved
 signal	SBLK		:std_logic;	-- this row is such a row: no attributes, and in V1S no bus
+--The value of that last pair with bit 1 clear (SRPT): a FH shows the rows after it from its two row buffers,
+--the two rows before them in turn, not black (fhp13: 01h, 05h, 09h, 11h, 21h, 41h, 81h, 31h; black with
+--03h, 4Fh, FFh). Such a row (RPTR) is read again from the start of the row before (ROWA1) or of the last row
+--(ROWA0) read, without a hold.
+signal	SRPT,RPTR	:std_logic;
+signal	STPO		:std_logic;	-- the row starting now is an odd number of rows after STK
+signal	ROWA0,ROWA1	:std_logic_vector(15 downto 0);
 signal	PKA			:std_logic_vector(11 downto 0);	-- (the read of row 0 leaves RDADR as it is)
 --The attribute at the start of each row, without the over and under lines (CURATR has
 --them clear between rows): bits 7 and 5..0
@@ -395,9 +403,10 @@ begin
 	RDDAT<=MRAM_DAT when rTMODE='1' else TRAM_DAT;
 	TRAM_ADR<=PKA when PKM='1' else RDADR(11 downto 0);
 	STRI<=0 when PFROW='1' or LINECNT=0 else LINECNT-1;
-	STEL<='1' when BLKR='0' and LINESKIP='0' and RRLA='0' and EPOCH=REPOCH
+	STEL<='1' when BLKR='0' and LINESKIP='0' and RRLA='0' and RPTR='0' and EPOCH=REPOCH
 		and ((capV1S='0' and LINECNT>=2) or (capV1S='1' and (PFROW='1' or LINECNT>=1))) else '0';
 	STPR<='1' when STP='1' and STK<LINECNT and EPOCH=REPOCH and RRLA='0' else '0';
+	STPO<='1' when ((LINECNT+STK) mod 2)=1 else '0';
 	MRAM_ADR<=RDADR;
 	iATTRLEN<=conv_integer(ATTRLEN);
 	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
@@ -628,6 +637,10 @@ begin
 			PKP<='0';
 			PKA<=(others=>'0');
 			SBLK<='0';
+			SRPT<='0';
+			RPTR<='0';
+			ROWA0<=(others=>'0');
+			ROWA1<=(others=>'0');
 		elsif(clk' event and clk='1')then
 			if(ce='1')then
 				MRAM_WAITr<=MRAM_WAIT;
@@ -808,8 +821,9 @@ begin
 								CHARCNT<=0;
 								ATRCNT<=0;
 								LINECNT<=LINECNT+1;
-								BLKR<=(not DMA0) or STPR;
-								SBLK<=STPR;
+								BLKR<=(not DMA0) or (STPR and not SRPT);
+								SBLK<=STPR and not SRPT;
+								RPTR<=STPR and SRPT;
 								if(EVOK='1' and EPOCH=REPOCH and EVK=LINECNT and FOL='1')then
 									STXTADR<=DMNXA;
 									RREM<=sat(conv_integer(DMNXR));
@@ -836,7 +850,18 @@ begin
 								else
 									NOHOLD<='0';
 								end if;
-								if(rTMODE='1' and STPR='0')then
+								if(STPR='1' and SRPT='1')then
+									--(a row after the stop shown from the row buffers: read again, no hold)
+									if(STPO='1')then
+										STXTADR<=ROWA1;
+									else
+										STXTADR<=ROWA0;
+									end if;
+									RREM<=RMAX;
+									SPLON<='0';
+									NOHOLD<='1';
+								end if;
+								if(rTMODE='1' and (STPR='0' or SRPT='1'))then
 									STATE<=ST_GETBUS;
 									BUSREQi<='0';
 								elsif(rTVRMODE='1')then
@@ -1080,12 +1105,22 @@ begin
 									RLR<=RRC;
 									RRP<='0';
 								end if;
-								if((DMA0='0' and RRLA='0') or STPR='1')then
+								if((DMA0='0' and RRLA='0') or (STPR='1' and SRPT='0'))then
 									BLKR<='1';
 								else
 									BLKR<='0';
 								end if;
-								SBLK<=STPR;
+								SBLK<=STPR and not SRPT;
+								RPTR<=STPR and SRPT;
+								if(STPR='1' and SRPT='1')then
+									if(STPO='1')then
+										STXTADR<=ROWA1;
+									else
+										STXTADR<=ROWA0;
+									end if;
+									RREM<=RMAX;
+									SPLON<='0';
+								end if;
 								if(rTMODE='1')then
 									STATE<=ST_GETBUS;
 									BUSREQi<='0';
@@ -1141,6 +1176,11 @@ begin
 					when ST_RDTXT =>
 						MRAM_RDn<='0';
 						RDADR<=RDA;
+						if(CHARCNT=0 and SBLK='0' and RPTR='0')then
+							--the starts of the last two rows read (the row buffers of a FH)
+							ROWA1<=ROWA0;
+							ROWA0<=STXTADR;
+						end if;
 						STATE<=ST_RDTXT1;
 						if(rTMODE='1')then
 							--One cycle more, to pay back the cycle spent registering MRAM_WAIT.
@@ -1295,12 +1335,14 @@ begin
 								if(RDDAT(0)='1')then
 									STP<='1';
 									STK<=0;
+									SRPT<=not RDDAT(1);
 								end if;
 								STATE<=ST_IDLE;
 							else
 								if(RDDAT(0)='1')then
 									STP<='1';
 									STK<=STRI;
+									SRPT<=not RDDAT(1);
 								elsif(STP='1' and STK=STRI)then
 									STP<='0';
 								end if;
@@ -1418,6 +1460,7 @@ begin
 						end if;
 					when ST_RELBUS =>
 						SBLK<='0';
+						RPTR<='0';
 						BUSREQi<='1';
 						BUS_USE<='0';
 						HOLDING<='0';
@@ -1587,13 +1630,14 @@ begin
 					end if;
 				end if;
 
-				--CRTC RESET: white from now on; the next frame starts white. A row 0 read ahead
+				--CRTC RESET: white from now on (the decoration kept); the next frame starts so. A row 0 read ahead
 				--with the old attribute is not used: one still running or ended before the
 				--retrace is dropped, and one already taken is read again at its row.
 				rCRTRST<=CRTRST;
 				if(CRTRST/=rCRTRST)then
-					ATRCARRY<="000000111";
-					CURATR<="000000111";
+					--white, the decoration kept (fhp13 AX: a reverse stays over a RESET)
+					ATRCARRY<=ATRCARRY(8) & '0' & ATRCARRY(6 downto 3) & "111";
+					CURATR<=CURATR(8) & '0' & CURATR(6 downto 3) & "111";
 					RSTP<='1';
 					PFDIRTY<='1';
 					PFOK<='0';
