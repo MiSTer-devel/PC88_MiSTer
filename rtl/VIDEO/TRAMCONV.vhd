@@ -311,7 +311,8 @@ signal	EVK			:integer range 0 to 27;	-- the row a write to 64h, 65h now takes ef
 signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
 --A FH moves no more rows in the frame after a row whose last attribute pair has a column with
 --bits 6..4 = 110 and an odd value, up to the row it moves for the next frame (that row comes from where
---the 8257 stopped), and shows the rows after it black (fhp9, fhp10, fhp11; V2 and V1S). STP: row STK is
+--the 8257 stopped), and shows the rows after it black, or with bit 1 of the value clear the two rows before
+--them in turn (SRPT; fhp9 to fhp16, V2 and V1S). STP: row STK is
 --such a row. V2, PKQ: row 0 of the next frame was just moved, its last pair is still to be read (PKM, PKP:
 --being read, PKP while its column is read); V1S reads it with the read-ahead of row 0 or at the frame start.
 signal	STP,PKQ,PKM,PKP	:std_logic;
@@ -333,7 +334,8 @@ signal	SRPT,RPTR	:std_logic;
 type PBUF_T is array(0 to 511) of std_logic_vector(7 downto 0);
 signal	PBUF		:PBUF_T;
 signal	PSL			:std_logic;
---PSL at the start of each row, for a row read again (it writes the same buffer as before)
+--PSL at the start of each row, for a row read again (it writes the same buffer as before; V2, which reads
+--rows ahead and so reads them again)
 signal	PSLK		:std_logic_vector(0 to MAXLINES);
 signal	PBWE		:std_logic;
 signal	PBWA,PBRA	:std_logic_vector(8 downto 0);
@@ -1075,7 +1077,9 @@ begin
 							SPLON<='1';
 							SPLMa<=SPMr;
 							SPLAa<=SPAr;
-							PSL<=PSLK(irk);
+							if(capV1S='0')then
+								PSL<=PSLK(irk);
+							end if;
 						elsif(RRP='1' and RRE=REPOCH and RRK<LINECNT and FOL='1' and not (STP='1' and STK<RRK))then
 							--Read again from row RRK: the rows the 8257 moves after a write to 64h or 65h (none after a
 							--stop: those rows stay as drawn from the row buffers)
@@ -1089,7 +1093,9 @@ begin
 							CURATR<='0' & ATRK(irk)(6) & '0' & ATRK(irk)(5 downto 0);
 							LINESKIP<='0';
 							RRP<='0';
-							PSL<=PSLK(irk);
+							if(capV1S='0')then
+								PSL<=PSLK(irk);
+							end if;
 						elsif(lHRET='1' and HRETr='0' and TEXTENr='1')then
 							CHARCNT<=0;
 							ATRCNT<=0;
