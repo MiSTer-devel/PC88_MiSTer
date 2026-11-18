@@ -92,6 +92,7 @@ port(
 	-- DMSPL toggles at the end of such a row
 	DMSPL		:in std_logic	:='0';
 	DMSPM		:in std_logic_vector(7 downto 0)	:=(others=>'0');
+	DMSPX		:in std_logic	:='0';
 	DMSPA		:in std_logic_vector(15 downto 0)	:=(others=>'0');
 	DMRSA		:in std_logic_vector(15 downto 0)	:=(others=>'0');
 	
@@ -113,12 +114,12 @@ signal	STXTADR	:std_logic_vector(15 downto 0);
 signal	AOFF	:std_logic_vector(15 downto 0);
 signal	SDSTADR	:std_logic_vector(11 downto 0);
 signal	CDSTADR	:std_logic_vector(11 downto 0);
-signal	ATRCNT	:integer range 0 to 19;
+signal	ATRCNT	:integer range 0 to 31;
 signal	CURATR	:std_logic_vector(8 downto 0);
 --The attribute at the end of the last row, without the over and under lines: a
 --frame starts with it, as a real PC-8801FH does not reset the attribute at the
---start of a frame (Valis II demo). The CRTC RESET command sets its color to white and keeps the
---reverse, secret and blink (fhp13 AX).
+--start of a frame (Valis II demo). The CRTC RESET command sets it to white and clears the
+--decoration (fhp15 RK).
 signal	ATRCARRY	:std_logic_vector(8 downto 0);
 signal	rCRTRST		:std_logic;
 --A RESET came in this frame: rows ending before the next frame start leave ATRCARRY white.
@@ -1124,7 +1125,7 @@ begin
 								end if;
 								SBLK<=STPR and not SRPT;
 								RPTR<=STPR and SRPT;
-								if(rTMODE='1' and (STPR='0' or SRPT='0'))then
+								if(rTMODE='1' and STPR='0')then
 									STATE<=ST_GETBUS;
 									BUSREQi<='0';
 								elsif(rTVRMODE='1')then
@@ -1188,7 +1189,7 @@ begin
 					when ST_RDTXT1 =>
 						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1' or RPTR='1')then
 							MRAM_RDn<='1';
-							PBWE<=not RPTR;
+							PBWE<=not (RPTR or BLKR or LINESKIP);
 							PBWA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 							PBWD<=RDDAT;
 							TVRAM_ADR<=CDSTADR;
@@ -1236,7 +1237,7 @@ begin
 						end if;
 					when ST_RDATR1 =>
 						if(rTMODE='0' or MRAM_WAITr='0' or RPTR='1')then
-							PBWE<=not RPTR;
+							PBWE<=not (RPTR or BLKR or LINESKIP);
 							PBWA<=PSL & AOFF(7 downto 0);
 							PBWD<=RDDAT;
 							case(RDDAT(6 downto 4))is
@@ -1283,7 +1284,7 @@ begin
 						end if;
 					when ST_RDATR3 =>
 						if(rTMODE='0' or MRAM_WAITr='0' or RPTR='1')then
-							PBWE<=not RPTR;
+							PBWE<=not (RPTR or BLKR or LINESKIP);
 							PBWA<=PSL & AOFF(7 downto 0);
 							PBWD<=RDDAT;
 							if(COLOR='0' or ATTRCOLOR='0')then
@@ -1399,8 +1400,11 @@ begin
 							SDSTADR<=SDSTADR+x"0a0";
 							CHARCNT<=0;
 							ATRCNT<=0;
-							--the other row buffer for the next row
-							PSL<=not PSL;
+							--the other row buffer for the next row (a black or skipped row was not received: the
+							--buffers keep the last two rows moved)
+							if(BLKR='0' and LINESKIP='0')then
+								PSL<=not PSL;
+							end if;
 							--The over and under lines end with the row.
 							CURATR(8)<='0';
 							CURATR(6)<='0';
@@ -1618,7 +1622,7 @@ begin
 								EPOCH<=EPOCH+1;
 								--the rows stopped end here; read the last pair of the row moved now
 								STP<='0';
-								PKQ<=not capV1S;
+								PKQ<=not capV1S and not SPCHR;
 								--V2, a restart frame: its last row shows the row 0 moved now
 								if(DMA0='0' and capV1S='0' and capROWS>=2)then
 									QLP<='1';
@@ -1671,15 +1675,15 @@ begin
 					SPK<=EVK-1;
 					SPE<=EPOCH;
 					SPRA<=DMRSA;
-					--(DMSPM bit 7: the run from DMSPA ran out again in the row, at byte DMNXR+LINEADD-DMRLR, TDMAREGS)
-					if(DMSPM(7)='1')then
+					--(DMSPX: the run from DMSPA ran out again in the row, at byte DMNXR+LINEADD-DMRLR, TDMAREGS)
+					if(DMSPX='1')then
 						SPRR<=sat(conv_integer(DMNXR)+conv_integer(LINEADD)-conv_integer(DMRLR));
 					else
 						SPRR<=sat(conv_integer(DMNXR)+conv_integer(LINEADD));
 					end if;
 					SPRB<=DMRLA;
 					SPRC<=sat(conv_integer(DMRLR));
-					SPMr<='0' & DMSPM(6 downto 0);
+					SPMr<=DMSPM;
 					SPAr<=DMSPA;
 				end if;
 				if(DMWE/=lDMWE and TEXTENr='1' and not evu)then

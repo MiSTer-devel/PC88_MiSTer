@@ -51,10 +51,11 @@ port(
 	-- row, in the same clock as DMWE moves on, and stays until the next such row (TRAMCONV keeps the last
 	-- value it has taken, so a write that follows at once does not hide it).
 	-- Also after a count written while it moved: from DMSPM on it came from channel 3, or DMSPM is the
-	-- length of the row when it did not change over. DMSPM bit 7: it ran out again later in the row and
-	-- went on from the start of channel 3 (fhp9).
+	-- length of the row when it did not change over. DMSPX: it ran out again later in the row and
+	-- went on from the start of channel 3 (fhp9; apart from DMSPM, as a row may be up to 144 bytes).
 	DMSPL	:out std_logic;
 	DMSPM	:out std_logic_vector(7 downto 0);
+	DMSPX	:out std_logic;
 	DMSPA	:out std_logic_vector(15 downto 0);
 	DMRSA	:out std_logic_vector(15 downto 0)
 );
@@ -121,6 +122,7 @@ signal	WAF		:std_logic;
 signal	CUR		:std_logic_vector(15 downto 0);
 signal	SPT		:std_logic;
 signal	SPM		:std_logic_vector(7 downto 0);
+signal	SPX		:std_logic;
 signal	SPA,RSA	:std_logic_vector(15 downto 0);
 signal	lDMAREQ	:std_logic_vector(1 downto 0);
 -- TC inside the row (MID, fhp6 on a FH): with autoload the 8257 sets UPDATE at the TC byte and loads
@@ -174,6 +176,7 @@ begin
 	DMWE<=WEC;
 	DMSPL<=SPT;
 	DMSPM<=SPM;
+	DMSPX<=SPX;
 	DMSPA<=SPA;
 	DMRSA<=RSA;
 	DMCF<='1' when MEN2='1' and STP='0' and MAL='1' and SYNC='1' else '0';
@@ -222,6 +225,7 @@ begin
 			WAF<='0';
 			SPT<='0';
 			SPM<=(others=>'0');
+			SPX<='0';
 			SPA<=(others=>'0');
 			RSA<=(others=>'0');
 			lDMAREQ<="00";
@@ -478,6 +482,7 @@ begin
 					SPT<=not SPT;
 				end if;
 				SPM<=M0A;
+				SPX<='0';
 				SPA<=SEGA;
 				-- A count written during the row (and no address): the row is drawn again too, as it may run
 				-- out in it now, or no more (fhp7 CP, CL, CH). With autoload and TC inside the row, the bytes
@@ -486,12 +491,11 @@ begin
 				if(WAF='0' and CCW='1' and MEN2='1' and STP='0')then
 					SPT<=not SPT;
 					if(SGF='1')then
-						-- from SP1M on from channel 3; bit 7: it ran out again in the row and went on from the start
+						-- from SP1M on from channel 3; SPX: it ran out again in the row and went on from the start
 						-- of channel 3 (TRAMCONV finds the byte from DMNXR and DMRLR)
+						SPM<=SP1M;
 						if(tc1)then
-							SPM<='1' & SP1M(6 downto 0);
-						else
-							SPM<=SP1M;
+							SPX<='1';
 						end if;
 						SPA<=SP1A;
 					elsif(MID='1' and MAL='1')then
