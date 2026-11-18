@@ -315,9 +315,8 @@ signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
 --such a row. V2, PKQ: row 0 of the next frame was just moved, its last pair is still to be read (PKM, PKP:
 --being read, PKP while its column is read); V1S reads it with the read-ahead of row 0 or at the frame start.
 signal	STP,PKQ,PKM,PKP	:std_logic;
---What the peek borrows to read through the follow path, given back when it ends (PKF: FOL, cleared if following
---stops meanwhile; PKS, PKR, PKL, PKN: STXTADR, RREM, RLA, SPLON)
-signal	PKF,PKN		:std_logic;
+--What the peek borrows to read through the follow path (FOLL with PKM), given back when it ends (PKS, PKR,
+--PKL: STXTADR, RREM, RLA)
 signal	PKS,PKL		:std_logic_vector(15 downto 0);
 signal	PKR			:integer range 0 to RMAX;
 signal	STK			:integer range 0 to MAXLINES-1;
@@ -439,10 +438,11 @@ begin
 	FSX<=F0A when F0OK='1' and DMXF='1' else TADR_TOP;
 	RDAT1<='0' when capV1S='0' and LINECNT>LINES else '1';
 	LFOL<='1' when SPCHR='0' else '0';
-	FOLL<=FOL when LFOL='1' else '0';
+	--(PKM: the peek at row 0 of the next frame reads through the follow path, without the split)
+	FOLL<=(FOL or PKM) when LFOL='1' else '0';
 	--The byte read now: text bytes in ST_RDTXT, attribute bytes in ST_RDATR and ST_RDATR2
 	RDOFS<=conv_std_logic_vector(CHARCNT,16) when STATE=ST_RDTXT else AOFF;
-	RDA<=ra(STXTADR,RDOFS,RREM,RLA,FOLL,SPLON and FOLL,SPLMa,SPLAa);
+	RDA<=ra(STXTADR,RDOFS,RREM,RLA,FOLL,SPLON and FOLL and not PKM,SPLMa,SPLAa);
 	--A request still waiting when 64h, 65h is written moves its row from the new values too
 	EVK<=	0		when DMPD='1' and DNX=0 else
 			DNX-2	when DMPD='1' and SMODE='1' and DNX>=2 else
@@ -655,8 +655,6 @@ begin
 			STK<=0;
 			PKQ<='0';
 			PKM<='0';
-			PKF<='0';
-			PKN<='0';
 			PKS<=(others=>'0');
 			PKL<=(others=>'0');
 			PKR<=0;
@@ -1158,16 +1156,12 @@ begin
 							PKQ<='0';
 							if(rTMODE='0' and capV1S='0')then
 								--(where the 8257 moved it from, followed or not)
-								PKF<=FOL;
 								PKS<=STXTADR;
 								PKR<=RREM;
 								PKL<=RLA;
-								PKN<=SPLON;
 								STXTADR<=F0A;
-								FOL<='1';
 								RREM<=F0R;
 								RLA<=F0B;
-								SPLON<='0';
 								AOFF<=x"0050"+(x"00" & "00" & ATTRLEN & "0");
 								PKM<='1';
 								PKP<='1';
@@ -1354,20 +1348,16 @@ begin
 									STATE<=ST_STPCK;
 								else
 									PKM<='0';
-									FOL<=PKF;
 									STXTADR<=PKS;
 									RREM<=PKR;
 									RLA<=PKL;
-									SPLON<=PKN;
 									STATE<=ST_IDLE;
 								end if;
 							elsif(PKM='1')then
 								PKM<='0';
-								FOL<=PKF;
 								STXTADR<=PKS;
 								RREM<=PKR;
 								RLA<=PKL;
-								SPLON<=PKN;
 								if(RDDAT(0)='1')then
 									STP<='1';
 									STK<=0;
@@ -1542,6 +1532,7 @@ begin
 					QLP<='0';
 					RSP<='0';
 					SPP<='0';
+					PDR<='0';
 				end if;
 				pVRET<=VRETr;
 				pHRET<=HRETr;
@@ -1762,7 +1753,6 @@ begin
 						RSP<='0';
 						SPP<='0';
 						FOL<='0';
-						PKF<='0';
 						F0OK<='0';
 						PDR<='0';
 					end if;
@@ -1774,7 +1764,6 @@ begin
 					RSP<='0';
 					SPP<='0';
 					FOL<='0';
-					PKF<='0';
 					F0OK<='0';
 					PDR<='0';
 				end if;
@@ -1782,10 +1771,8 @@ begin
 				--(last, so a frame start in the same step does not set it again)
 				if(LFOL='0' or (FOL='1' and ATTRLEN/=FATL))then
 					FOL<='0';
-					PKF<='0';
 					SPP<='0';
 					SPLON<='0';
-					PKN<='0';
 				end if;
 			end if;
 		end if;
