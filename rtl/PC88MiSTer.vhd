@@ -2897,8 +2897,8 @@ port map(
 	--ports used by the CPU and by TRAMCONV take every clock instead.
 	TCROSS_ce<='1' when VT24='1' else vid_ce3;
 
-	--TRAMCONV runs on rclk and takes a step 4 times in 15 clocks: 20MHz, the speed
-	--it had on clk21m, so its step counts (the V1S bus hold) keep their length.
+	--TRAMCONV runs on rclk and takes a step 4 times in 15 clocks: 20.24MHz. Its step
+	--counts (the V1S bus hold) are set for this step rate.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
 			if(tcnvcnt=14)then
