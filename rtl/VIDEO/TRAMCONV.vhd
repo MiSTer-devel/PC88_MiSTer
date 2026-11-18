@@ -114,7 +114,7 @@ signal	STXTADR	:std_logic_vector(15 downto 0);
 signal	AOFF	:std_logic_vector(15 downto 0);
 signal	SDSTADR	:std_logic_vector(11 downto 0);
 signal	CDSTADR	:std_logic_vector(11 downto 0);
-signal	ATRCNT	:integer range 0 to 31;
+signal	ATRCNT	:integer range 0 to 32;	-- up to 32 attributes, and one past the last applied
 signal	CURATR	:std_logic_vector(8 downto 0);
 --The attribute at the end of the last row, without the over and under lines: a
 --frame starts with it, as a real PC-8801FH does not reset the attribute at the
@@ -315,6 +315,11 @@ signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
 --such a row. V2, PKQ: row 0 of the next frame was just moved, its last pair is still to be read (PKM, PKP:
 --being read, PKP while its column is read); V1S reads it with the read-ahead of row 0 or at the frame start.
 signal	STP,PKQ,PKM,PKP	:std_logic;
+--What the peek borrows to read through the follow path, given back when it ends (PKF: FOL, cleared if following
+--stops meanwhile; PKS, PKR, PKL, PKN: STXTADR, RREM, RLA, SPLON)
+signal	PKF,PKN		:std_logic;
+signal	PKS,PKL		:std_logic_vector(15 downto 0);
+signal	PKR			:integer range 0 to RMAX;
 signal	STK			:integer range 0 to MAXLINES-1;
 signal	STEL		:std_logic;	-- the row being read can stop the rows after it (row STRI)
 signal	STRI		:integer range 0 to MAXLINES-1;
@@ -322,9 +327,9 @@ signal	STPR		:std_logic;	-- the row starting now is after a stop: drawn black, n
 signal	SBLK		:std_logic;	-- this row is such a row: no attributes, and in V1S no bus
 --The value of that last pair with bit 1 clear (SRPT): a FH shows the rows after it from its two row buffers,
 --the two rows before them in turn, not black (fhp13: 01h, 05h, 09h, 11h, 21h, 41h, 81h, 31h; black with
---03h, 4Fh, FFh), drawn again with the attributes they end with (fhp14). The bytes of the rows read are kept as a
---FH keeps them, in two row buffers (PBUF, PSL: the one for the row read now, and so the older one); such a row (RPTR)
---is read from there, without the bus or a hold.
+--03h, 4Fh, FFh), drawn again with the attributes they end with (fhp14). The bytes of the rows moved are kept as a
+--FH keeps them: PBUF holds the two row buffers, PSL selects the one the row being read writes (the other keeps
+--the row before it). Such a row (RPTR) is read from there, without the bus or a hold.
 signal	SRPT,RPTR	:std_logic;
 type PBUF_T is array(0 to 511) of std_logic_vector(7 downto 0);
 signal	PBUF		:PBUF_T;
@@ -650,6 +655,11 @@ begin
 			STK<=0;
 			PKQ<='0';
 			PKM<='0';
+			PKF<='0';
+			PKN<='0';
+			PKS<=(others=>'0');
+			PKL<=(others=>'0');
+			PKR<=0;
 			PKP<='0';
 			PKA<=(others=>'0');
 			SBLK<='0';
@@ -1148,6 +1158,11 @@ begin
 							PKQ<='0';
 							if(rTMODE='0' and capV1S='0')then
 								--(where the 8257 moved it from, followed or not)
+								PKF<=FOL;
+								PKS<=STXTADR;
+								PKR<=RREM;
+								PKL<=RLA;
+								PKN<=SPLON;
 								STXTADR<=F0A;
 								FOL<='1';
 								RREM<=F0R;
@@ -1339,10 +1354,20 @@ begin
 									STATE<=ST_STPCK;
 								else
 									PKM<='0';
+									FOL<=PKF;
+									STXTADR<=PKS;
+									RREM<=PKR;
+									RLA<=PKL;
+									SPLON<=PKN;
 									STATE<=ST_IDLE;
 								end if;
 							elsif(PKM='1')then
 								PKM<='0';
+								FOL<=PKF;
+								STXTADR<=PKS;
+								RREM<=PKR;
+								RLA<=PKL;
+								SPLON<=PKN;
 								if(RDDAT(0)='1')then
 									STP<='1';
 									STK<=0;
@@ -1686,6 +1711,10 @@ begin
 					SPMr<=DMSPM;
 					SPAr<=DMSPA;
 				end if;
+				--(a write taken at a row start, evu, is one to follow: it ends the wait too)
+				if(DMWE/=lDMWE and TEXTENr='1' and evu and EVOK='1')then
+					PDR<='0';
+				end if;
 				if(DMWE/=lDMWE and TEXTENr='1' and not evu)then
 					iRRK:=EVK;
 					if(EVOK='1')then
@@ -1733,6 +1762,7 @@ begin
 						RSP<='0';
 						SPP<='0';
 						FOL<='0';
+						PKF<='0';
 						F0OK<='0';
 						PDR<='0';
 					end if;
@@ -1744,6 +1774,7 @@ begin
 					RSP<='0';
 					SPP<='0';
 					FOL<='0';
+					PKF<='0';
 					F0OK<='0';
 					PDR<='0';
 				end if;
@@ -1751,8 +1782,10 @@ begin
 				--(last, so a frame start in the same step does not set it again)
 				if(LFOL='0' or (FOL='1' and ATTRLEN/=FATL))then
 					FOL<='0';
+					PKF<='0';
 					SPP<='0';
 					SPLON<='0';
+					PKN<='0';
 				end if;
 			end if;
 		end if;
