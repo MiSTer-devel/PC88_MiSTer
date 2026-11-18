@@ -392,6 +392,8 @@ function sat(x :integer) return integer is
 begin
 	if(x>RMAX)then
 		return RMAX;
+	elsif(x<0)then
+		return 0;
 	else
 		return x;
 	end if;
@@ -1070,8 +1072,9 @@ begin
 							SPLON<='1';
 							SPLMa<=SPMr;
 							SPLAa<=SPAr;
-						elsif(RRP='1' and RRE=REPOCH and RRK<LINECNT and FOL='1')then
-							--Read again from row RRK: the rows the 8257 moves after a write to 64h or 65h
+						elsif(RRP='1' and RRE=REPOCH and RRK<LINECNT and FOL='1' and not (STP='1' and STK<RRK))then
+							--Read again from row RRK: the rows the 8257 moves after a write to 64h or 65h (none after a
+							--stop: those rows stay as drawn from the row buffers)
 							LINECNT<=irk;
 							STXTADR<=RRA;
 							RREM<=RRR;
