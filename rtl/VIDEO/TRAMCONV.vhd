@@ -333,6 +333,8 @@ signal	SRPT,RPTR	:std_logic;
 type PBUF_T is array(0 to 511) of std_logic_vector(7 downto 0);
 signal	PBUF		:PBUF_T;
 signal	PSL			:std_logic;
+--PSL at the start of each row, for a row read again (it writes the same buffer as before)
+signal	PSLK		:std_logic_vector(0 to MAXLINES);
 signal	PBWE		:std_logic;
 signal	PBWA,PBRA	:std_logic_vector(8 downto 0);
 signal	PBWD,PBQ	:std_logic_vector(7 downto 0);
@@ -666,6 +668,7 @@ begin
 			SRPT<='0';
 			RPTR<='0';
 			PSL<='0';
+			PSLK<=(others=>'0');
 			PBWE<='0';
 			PBWA<=(others=>'0');
 			PBRA<=(others=>'0');
@@ -1072,6 +1075,7 @@ begin
 							SPLON<='1';
 							SPLMa<=SPMr;
 							SPLAa<=SPAr;
+							PSL<=PSLK(irk);
 						elsif(RRP='1' and RRE=REPOCH and RRK<LINECNT and FOL='1' and not (STP='1' and STK<RRK))then
 							--Read again from row RRK: the rows the 8257 moves after a write to 64h or 65h (none after a
 							--stop: those rows stay as drawn from the row buffers)
@@ -1085,6 +1089,7 @@ begin
 							CURATR<='0' & ATRK(irk)(6) & '0' & ATRK(irk)(5 downto 0);
 							LINESKIP<='0';
 							RRP<='0';
+							PSL<=PSLK(irk);
 						elsif(lHRET='1' and HRETr='0' and TEXTENr='1')then
 							CHARCNT<=0;
 							ATRCNT<=0;
@@ -1092,6 +1097,7 @@ begin
 		--					if(LINECNT<LINES-1)then
 								LINECNT<=LINECNT+1;
 								ATRK(LINECNT)<=CURATR(7) & CURATR(5 downto 0);
+								PSLK(LINECNT)<=PSL;
 								if(EVOK='1' and EPOCH=REPOCH and EVK=LINECNT and FOL='1')then
 									--This row is moved after the write to 64h, 65h seen now: from the new values
 									STXTADR<=DMNXA;
