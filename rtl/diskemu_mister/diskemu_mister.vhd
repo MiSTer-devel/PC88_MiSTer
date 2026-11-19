@@ -6,7 +6,8 @@ entity diskemu_mister is
 generic(
 	fclkfreq		:integer	:=30000;
 	sclkfreq		:integer	:=10000;
-	fdwait	:integer	:=10
+	fdwait	:integer	:=10;
+	sramuse	:boolean	:=true		-- false: no SRAM image (sram_ld and sram_st unused), no buffer
 );
 port(
 
@@ -3506,6 +3507,7 @@ begin
 						mist_buffwr	when emustate=es_ssave else
 						'0';
 	
+	SRAMG: if(sramuse)generate
 	sram	:sramcont port map(
 		addr	=>sram_addr,
 		rdat	=>sram_rdat,
@@ -3529,6 +3531,15 @@ begin
 		clk		=>sclk,
 		rstn		=>rstn
 	);						
+	end generate;
+	SRAMN: if(not sramuse)generate
+		sram_rdat<=(others=>'0');
+		sramdone<='0';
+		mist_rd(bit_sram)<='0';
+		mist_wr(bit_sram)<='0';
+		lba_sram<=(others=>'0');
+		sram_bufout<=(others=>'0');
+	end generate;
 						
 	--tables of the long sector layout
 	process(sclk)begin

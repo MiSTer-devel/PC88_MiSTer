@@ -547,7 +547,8 @@ component diskemu_mister is
 generic(
 	fclkfreq		:integer	:=30000;
 	sclkfreq		:integer	:=10000;
-	fdwait	:integer	:=10
+	fdwait	:integer	:=10;
+	sramuse	:boolean	:=true
 );
 port(
 
@@ -1000,7 +1001,8 @@ port map(
 	DSKE	:diskemu_mister generic map(
 		fclkfreq		=>sysclk,
 		sclkfreq		=>sysclk,
-		fdwait	=>20
+		fdwait	=>20,
+		sramuse	=>false
 	)port map(
 	--SASI
 		sasi_din		=>(others=>'0'),
