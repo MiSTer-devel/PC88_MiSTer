@@ -92,6 +92,7 @@ port(
 	DONE		:out std_logic;
 	DMAREQ		:out std_logic_vector(1 downto 0);	-- counts where a FH starts the DMA of a text row (TDMAREGS)
 	DMALEN		:out std_logic_vector(7 downto 0);	-- bytes in that row
+	DMAROW		:out std_logic_vector(17 downto 0);	-- 24kHz, 15kHz: rclk clocks of a row (all ones in 31kHz)
 	--TDMAREGS: where the next row transfer starts, bytes to TC, the autoload values, and
 	--whether the rows can follow the 8257 (taken for row 0 of the next frame)
 	DMNXA		:in std_logic_vector(15 downto 0)	:=(others=>'0');
@@ -1911,6 +1912,7 @@ begin
 			TBYTEH4 when capCPUMD='0' else
 			TBYTEH8;
 	DUTX<='1' when capCHRL*DUTLN < DUTBY*DUTTB else '0';
+	DMAROW<=conv_std_logic_vector(capCHRL*DUTLN,18) when VT24s='1' else (others=>'1');
 	DUTM<=V1SN & VT24s & VT15s & CPUMD;
 	process(clk,rstn)begin
 		if(rstn='0')then

@@ -962,7 +962,8 @@ port(
 	DMSPM	:out std_logic_vector(7 downto 0);
 	DMSPX	:out std_logic;
 	DMSPA	:out std_logic_vector(15 downto 0);
-	DMRSA	:out std_logic_vector(15 downto 0)
+	DMRSA	:out std_logic_vector(15 downto 0);
+	DMAROW	:in std_logic_vector(17 downto 0) := (others=>'1')
 );
 end component;
 
@@ -1010,6 +1011,7 @@ port(
 	DONE		:out std_logic;
 	DMAREQ		:out std_logic_vector(1 downto 0);
 	DMALEN		:out std_logic_vector(7 downto 0);
+	DMAROW		:out std_logic_vector(17 downto 0);
 	DMNXA		:in std_logic_vector(15 downto 0);
 	DMNXR		:in std_logic_vector(14 downto 0);
 	DMRLA		:in std_logic_vector(15 downto 0);
@@ -1826,6 +1828,7 @@ signal	IOR6e_OE	:std_logic;
 signal	IDAT_DMA	:std_logic_vector(7 downto 0);
 signal	TDMA_REQ	:std_logic_vector(1 downto 0);
 signal	TDMA_LEN	:std_logic_vector(7 downto 0);
+signal	TDMA_ROW	:std_logic_vector(17 downto 0);
 signal	TDMA_NXA	:std_logic_vector(15 downto 0);
 signal	TDMA_NXR	:std_logic_vector(14 downto 0);
 signal	TDMA_RLA	:std_logic_vector(15 downto 0);
@@ -2989,6 +2992,7 @@ port map(
 	-- DONE		=>TCNVDONE,
 	DMAREQ		=>TDMA_REQ,
 	DMALEN		=>TDMA_LEN,
+	DMAROW		=>TDMA_ROW,
 	DMNXA		=>TDMA_NXA,
 	DMNXR		=>TDMA_NXR,
 	DMRLA		=>TDMA_RLA,
@@ -3222,7 +3226,7 @@ port map(
 	IOR6e	:IO_RD generic map(x"6e")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR6e,IOR6e_OE,not CPUMD,'0','0','1','0','0','0','0');
 	IOW53	:IO_WRS generic map(x"53")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,open,GxDS(2),GxDS(1),GxDS(0),TEXTDS,rclk,CPU_rstnr,cpuce_r);
 	IOWaa	:IO_WRS generic map(x"aa")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,S2INTM,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
-	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE,TDMA_REQ,TDMA_LEN,TDMA_NXA,TDMA_NXR,TDMA_RLA,TDMA_RLR,TDMA_OK,TDMA_WE,TDMA_CF,TDMA_PD,TDMA_SPL,TDMA_SPM,TDMA_SPX,TDMA_SPA,TDMA_RSA);
+	TDREG	:TDMAREGS generic map(x"64",x"65",x"68") port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,TRAMTOP,TRAMLEN,TDMAEN,rclk,CPU_rstnr,cpuce_r,RD_n,IDAT_DMA,DMA_OE,TDMA_REQ,TDMA_LEN,TDMA_NXA,TDMA_NXR,TDMA_RLA,TDMA_RLR,TDMA_OK,TDMA_WE,TDMA_CF,TDMA_PD,TDMA_SPL,TDMA_SPM,TDMA_SPX,TDMA_SPA,TDMA_RSA,TDMA_ROW);
 	pStrA<=pStr;
 	pStrB<=pStr;
 	
