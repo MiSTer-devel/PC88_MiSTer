@@ -6,29 +6,30 @@ use work.VIDEO_TIMING_pkg.all;
 
 entity TRAMCONV is
 generic(
-	--V1S: steps (ce, 20MHz) the bus is held per text row, at 4MHz and 8MHz
-	V1SHOLD4	:integer	:=3766;
-	V1SHOLD8	:integer	:=3325;
+	--V1S: steps (ce, 20.24MHz) the bus is held per text row, at 4MHz and 8MHz
+	V1SHOLD4	:integer	:=3811;
+	V1SHOLD8	:integer	:=3365;
 	--Same, for rows taken while the CPU is slowed down by GVSTR
-	V1SHOLD4S	:integer	:=2356;
-	V1SHOLD8S	:integer	:=2742;
+	V1SHOLD4S	:integer	:=2384;
+	V1SHOLD8S	:integer	:=2775;
 	--24kHz and 15kHz timing: the same per row, and per row while slowed down
-	V1SHOLD4N	:integer	:=3606;
-	V1SHOLD8N	:integer	:=3146;
-	V1SHOLD4S24	:integer	:=2680;
-	V1SHOLD8S24	:integer	:=2778;
-	V1SHOLD4S15	:integer	:=2266;
-	V1SHOLD8S15	:integer	:=2598;
+	--(V1SHOLD4N/8N are fitted to the time a FH loses per row at 20.24MHz)
+	V1SHOLD4N	:integer	:=3639;
+	V1SHOLD8N	:integer	:=3181;
+	V1SHOLD4S24	:integer	:=2712;
+	V1SHOLD8S24	:integer	:=2811;
+	V1SHOLD4S15	:integer	:=2293;
+	V1SHOLD8S15	:integer	:=2629;
 	--8MHz: a row taken while the CPU is slowed down is followed by up to SHNUM
 	--short holds, SHPERIOD steps apart from the row request plus 0 to
 	--2**SHJITBITS-1 steps; each ends SHDW steps after its own request, or 2 steps
 	--after the grant if that is later (the CPU runs on until its M cycle ends)
 	SHNUM		:integer	:=24;
-	SHPERIOD	:integer	:=340;
+	SHPERIOD	:integer	:=344;
 	SHJITBITS	:integer	:=9;
-	SHDW15		:integer	:=77;
-	SHDW24		:integer	:=93;
-	SHDW31		:integer	:=82;
+	SHDW15		:integer	:=78;
+	SHDW24		:integer	:=94;
+	SHDW31		:integer	:=83;
 	--8MHz: a row taken while the CPU is not slowed down is held M1GAIN/16 steps
 	--longer for each M1 above M1BASE among the last 128 CPU bus cycles
 	M1BASE		:integer	:=60;
@@ -98,7 +99,7 @@ port(
 	CPUM1n		:in std_logic	:='1';
 	CRTRST		:in std_logic	:='0';	-- toggles on each CRTC RESET command (CRTCREGS)
 	clk			:in std_logic;
-	ce			:in std_logic	:='1';	-- one step: 4 times in 15 rclk clocks (20MHz)
+	ce			:in std_logic	:='1';	-- one step: 4 times in 15 rclk clocks (20.24MHz)
 	rstn		:in std_logic
 );
 end TRAMCONV;
@@ -159,12 +160,12 @@ signal	LINES		:integer range 0 to MAXLINES;
 
 --Bound the ST_GETBUS wait so BUSREQn cannot remain asserted indefinitely. Not applied
 --to the MRAM_WAIT waits, where an SDRAM read is already outstanding and cannot be
---canceled. A line is 640 steps (31kHz), 806 steps (24kHz) or 1252 steps (15kHz).
+--canceled. A line is 640 steps (31kHz), about 815 steps (24kHz) or about 1266 steps (15kHz).
 constant STUCKMAX	:integer	:=511;
 signal	stuckcnt	:integer range 0 to STUCKMAX;
 
---After a release, BUSACKn must stay high this many cycles before the next request
---(about four cycles of the 3.95 MHz CPU clock).
+--After a release, BUSACKn must stay high this many steps before the next request
+--(about four cycles of the 4MHz CPU clock).
 constant RELQUIET	:integer	:=20;
 signal	relcnt		:integer range 0 to RELQUIET;
 
