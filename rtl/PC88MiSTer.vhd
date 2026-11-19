@@ -323,12 +323,13 @@ end component;
 component TEXTRAM
 	GENERIC
 	(
-		DWIDTH		: integer := 8
+		DWIDTH		: integer := 8;
+		AWIDTH		: integer := 12
 	);
 	PORT
 	(
-		address_a		: IN STD_LOGIC_VECTOR (11 DOWNTO 0);
-		address_b		: IN STD_LOGIC_VECTOR (11 DOWNTO 0);
+		address_a		: IN STD_LOGIC_VECTOR (AWIDTH-1 DOWNTO 0);
+		address_b		: IN STD_LOGIC_VECTOR (AWIDTH-1 DOWNTO 0);
 		clock		: IN STD_LOGIC  := '1';
 		data_a		: IN STD_LOGIC_VECTOR (DWIDTH-1 DOWNTO 0);
 		data_b		: IN STD_LOGIC_VECTOR (DWIDTH-1 DOWNTO 0);
@@ -349,7 +350,7 @@ port(
 	WDAT		:in std_logic_vector(7 downto 0);
 	PALEN		:in std_logic	:='1';
 	
-	TRAM_ADR	:out std_logic_vector(11 downto 0);
+	TRAM_ADR	:out std_logic_vector(13 downto 0);
 	TRAM_DAT	:in std_logic_vector(8 downto 0);
 	
 	GRAMADR		:out std_logic_vector(13 downto 0);
@@ -381,7 +382,7 @@ port(
 	CRTCEN		:in std_logic;
 	REVERSE		:in std_logic;
 
-	CURL		:in std_logic_vector(4 downto 0);
+	CURL		:in std_logic_vector(5 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
 	CURE		:in std_logic;
 	CURM		:in std_logic;
@@ -410,7 +411,7 @@ port(
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
 	SETOK		:in std_logic	:='0';
-	TSET		:out std_logic_vector(17 downto 0)
+	TSET		:out std_logic_vector(18 downto 0)
 );
 end component;
 
@@ -428,7 +429,7 @@ port(
 	DATOUT	:out std_logic_vector(7 downto 0);
 	DATOE	:out std_logic;
 
-	CURL	:out std_logic_vector(4 downto 0);
+	CURL	:out std_logic_vector(5 downto 0);
 	CURC	:out std_logic_vector(6 downto 0);
 	CURE	:out std_logic;
 	CURM	:out std_logic;
@@ -983,7 +984,7 @@ port(
 	GVSTR		:in std_logic;
 	VT24		:in std_logic;
 	VT15		:in std_logic;
-	TSET		:in std_logic_vector(17 downto 0);
+	TSET		:in std_logic_vector(18 downto 0);
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -1000,7 +1001,7 @@ port(
 	BUSACKn		:in std_logic;
 	
 
-	TVRAM_ADR	:out std_logic_vector(11 downto 0);
+	TVRAM_ADR	:out std_logic_vector(13 downto 0);
 	TVRAM_WDAT	:out std_logic_vector(8 downto 0);
 	TVRAM_WR	:out std_logic;
 	
@@ -1726,7 +1727,7 @@ signal	CRTC_SETOK	:std_logic;
 signal	CRTC_RST	:std_logic;
 signal	CRTC_CMDT	:std_logic;
 signal	TCNV_DU		:std_logic;
-signal	CRTC_TSET	:std_logic_vector(17 downto 0);
+signal	CRTC_TSET	:std_logic_vector(18 downto 0);
 signal	TCROSS_ce	:std_logic;
 
 signal	SDI			:std_logic;
@@ -1793,11 +1794,11 @@ signal	RAM_CE		:std_logic;
 signal	TRAM_ADR	:std_logic_vector(11 downto 0);
 signal	TRAM_CE		:std_logic;
 signal	IDAT_TRAM	:std_logic_vector(7 downto 0);
-signal	TVRAM_ADR	:std_logic_vector(11 downto 0);
+signal	TVRAM_ADR	:std_logic_vector(13 downto 0);
 signal	TVRAM_CE	:std_logic;
 signal	IDAT_TVRAM	:std_logic_vector(7 downto 0);
 signal	TVRAM_QA	:std_logic_vector(8 downto 0);
-signal	CRTC_TADR	:std_logic_vector(11 downto 0);
+signal	CRTC_TADR	:std_logic_vector(13 downto 0);
 signal	CRTC_TDAT	:std_logic_vector(8 downto 0);
 signal	IDAT_CRTR	:std_logic_vector(7 downto 0);
 signal	CRTR_OE		:std_logic;
@@ -1949,7 +1950,7 @@ signal	TCNV_RADR	:std_logic_vector(15 downto 0);
 signal	TCNV_RDn	:std_logic;
 signal	TCNV_BURQn	:std_logic;
 signal	TCNV_BUSACKn:std_logic;
-signal	TCNV_WADR	:std_logic_vector(11 downto 0);
+signal	TCNV_WADR	:std_logic_vector(13 downto 0);
 signal	TCNV_WDAT	:std_logic_vector(8 downto 0);
 signal	TCNV_WE		:std_logic;
 signal	TCNV_BUSUSE	:std_logic;
@@ -1961,7 +1962,7 @@ signal	COLORn		:std_logic;
 signal	ODAT_TCNV	:std_logic_vector(7 downto 0);
 signal	pclk		:std_logic;
 
-signal	CURL		:std_logic_vector(4 downto 0);
+signal	CURL		:std_logic_vector(5 downto 0);
 signal	CURC		:std_logic_vector(6 downto 0);
 signal	CURE		:std_logic;
 signal	CURM		:std_logic;
@@ -2165,7 +2166,7 @@ constant MOD_V2		:std_logic_vector(1 downto 0)	:="11";
 
 signal	MTSAVE		:std_logic;
 signal	TRAM_TDAT	:std_logic_vector(8 downto 0);
-signal	CRTC_CURL	:std_logic_vector(4 downto 0);
+signal	CRTC_CURL	:std_logic_vector(5 downto 0);
 signal	CRTC_CURC	:std_logic_vector(6 downto 0);
 signal	CRTC_CURE	:std_logic;
 
@@ -3019,7 +3020,7 @@ port map(
 	-- V1S and N keep F000h- in main RAM (see memorymaps), so TRAMCONV always
 	-- writes the text VRAM there.
 	TVRAM_WDAT	<='0' & CPUDAT_W			when cHS='1' and TMODE='0' and TVRMODE='1' else TCNV_WDAT;
-	TVRAM_ADR	<=TVRAM_MADR 				when cHS='1' and TMODE='0' and TVRMODE='1' else TCNV_WADR;
+	TVRAM_ADR	<="00" & TVRAM_MADR		when cHS='1' and TMODE='0' and TVRMODE='1' else TCNV_WADR;
 	TVRAM_WE	<=TVRAM_CE and (not WR_n)	when cHS='1' and TMODE='0' and TVRMODE='1' else TCNV_WE;
 
 tmap	:trammaps generic map(RAMAWIDTH) port map(
@@ -3028,7 +3029,7 @@ tmap	:trammaps generic map(RAMAWIDTH) port map(
 	RAM_ADR		=>VMAP_RADR
 );
 
-	TVRAM	:TEXTRAM generic map(9) port map(
+	TVRAM	:TEXTRAM generic map(9,14) port map(
 		address_a		=>TVRAM_ADR,
 		address_b		=>CRTC_TADR,
 		clock			=>rclk,

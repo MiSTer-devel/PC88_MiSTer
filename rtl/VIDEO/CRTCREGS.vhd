@@ -16,7 +16,7 @@ port(
 	DATOUT	:out std_logic_vector(7 downto 0);
 	DATOE	:out std_logic;
 
-	CURL	:out std_logic_vector(4 downto 0);
+	CURL	:out std_logic_vector(5 downto 0);
 	CURC	:out std_logic_vector(6 downto 0);
 	CURE	:out std_logic;
 	CURM	:out std_logic;
@@ -180,7 +180,7 @@ begin
 						when 0 =>
 							CURC<=DATIN(6 downto 0);
 						when 1 =>
-							CURL<=DATIN(4 downto 0);
+							CURL<=DATIN(5 downto 0);
 						when others =>
 						end case;
 					when x"81" =>
@@ -188,7 +188,7 @@ begin
 						when 0 =>
 							CURC<=DATIN(6 downto 0);
 						when 1 =>
-							CURL<=DATIN(4 downto 0);
+							CURL<=DATIN(5 downto 0);
 						when others =>
 						end case;
 					when others =>

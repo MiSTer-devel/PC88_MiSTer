@@ -12,7 +12,7 @@ port(
 	WDAT		:in std_logic_vector(7 downto 0);
 	PALEN		:in	std_logic	:='1';
 	
-	TRAM_ADR	:out std_logic_vector(11 downto 0);
+	TRAM_ADR	:out std_logic_vector(TVAW-1 downto 0);
 	TRAM_DAT	:in std_logic_vector(8 downto 0);
 	
 	GRAMADR		:out std_logic_vector(13 downto 0);
@@ -43,7 +43,7 @@ port(
 	CRTCEN		:in std_logic;
 	REVERSE		:in std_logic;
 
-	CURL		:in std_logic_vector(4 downto 0);
+	CURL		:in std_logic_vector(5 downto 0);
 	CURC		:in std_logic_vector(6 downto 0);
 	CURE		:in std_logic;
 	CURM		:in std_logic;
@@ -73,7 +73,7 @@ port(
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
 	SETOK		:in std_logic	:='0';
-	TSET		:out std_logic_vector(17 downto 0)	-- rows, height, first request line, for TRAMCONV
+	TSET		:out std_logic_vector(18 downto 0)	-- rows-1, height-1, first request line, for TRAMCONV
 );
 end CRTCP;
 
@@ -114,7 +114,7 @@ end component;
 
 component TEXTSCR2 is
 port(
-	TRAMADR	:out std_logic_vector(11 downto 0);
+	TRAMADR	:out std_logic_vector(TVAW-1 downto 0);
 	TRAMDAT	:in std_logic_vector(8 downto 0);
 	
 	FRAMADR	:out std_logic_vector(11 downto 0);
@@ -128,7 +128,7 @@ port(
 	BGCOLOR	:out std_logic_vector(2 downto 0);
 	BLINK	:out std_logic;
 	
-	CURL	:in std_logic_vector(4 downto 0);
+	CURL	:in std_logic_vector(5 downto 0);
 	CURC	:in std_logic_vector(6 downto 0);
 	CURE	:in std_logic;
 	CURM	:in std_logic;
@@ -377,6 +377,10 @@ signal	nVRET	:integer range 0 to 256;
 signal	pVCOMP	:std_logic;
 signal	aDEF	:std_logic;	-- the clock after reset
 signal	vretmin	:integer range 0 to VRETMIN24;
+signal	xVRET	:integer range 0 to 256;
+signal	xDISP	:integer range 1 to ROWSMAX24*CHRLMAX24;
+signal	xTOT	:integer range 1 to ROWSMAX24*CHRLMAX24+256;
+signal	xOK		:std_logic;
 
 begin
 	TIM	:vtiming generic map(
@@ -399,8 +403,11 @@ begin
 	T_CURM<=CTYPE(1);
 	T_CBLINK<=CTYPE(0);
 
-	--24kHz, 15kHz: a parameter set is used from the next frame, if it is in range
-	--and its first row can be requested after TRAMCONV takes it (at CAPLINE).
+	--24kHz, 15kHz: a parameter set is used from the next frame, if it is in range.
+	--Its retrace is made long enough for the sync and for its first row to be requested
+	--after TRAMCONV takes it (at CAPLINE), and the frame must be 24 to 120Hz with 8 lines
+	--or more shown. 31kHz takes a set as before (25 rows, 8 to 20 lines).
+	--A PC-8801FH shows sets past 400 (200) lines and with a short retrace, too.
 	--Until one is written (power on, reset), the ROM's 25-line set is used; in 15kHz
 	--it is loaded on the clock after reset.
 	--Taken on the clock after VCOMP rises, before the first dot of the new frame
@@ -409,6 +416,15 @@ begin
 	nCHRL<=conv_integer(SETR)+1;
 	nVRET<=(conv_integer(SETV)+1)*(conv_integer(SETR)+1);
 	vretmin<=VRETMIN15 when VT15='1' else VRETMIN24;
+	xVRET<=	nVRET when nVRET>=vretmin and nVRET>=nCHRL+CAPLINE+1 else
+			vretmin when vretmin>=nCHRL+CAPLINE+1 else
+			nCHRL+CAPLINE+1;
+	xDISP<=nROWS*nCHRL;
+	xTOT<=nROWS*nCHRL+xVRET;
+	xOK<=	'0' when nCHRL<CHRLMIN24 or xDISP<DISPMIN else
+			'1' when VT15='1' and xTOT>=FRMMIN15 and xTOT<=FRMMAX15 else
+			'1' when VT15='0' and xTOT>=FRMMIN24 and xTOT<=FRMMAX24 else
+			'0';
 	process(clk,rstn)begin
 		if(rstn='0')then
 			aROWS<=ROWSDEF24;
@@ -427,7 +443,15 @@ begin
 				aVEND<=ROWSDEF24*CHRLDEF15+VRETDEF15-1;
 				aREQ0<=VRETDEF15-CHRLDEF15;
 			elsif(VCOMP='1' and pVCOMP='0' and SETOK='1')then
-				if(nROWS<=ROWSMAX24 and nCHRL>=CHRLMIN24 and nCHRL<=CHRLMAX24 and nVRET>=vretmin and nVRET-nCHRL>CAPLINE)then
+				if(VT24='1')then
+					if(xOK='1')then
+						aROWS<=nROWS;
+						aCHRL<=nCHRL;
+						aVRET<=xVRET;
+						aVEND<=xTOT-1;
+						aREQ0<=xVRET-nCHRL;
+					end if;
+				elsif(nROWS<=ROWSMAX31 and nCHRL>=CHRLMIN31 and nCHRL<=CHRLMAX31 and nVRET>=vretmin and nVRET-nCHRL>CAPLINE)then
 					aROWS<=nROWS;
 					aCHRL<=nCHRL;
 					aVRET<=nVRET;
@@ -437,7 +461,7 @@ begin
 			end if;
 		end if;
 	end process;
-	TSET<=conv_std_logic_vector(aROWS,5) & conv_std_logic_vector(aCHRL,5) & conv_std_logic_vector(aREQ0,8);
+	TSET<=conv_std_logic_vector(aROWS-1,6) & conv_std_logic_vector(aCHRL-1,5) & conv_std_logic_vector(aREQ0,8);
 
 	FRAMWEN<=FRAMWR when FRAMWADR(12)='0' else '0';
 	GRAMWEN<=FRAMWR when FRAMWADR(12)='1' else '0';
