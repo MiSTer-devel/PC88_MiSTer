@@ -39,7 +39,15 @@ generic(
 	--others 400us (a real PC-8801FH: 4MHz 15kHz underruns from about half a row of
 	--8257 off, 8MHz and 24kHz from about three quarters)
 	DUCLK4		:integer	:=15179;
-	DUCLK		:integer	:=30357
+	DUCLK		:integer	:=30357;
+	--24kHz, 15kHz: a set whose row lasts less than its bytes (82 + 2 * ATTRLEN, 80 without
+	--attributes) times these clocks is a DMA underrun from the frame it is taken (a real
+	--PC-8801FH: the middle of the bounds it shows in 15kHz and 24kHz: V1S 4MHz 2.61 to
+	--2.68us, 8MHz 1.87 to 2.01us, V1H and V2 4MHz 2.35 to 2.46us, 8MHz 2.10 to 2.24us)
+	TBYTES4		:integer	:=201;
+	TBYTES8		:integer	:=147;
+	TBYTEH4		:integer	:=182;
+	TBYTEH8		:integer	:=165
 );
 port(
 	TVRMODE		:in std_logic;
@@ -108,7 +116,7 @@ port(
 	CRTCON		:in std_logic	:='1';	-- the CRTC display is started
 	DMAON		:in std_logic	:='1';	-- 8257 channel 2 is enabled
 	CRTCMD		:in std_logic	:='0';	-- toggles on each CRTC RESET or START command (CRTCREGS)
-	DU			:out std_logic;			-- V1S: DMA underrun (51h bit 3)
+	DU			:out std_logic;			-- DMA underrun (51h bit 3)
 	clk			:in std_logic;
 	ce			:in std_logic	:='1';	-- one step: 4 times in 15 rclk clocks (20.24MHz)
 	rstn		:in std_logic
@@ -434,6 +442,19 @@ signal	V1SN		:std_logic;	-- V1S from the start of the frame: the channel 2 wait,
 signal	TXCu,TXEu	:std_logic;	-- TXC and TXE in V1S, else TEXTENr as before
 signal	DUH,DUH2	:std_logic;	-- an underrun held over two ce (the stop runs twice even if a command clears it first)
 signal	DUL			:std_logic;
+--24kHz, 15kHz: an underrun of a set whose rows are too short for their bytes (all modes)
+constant LINECLK24	:integer	:=3057;	-- rclk clocks of a line (848 dots of 400/19MHz)
+constant LINECLK15	:integer	:=4749;	-- (896 dots of 315/22MHz)
+signal	DUT,DUTH,DUTH2	:std_logic;
+signal	DUTQ,lDUTQ	:std_logic;	-- a set is taken (one step at CAPLINE)
+signal	DUTX		:std_logic;	-- the set taken is too short for its bytes
+signal	DUTLN		:integer range 0 to LINECLK15;
+signal	DUTBY		:integer range 0 to 144;
+signal	DUTTB		:integer range 0 to 255;
+signal	DUSKIP		:std_logic;	-- a command in the retrace before CAPLINE: the next set taken is not judged
+signal	lCMDT		:std_logic;
+signal	lVRETT,INRET	:std_logic;	-- in the retrace, before the set is taken
+signal	DUTM,lDUTM	:std_logic_vector(3 downto 0);
 signal	ducnt		:integer range 0 to DUCLK;
 signal	dulim		:integer range 0 to DUCLK;
 signal	lCMD		:std_logic;
@@ -593,6 +614,7 @@ begin
 			RASTER<=0;
 			BNDPEND<='0';
 			CAPD<='0';
+			DUTQ<='0';
 			BLANKD<='0';
 			BLANKR<='0';
 			capV1S<='0';
@@ -717,7 +739,8 @@ begin
 				TEXTENr<=TEXTEN;
 				--TEXTEN is CRTCON and DMAON: with channel 2 off only the CRTC counts here
 				TXC<=TEXTEN or (CRTCON and not DMAON);
-				TXE<=(TEXTEN or (CRTCON and not DMAON)) and not (DUL or DUH or DUH2);
+				TXE<=(TEXTEN or (CRTCON and not DMAON)) and not (DUL or DUH or DUH2 or DUT or DUTH or DUTH2);
+				DUTQ<='0';
 				DMAONr<=DMAON;
 				TXLr<=TXTLINES;
 				TXLr2<=TXLr;
@@ -1697,6 +1720,7 @@ begin
 								REQLINE<=VIV-20;
 							end if;
 							CAPD<='1';
+							DUTQ<='1';
 							--A read-ahead taken with other screen settings is not used.
 							if((PFOK='1' or PFHOLD='1') and (V1S='0' or VT24s/=pfVT24 or VT15s/=pfVT15 or TXCu/=pfTEXTEN
 								or (VT24s='1' and (conv_integer(TSok(18 downto 13))+1/=pfROWS or conv_integer(TSok(12 downto 8))+1/=pfCHRL))))then
@@ -1871,10 +1895,67 @@ begin
 
 	--V1S: channel 2 off through dulim clocks of the display (the count waits over the
 	--retrace) while the CRTC runs is an underrun. It lasts until the next CRTC command.
-	DU<=DUL;
+	DU<=DUL or DUT;
 	V1SN<=V1S and capV1S;
 	TXCu<=TXC when V1SN='1' else TEXTENr;
-	TXEu<=TXE when V1SN='1' else TEXTENr;
+	TXEu<=TXE when V1SN='1' else TEXTENr and not (DUT or DUTH or DUTH2);
+
+	--24kHz, 15kHz: judged on each set taken while the CRTC shows; the rows still convert
+	--(blank) but no row is moved. It lasts until the next CRTC command or a change of the
+	--mode, scan or clock. A command in the retrace before CAPLINE skips the next judgement
+	--(a FH shows one frame after START, then underruns again).
+	DUTLN<=LINECLK15 when VT15s='1' else LINECLK24;
+	DUTBY<=80 when SPCHR='1' else 82+2*conv_integer(ATTRLEN);
+	DUTTB<=	TBYTES4 when capV1S='1' and capCPUMD='0' else
+			TBYTES8 when capV1S='1' else
+			TBYTEH4 when capCPUMD='0' else
+			TBYTEH8;
+	DUTX<='1' when capCHRL*DUTLN < DUTBY*DUTTB else '0';
+	DUTM<=V1SN & VT24s & VT15s & CPUMD;
+	process(clk,rstn)begin
+		if(rstn='0')then
+			DUT<='0';
+			DUTH<='0';
+			DUTH2<='0';
+			DUSKIP<='0';
+			lDUTQ<='0';
+			lCMDT<='0';
+			lVRETT<='0';
+			INRET<='0';
+			lDUTM<=(others=>'0');
+		elsif(clk' event and clk='1')then
+			lDUTQ<=DUTQ;
+			lCMDT<=CRTCMD;
+			lVRETT<=VRET;
+			lDUTM<=DUTM;
+			if(VRET='1' and lVRETT='0')then
+				INRET<='1';
+			elsif(DUTQ='1' or VRET='0')then
+				INRET<='0';
+			end if;
+			if(ce='1')then
+				DUTH<='0';
+				DUTH2<=DUTH;
+			end if;
+			if(CRTCMD/=lCMDT)then
+				DUT<='0';
+				if(INRET='1' or (VRET='1' and lVRETT='0'))then
+					DUSKIP<='1';
+				else
+					DUSKIP<='0';
+				end if;
+			elsif(DUTM/=lDUTM or VT24s='0')then
+				DUT<='0';
+				DUSKIP<='0';
+			elsif(DUTQ='1' and lDUTQ='0')then
+				DUSKIP<='0';
+				if(DUSKIP='0' and CRTCON='1' and DUTX='1')then
+					DUT<='1';
+					DUTH<='1';
+				end if;
+			end if;
+		end if;
+	end process;
 	dulim<=DUCLK4 when CPUMD='0' and VT24='1' and VT15='1' else DUCLK;
 	process(clk,rstn)begin
 		if(rstn='0')then
