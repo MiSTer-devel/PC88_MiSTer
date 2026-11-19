@@ -55,6 +55,13 @@ package VIDEO_TIMING_pkg is
 	constant FRMMIN15	:integer	:=134;
 	constant FRMMAX15	:integer	:=665;
 	constant DISPMIN	:integer	:=8;
+	--24kHz, 15kHz: rclk per byte of a row below which a set is a DMA underrun (TRAMCONV's
+	--defaults; a real PC-8801FH, the middle of its bounds: V1S 4MHz 2.61 to 2.68us, 8MHz
+	--1.87 to 2.01us, V1H and V2 4MHz 2.35 to 2.46us, 8MHz 2.10 to 2.24us)
+	constant TBYTES4D	:integer	:=201;
+	constant TBYTES8D	:integer	:=147;
+	constant TBYTEH4D	:integer	:=182;
+	constant TBYTEH8D	:integer	:=165;
 	--the retrace floor stays 40 lines, as before the sync position was moved
 	constant VRETMIN24	:integer	:=40;
 	--used until a parameter set is written: the ROM's 25-line set

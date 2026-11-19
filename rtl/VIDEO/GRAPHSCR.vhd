@@ -120,8 +120,9 @@ begin
 	bufe    :graphbuf port map(clk,WDATE,RADR,WADR,BUFWEL,RDATE,ce);
 
 	-- 200-line graphics: 24kHz writes the skipped line as no graphics (see GAPL);
-	-- 31kHz repeats the line above
-	BUFWEL <= BUFWE when LINEEN='1' or (VT24='1' and VT15='0') else '0';
+	-- 31kHz repeats the line above. Past the 400 (15kHz 200) graphic lines the line is
+	-- written as no graphics in 15kHz too.
+	BUFWEL <= BUFWE when LINEEN='1' or (VT24='1' and VT15='0') or GOVER='1' else '0';
 	
 	WDAT0<=GRAMDAT0 when LINEEN='1' else (others=>'0');
 	WDAT1<=GRAMDAT1 when LINEEN='1' else (others=>'0');

@@ -41,13 +41,12 @@ generic(
 	DUCLK4		:integer	:=15179;
 	DUCLK		:integer	:=30357;
 	--24kHz, 15kHz: a set whose row lasts less than its bytes (82 + 2 * ATTRLEN, 80 without
-	--attributes) times these clocks is a DMA underrun from the frame it is taken (a real
-	--PC-8801FH: the middle of the bounds it shows in 15kHz and 24kHz: V1S 4MHz 2.61 to
-	--2.68us, 8MHz 1.87 to 2.01us, V1H and V2 4MHz 2.35 to 2.46us, 8MHz 2.10 to 2.24us)
-	TBYTES4		:integer	:=201;
-	TBYTES8		:integer	:=147;
-	TBYTEH4		:integer	:=182;
-	TBYTEH8		:integer	:=165
+	--attributes) times these clocks is a DMA underrun from the frame it is taken (the
+	--defaults are from a real PC-8801FH, see VIDEO_TIMING_pkg)
+	TBYTES4		:integer	:=TBYTES4D;
+	TBYTES8		:integer	:=TBYTES8D;
+	TBYTEH4		:integer	:=TBYTEH4D;
+	TBYTEH8		:integer	:=TBYTEH8D
 );
 port(
 	TVRMODE		:in std_logic;
@@ -1672,6 +1671,10 @@ begin
 				else
 					holdcnt<=0;
 				end if;
+				--31kHz keeps 25 rows: a 24kHz or 15kHz set taken before a switch to 31kHz
+				if(VT24s='0' and capROWS>MAXLINES)then
+					capROWS<=MAXLINES;
+				end if;
 				if(pVRET='0' and VRETr='1')then
 					RASTER<=0;
 					REQ<=0;
@@ -1941,7 +1944,8 @@ begin
 			end if;
 			if(CRTCMD/=lCMDT)then
 				DUT<='0';
-				if(INRET='1' or (VRET='1' and lVRETT='0'))then
+				--a command on the clock the set is taken skips that frame only
+				if((INRET='1' or (VRET='1' and lVRETT='0')) and not (DUTQ='1' and lDUTQ='0'))then
 					DUSKIP<='1';
 				else
 					DUSKIP<='0';
