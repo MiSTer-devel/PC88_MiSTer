@@ -45,6 +45,10 @@ port(
 	SETOK	:out std_logic;
 	--Toggles on each RESET command
 	CRTRST	:out std_logic;
+	--Toggles on each RESET or START command
+	CMDTOG	:out std_logic;
+	--DMA underrun (TRAMCONV): read as bit 3, and the display reads as stopped
+	DU		:in std_logic	:='0';
 	
 	mon0	:out std_logic_vector(7 downto 0);
 	mon1	:out std_logic_vector(7 downto 0);
@@ -66,6 +70,7 @@ signal	lWRn	:std_logic;
 signal	INTen	:std_logic;
 signal	DSPen	:std_logic;
 signal	RSTTOG	:std_logic;
+signal	CMDT	:std_logic;
 signal	sL		:std_logic_vector(5 downto 0);
 signal	sR		:std_logic_vector(4 downto 0);
 signal	sV		:std_logic_vector(2 downto 0);
@@ -86,6 +91,7 @@ begin
 			INTen<='0';
 			DSPen<='0';
 			RSTTOG<='0';
+			CMDT<='0';
 			SETOK<='0';
 			mon1<=x"00";
 			mon2<=x"00";
@@ -110,10 +116,12 @@ begin
 						DSPen<='0';
 						INTen<='0';
 						RSTTOG<=not RSTTOG;
+						CMDT<=not CMDT;
 					when "001" =>	--Start display
 						CRTCen<='1';
 						DSPen<='1';
 						REVERSE<=DATIN(0);
+						CMDT<=not CMDT;
 					when "010" =>	--Set Interrupt Mask
 						if(DATIN(0)='0')then
 							CRTCen<='0';	-- Stop display due to stop DMA caused by interrupt
@@ -197,7 +205,8 @@ begin
 	end process;
 	
 	CRTRST<=RSTTOG;
-	DATOUT<=x"00" when ADR=DATADR else "000" & DSPen & "00" & (INTen and DSPen) & '0';
+	CMDTOG<=CMDT;
+	DATOUT<=x"00" when ADR=DATADR else "000" & (DSPen and not DU) & DU & '0' & (INTen and DSPen) & '0';
 	DATOE<='1' when (ADR=CMDADR or ADR=DATADR) and IORQn='0' and RDn='0' else '0';
 	
 end MAIN;

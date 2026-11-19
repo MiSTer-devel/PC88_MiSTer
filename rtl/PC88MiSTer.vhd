@@ -455,6 +455,8 @@ port(
 	SETV	:out std_logic_vector(2 downto 0);
 	SETOK	:out std_logic;
 	CRTRST	:out std_logic;
+	CMDTOG	:out std_logic;
+	DU		:in std_logic;
 	
 	mon0	:out std_logic_vector(7 downto 0);
 	mon1	:out std_logic_vector(7 downto 0);
@@ -1024,6 +1026,10 @@ port(
 	CPUBUS		:in std_logic;
 	CPUM1n		:in std_logic;
 	CRTRST		:in std_logic;
+	CRTCON		:in std_logic;
+	DMAON		:in std_logic;
+	CRTCMD		:in std_logic;
+	DU			:out std_logic;
 	clk			:in std_logic;
 	ce			:in std_logic;
 	rstn		:in std_logic
@@ -1718,6 +1724,8 @@ signal	CRTC_SETR	:std_logic_vector(4 downto 0);
 signal	CRTC_SETV	:std_logic_vector(2 downto 0);
 signal	CRTC_SETOK	:std_logic;
 signal	CRTC_RST	:std_logic;
+signal	CRTC_CMDT	:std_logic;
+signal	TCNV_DU		:std_logic;
 signal	CRTC_TSET	:std_logic_vector(17 downto 0);
 signal	TCROSS_ce	:std_logic;
 
@@ -2997,6 +3005,10 @@ port map(
 	CPUBUS		=>BUSSEL,
 	CPUM1n		=>M1_n,
 	CRTRST		=>CRTC_RST,
+	CRTCON		=>CRTCen,
+	DMAON		=>TDMAEN,
+	CRTCMD		=>CRTC_CMDT,
+	DU			=>TCNV_DU,
 	clk			=>rclk,
 	ce			=>tcnv_ce,
 	rstn		=>CPU_rstnr
@@ -3066,6 +3078,8 @@ port map(
 	SETV	=>CRTC_SETV,
 	SETOK	=>CRTC_SETOK,
 	CRTRST	=>CRTC_RST,
+	CMDTOG	=>CRTC_CMDT,
+	DU		=>TCNV_DU,
 
 	clk		=>rclk,
 	rstn	=>CPU_rstnr,
@@ -3359,7 +3373,7 @@ port map(
 	end process;
 	GVSIOC<='1' when IORQ_n='0' and M1_n='1' and GVSACK='0' and FMWSEL='0' else '0';
 	GVS		:GVSTRETCH port map(cpuce_r0,cpuce_f0,GVSTR,CPUMD,cpuce_r,cpuce_f,rclk,CPU_rstnr,T24,GVSIOC,CPUM1T5,CPUM1T6,GVSTXA,CPUMRD,CPUMCYC);
-	GVSTXA<=CRTCen and TDMAEN;
+	GVSTXA<=CRTCen and TDMAEN and not TCNV_DU;
 	--TRAMCONV takes GVSTR from this register, as for VRTCr.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
@@ -3438,7 +3452,7 @@ port map(
 	LOWRES		=>LOWRES,
 	GCOLOR		=>GCOLOR,
 	MONOEN		=>not GxDS,
-	TXTEN		=>((not TEXTDS) and TXTen and CRTCen and TDMAEN),
+	TXTEN		=>((not TEXTDS) and TXTen and CRTCen and TDMAEN and not TCNV_DU),
 	CRTCEN		=>CRTCen,
 	REVERSE		=>REVERSE,
 	
