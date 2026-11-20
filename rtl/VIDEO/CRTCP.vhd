@@ -463,12 +463,14 @@ begin
 				aHUEND<=HUWIDTH15-1;
 			elsif(VCOMP='1' and pVCOMP='0' and SETOK='1')then
 				if(VT24='1')then
-					if(xOK='1')then
+					if(xOK='1' and nHCHR<=HUVIS and nHIV>=HIVMIN24 and nHCHR+nHIV<=HUWMAX)then
 						aROWS<=nROWS;
 						aCHRL<=nCHRL;
 						aVRET<=xVRET;
 						aVEND<=xTOT-1;
 						aREQ0<=xVRET-nCHRL;
+						aHIV<=nHIV;
+						aHUEND<=nHCHR+nHIV-1;
 					end if;
 				elsif(nROWS<=ROWSMAX31 and nCHRL>=CHRLMIN31 and nCHRL<=CHRLMAX31 and nVRET>=vretmin and nVRET-nCHRL>CAPLINE)then
 					aROWS<=nROWS;
@@ -476,10 +478,6 @@ begin
 					aVRET<=nVRET;
 					aVEND<=nROWS*nCHRL+nVRET-1;
 					aREQ0<=nVRET-nCHRL;
-				end if;
-				if(nHCHR<=HUVIS and nHIV>=HIVMIN24 and nHCHR+nHIV<=HUWMAX)then
-					aHIV<=nHIV;
-					aHUEND<=nHCHR+nHIV-1;
 				end if;
 			end if;
 		end if;
