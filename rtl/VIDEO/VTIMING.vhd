@@ -33,7 +33,9 @@ port(
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	CE3		:out std_logic
+	CE3		:out std_logic;
+
+	HUENDT	:in integer range 0 to HUWMAX-1	:=HUWIDTH24-1	-- last character of a line in 24kHz or 15kHz timing
 );
 end VTIMING;
 architecture MAIN of VTIMING is
@@ -99,7 +101,7 @@ begin
 	CE3<=clk3b;
 
 	vend<=VEND24 when VT24='1' else VWIDTH-1;
-	huend<=HUWIDTH15-1 when VT15='1' else HUWIDTH24-1 when VT24='1' else (HWIDTH/DOTPU)-1;
+	huend<=HUENDT when VT24='1' else (HWIDTH/DOTPU)-1;
 
 	process(clk,rstn)begin
 		if(rstn='0')then

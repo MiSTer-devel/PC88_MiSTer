@@ -94,6 +94,8 @@ package VIDEO_TIMING_pkg is
 
 	--TRAMCONV takes the parameter set at this line of the retrace
 	constant CAPLINE	:integer	:=8;
+	-- fewest retrace characters a line in 24kHz or 15kHz timing: front porch, sync and 2
+	constant HIVMIN24	:integer	:=HFP24+HSY24+2;
 
 	--counter ranges for all timings
 	constant HUWMAX	:integer	:=HUWIDTH15;

@@ -36,7 +36,8 @@ port(
 
 	VT24	:in std_logic	:='0';		-- 1:24kHz or 15kHz timing (lines from the CRTC)
 	VT15	:in std_logic	:='0';		-- 1:15kHz timing: every line read once
-	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24	-- retrace lines in 24kHz or 15kHz timing
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz or 15kHz timing
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24	-- retrace characters of a line in 24kHz or 15kHz timing
 );
 end GRAPHSCR;
 
@@ -136,7 +137,7 @@ begin
 	GOVER<='1' when VT24='1' and VT15='0' and VCOUNT>=vivs+VVIS else
 			'1' when VT24='1' and VT15='1' and VCOUNT>=vivs+VVIS/2 else
 			'0';
-	hivs<=HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
+	hivs<=HIVT when VT24='1' else HIV;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then

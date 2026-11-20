@@ -411,6 +411,8 @@ port(
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
+	SETH		:in std_logic_vector(6 downto 0)	:="1001110";
+	SETZ		:in std_logic_vector(4 downto 0)	:="11000";
 	SETOK		:in std_logic	:='0';
 	TSET		:out std_logic_vector(18 downto 0)
 );
@@ -455,6 +457,8 @@ port(
 	SETL	:out std_logic_vector(5 downto 0);
 	SETR	:out std_logic_vector(4 downto 0);
 	SETV	:out std_logic_vector(2 downto 0);
+	SETH	:out std_logic_vector(6 downto 0);
+	SETZ	:out std_logic_vector(4 downto 0);
 	SETOK	:out std_logic;
 	CRTRST	:out std_logic;
 	CMDTOG	:out std_logic;
@@ -1726,6 +1730,8 @@ signal	CRTC_C		:std_logic_vector(1 downto 0);
 signal	CRTC_SETL	:std_logic_vector(5 downto 0);
 signal	CRTC_SETR	:std_logic_vector(4 downto 0);
 signal	CRTC_SETV	:std_logic_vector(2 downto 0);
+signal	CRTC_SETH	:std_logic_vector(6 downto 0);
+signal	CRTC_SETZ	:std_logic_vector(4 downto 0);
 signal	CRTC_SETOK	:std_logic;
 signal	CRTC_RST	:std_logic;
 signal	CRTC_CMDT	:std_logic;
@@ -3083,6 +3089,8 @@ port map(
 	SETL	=>CRTC_SETL,
 	SETR	=>CRTC_SETR,
 	SETV	=>CRTC_SETV,
+	SETH	=>CRTC_SETH,
+	SETZ	=>CRTC_SETZ,
 	SETOK	=>CRTC_SETOK,
 	CRTRST	=>CRTC_RST,
 	CMDTOG	=>CRTC_CMDT,
@@ -3494,6 +3502,8 @@ port map(
 	SETL		=>CRTC_SETL,
 	SETR		=>CRTC_SETR,
 	SETV		=>CRTC_SETV,
+	SETH		=>CRTC_SETH,
+	SETZ		=>CRTC_SETZ,
 	SETOK		=>CRTC_SETOK,
 	TSET		=>CRTC_TSET
 	);

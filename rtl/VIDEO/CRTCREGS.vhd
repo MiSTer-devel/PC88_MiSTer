@@ -38,10 +38,12 @@ port(
 	SC		:out std_logic;						--??
 	ATTR	:out std_logic_vector(4 downto 0);	--Attribute length
 
-	--L, R and V of the last RESET whose parameters were all written
+	--L, R, V, H and Z of the last RESET whose parameters were all written
 	SETL	:out std_logic_vector(5 downto 0);
 	SETR	:out std_logic_vector(4 downto 0);
 	SETV	:out std_logic_vector(2 downto 0);
+	SETH	:out std_logic_vector(6 downto 0);
+	SETZ	:out std_logic_vector(4 downto 0);
 	SETOK	:out std_logic;
 	--Toggles on each RESET command
 	CRTRST	:out std_logic;
@@ -74,6 +76,8 @@ signal	CMDT	:std_logic;
 signal	sL		:std_logic_vector(5 downto 0);
 signal	sR		:std_logic_vector(4 downto 0);
 signal	sV		:std_logic_vector(2 downto 0);
+signal	sH		:std_logic_vector(6 downto 0);
+signal	sZ		:std_logic_vector(4 downto 0);
 begin
 	IOWRn<=IORQn or WRn;
 	process(clk,rstn)begin
@@ -140,6 +144,7 @@ begin
 						when 0 =>
 							DMAMODE<=DATIN(7);
 							H<=DATIN(6 downto 0);
+							sH<=DATIN(6 downto 0);
 							mon0<=DATIN;
 						when 1 =>
 							B<=DATIN(7 downto 6);
@@ -162,6 +167,7 @@ begin
 							V<=DATIN(7 downto 5);
 							sV<=DATIN(7 downto 5);
 							Z<=DATIN(4 downto 0);
+							sZ<=DATIN(4 downto 0);
 							mon3<=DATIN;
 						when 4 =>
 							AT1<=DATIN(7);
@@ -172,6 +178,8 @@ begin
 							SETL<=sL;
 							SETR<=sR;
 							SETV<=sV;
+							SETH<=sH;
+							SETZ<=sZ;
 							SETOK<='1';
 						when others=>
 						end case;

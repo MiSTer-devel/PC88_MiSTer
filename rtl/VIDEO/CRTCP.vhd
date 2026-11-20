@@ -73,6 +73,8 @@ port(
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
+	SETH		:in std_logic_vector(6 downto 0)	:="1001110";	-- characters a row - 2
+	SETZ		:in std_logic_vector(4 downto 0)	:="11000";	-- horizontal retrace - 2
 	SETOK		:in std_logic	:='0';
 	TSET		:out std_logic_vector(18 downto 0)	-- rows-1, height-1, first request line, for TRAMCONV
 );
@@ -109,7 +111,8 @@ port(
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	CE3		:out std_logic
+	CE3		:out std_logic;
+	HUENDT	:in integer range 0 to HUWMAX-1	:=HUWIDTH24-1
 );
 end component;
 
@@ -154,7 +157,8 @@ port(
 	VT15	:in std_logic	:='0';
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;
 	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24;
-	TXT16	:in std_logic	:='1'
+	TXT16	:in std_logic	:='1';
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24
 );
 end component;
 
@@ -190,7 +194,8 @@ port(
 
 	VT24	:in std_logic	:='0';
 	VT15	:in std_logic	:='0';
-	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24
 );
 end component;
 
@@ -229,7 +234,8 @@ port(
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	ce		:in std_logic := '1'
+	ce		:in std_logic := '1';
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24
 );
 end component;
 
@@ -383,6 +389,11 @@ signal	xVRET	:integer range 0 to 256;
 signal	xDISP	:integer range 1 to ROWSMAX24*CHRLMAX24;
 signal	xTOT	:integer range 1 to ROWSMAX24*CHRLMAX24+256;
 signal	xOK		:std_logic;
+--24kHz, 15kHz: a line is H+2 characters shown and Z+2 retrace characters (PC-8801FH)
+signal	aHIV	:integer range 0 to HUWMAX-1	:=HIV24;
+signal	aHUEND	:integer range 0 to HUWMAX-1	:=HUWIDTH24-1;
+signal	nHCHR	:integer range 2 to 129;
+signal	nHIV	:integer range 2 to 33;
 
 begin
 	TIM	:vtiming generic map(
@@ -396,9 +407,9 @@ begin
 	HSY		=>HSY,
 	VFP		=>VFP,
 	VSY		=>VSY
-) port map(VT24,VT15,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b);
-	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL,TXT16);
-	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET);
+) port map(VT24,VT15,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b,aHUEND);
+	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL,TXT16,aHIV);
+	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET,aHIV);
 
 	--The cursor is as set by the CRTC (C of the RESET command): the whole row or
 	--its last line, blinking or not.
@@ -417,6 +428,8 @@ begin
 	nROWS<=conv_integer(SETL)+1;
 	nCHRL<=conv_integer(SETR)+1;
 	nVRET<=(conv_integer(SETV)+1)*(conv_integer(SETR)+1);
+	nHCHR<=conv_integer(SETH)+2;
+	nHIV<=conv_integer(SETZ)+2;
 	vretmin<=VRETMIN15 when VT15='1' else VRETMIN24;
 	xVRET<=	nVRET when nVRET>=vretmin and nVRET>=nCHRL+CAPLINE+1 else
 			vretmin when vretmin>=nCHRL+CAPLINE+1 else
@@ -434,6 +447,8 @@ begin
 			aVRET<=VRETDEF24;
 			aVEND<=ROWSDEF24*CHRLDEF24+VRETDEF24-1;
 			aREQ0<=VRETDEF24-CHRLDEF24;
+			aHIV<=HIV24;
+			aHUEND<=HUWIDTH24-1;
 			pVCOMP<='0';
 			aDEF<='1';
 		elsif(clk' event and clk='1')then
@@ -444,6 +459,8 @@ begin
 				aVRET<=VRETDEF15;
 				aVEND<=ROWSDEF24*CHRLDEF15+VRETDEF15-1;
 				aREQ0<=VRETDEF15-CHRLDEF15;
+				aHIV<=HIV15;
+				aHUEND<=HUWIDTH15-1;
 			elsif(VCOMP='1' and pVCOMP='0' and SETOK='1')then
 				if(VT24='1')then
 					if(xOK='1')then
@@ -459,6 +476,10 @@ begin
 					aVRET<=nVRET;
 					aVEND<=nROWS*nCHRL+nVRET-1;
 					aREQ0<=nVRET-nCHRL;
+				end if;
+				if(nHCHR<=HUVIS and nHIV>=HIVMIN24 and nHCHR+nHIV<=HUWMAX)then
+					aHIV<=nHIV;
+					aHUEND<=nHCHR+nHIV-1;
 				end if;
 			end if;
 		end if;
@@ -484,7 +505,7 @@ begin
 		HSY		=>HSY,
 		VFP		=>VFP,
 		VSY		=>VSY
-	) port map(VT24,VT15,aVRET,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk,rstn,ce3b);
+	) port map(VT24,VT15,aVRET,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk,rstn,ce3b,aHIV);
 	
 	F_REVERSE <= T_BGCOLOR(0) xor REVERSE;
 	A_REVERSE <= (others=>F_REVERSE);
