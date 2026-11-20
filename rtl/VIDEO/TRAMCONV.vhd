@@ -33,7 +33,13 @@ generic(
 	--8MHz: a row taken while the CPU is not slowed down is held M1GAIN/16 steps
 	--longer for each M1 above M1BASE among the last 128 CPU bus cycles
 	M1BASE		:integer	:=60;
-	M1GAIN		:integer	:=35
+	M1GAIN		:integer	:=35;
+	--V1S: channel 2 off for DUCLK* clocks of the display while the CRTC runs is a DMA
+	--underrun: no text and no transfer until the next CRTC command. 4MHz 15kHz 200us,
+	--others 400us (a real PC-8801FH: 4MHz 15kHz underruns from about half a row of
+	--8257 off, 8MHz and 24kHz from about three quarters)
+	DUCLK4		:integer	:=15179;
+	DUCLK		:integer	:=30357
 );
 port(
 	TVRMODE		:in std_logic;
@@ -99,6 +105,10 @@ port(
 	CPUBUS		:in std_logic	:='0';	-- a CPU bus cycle (BUSSEL)
 	CPUM1n		:in std_logic	:='1';
 	CRTRST		:in std_logic	:='0';	-- toggles on each CRTC RESET command (CRTCREGS)
+	CRTCON		:in std_logic	:='1';	-- the CRTC display is started
+	DMAON		:in std_logic	:='1';	-- 8257 channel 2 is enabled
+	CRTCMD		:in std_logic	:='0';	-- toggles on each CRTC RESET or START command (CRTCREGS)
+	DU			:out std_logic;			-- V1S: DMA underrun (51h bit 3)
 	clk			:in std_logic;
 	ce			:in std_logic	:='1';	-- one step: 4 times in 15 rclk clocks (20.24MHz)
 	rstn		:in std_logic
@@ -130,7 +140,7 @@ signal	FIXVAL		:std_logic_vector(8 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
 signal	LINECNT	:integer range 0 to MAXLINES;
-type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR,ST_HOLD,ST_BLANK,ST_BLANK1,ST_BLANK2,ST_STPCK,ST_STPCK1);
+type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR,ST_HOLD,ST_BLANK,ST_BLANK1,ST_BLANK2,ST_NBR,ST_NBR1,ST_NBR2,ST_NBR3,ST_STPCK,ST_STPCK1);
 signal	STATE	:STATE_T;
 --signal	STATE	:integer range 0 to 12;
 --	constant ST_IDLE	:integer	:=0;
@@ -410,6 +420,19 @@ signal	MRAM_WAITr	:std_logic;
 signal	BUSACKnr	:std_logic;
 signal	VRETr,HRETr	:std_logic;
 signal	TEXTENr		:std_logic;
+--The text DMA as the rows follow it: TEXTEN, but in V1S the CRTC and no underrun
+--(channel 2 off for a moment only delays the rows)
+signal	TXE			:std_logic;
+--TXE without the underrun: the rows of a frame are taken with it (rows in an underrun are blank)
+signal	TXC			:std_logic;
+signal	DMAONr		:std_logic;
+signal	V1SN		:std_logic;	-- V1S from the start of the frame: the channel 2 wait, the blank rows and the underrun
+signal	TXCu,TXEu	:std_logic;	-- TXC and TXE in V1S, else TEXTENr as before
+signal	DUH,DUH2	:std_logic;	-- an underrun held over two ce (the stop runs twice even if a command clears it first)
+signal	DUL			:std_logic;
+signal	ducnt		:integer range 0 to DUCLK;
+signal	dulim		:integer range 0 to DUCLK;
+signal	lCMD		:std_logic;
 --TXTLINES, taken when TXLr2 and TXLr3 agree.
 signal	TXLr,TXLr2,TXLr3	:std_logic_vector(5 downto 0);
 --VMODE, GVSTR and VT24, two steps late as before.
@@ -548,6 +571,9 @@ begin
 			VRETr<='1';
 			HRETr<='1';
 			TEXTENr<='0';
+			TXE<='0';
+			TXC<='0';
+			DMAONr<='0';
 			TXLr<=(others=>'0');
 			TXLr2<=(others=>'0');
 			TXLr3<=(others=>'0');
@@ -682,6 +708,10 @@ begin
 				VRETr<=VRET;
 				HRETr<=HRET;
 				TEXTENr<=TEXTEN;
+				--TEXTEN is CRTCON and DMAON: with channel 2 off only the CRTC counts here
+				TXC<=TEXTEN or (CRTCON and not DMAON);
+				TXE<=(TEXTEN or (CRTCON and not DMAON)) and not (DUL or DUH or DUH2);
+				DMAONr<=DMAON;
 				TXLr<=TXTLINES;
 				TXLr2<=TXLr;
 				TXLr3<=TXLr2;
@@ -839,8 +869,9 @@ begin
 									BLKADR<=capROWS*LINECHARS*2;
 									STATE<=ST_BLANK;
 								end if;
-							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ and PFHOLD='1' and LINECNT=0)then
-								if(VT24s='1' and VT15s=pfVT15 and TMODE=rTMODE and TVRMODE=rTVRMODE
+							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ and PFHOLD='1' and LINECNT=0 and (DMAONr='1' or DMA0='0' or V1SN='0'))then
+								--Not after a stop or an underrun since the read-ahead (DMA0='0'): the rows are blank.
+								if((DMA0='1' or V1SN='0') and VT24s='1' and VT15s=pfVT15 and TMODE=rTMODE and TVRMODE=rTVRMODE
 									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR
 									and RSTP='0')then
 									--Row 0 was read ahead (not before a RESET): skip it.
@@ -850,8 +881,9 @@ begin
 								else
 									PFRST<='1';
 								end if;
-							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ)then
-								--Start of a row: as on HRET below.
+							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ and (DMAONr='1' or DMA0='0' or V1SN='0'))then
+								--Start of a row: as on HRET below. While channel 2 is off the 8257
+								--holds the request: the row waits (a row it does not move does not).
 								SHACT<='0';
 								CHARCNT<=0;
 								ATRCNT<=0;
@@ -889,7 +921,10 @@ begin
 									--(a row after the stop shown from the row buffers: no bus, no hold)
 									NOHOLD<='1';
 								end if;
-								if(rTMODE='1' and STPR='0')then
+								if(rTMODE='1' and DMA0='0' and V1SN='1')then
+									--The 8257 does not move this row: a blank row without the bus
+									STATE<=ST_NBR;
+								elsif(rTMODE='1' and STPR='0')then
 									STATE<=ST_GETBUS;
 									BUSREQi<='0';
 								elsif(rTVRMODE='1')then
@@ -901,7 +936,10 @@ begin
 								for iCOUNTER in 0 to 79 loop
 									fATTR(iCOUNTER)<='0';
 								end loop;
-							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1' and capROWS>=2 and VT24s='1')then
+							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1' and DMXF='0' and V1SN='1')then
+								--The 8257 does not move row 0 of the next frame here: no read-ahead.
+								XREQ<='0';
+							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1' and capROWS>=2 and VT24s='1' and (DMAONr='1' or V1SN='0'))then
 								--24kHz, 15kHz: read row 0 of the next frame ahead, as a frame start and
 								--a row start.
 								XREQ<='0';
@@ -971,7 +1009,7 @@ begin
 								pfATTRLEN<=ATTRLEN;
 								STATE<=ST_GETBUS;
 								BUSREQi<='0';
-							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1')then
+							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1' and (DMAONr='1' or V1SN='0'))then
 								--24kHz, 15kHz with one row: the hold-only request.
 								XREQ<='0';
 								SHACT<='0';
@@ -1498,11 +1536,42 @@ begin
 							STATE<=ST_IDLE;
 						else
 							BLKADR<=BLKADR+1;
-							if(VT24s='1' and capTEXTEN='1' and LINECNT<REQ)then
+							if(VT24s='1' and capTEXTEN='1' and LINECNT<REQ and (DMAONr='1' or DMA0='0' or V1SN='0'))then
 								STATE<=ST_IDLE;
 							else
 								STATE<=ST_BLANK;
 							end if;
+						end if;
+					when ST_NBR =>
+						--A row the 8257 does not move: blank, without the bus and without
+						--stepping the row address or the attribute carry.
+						TVRAM_ADR<=CDSTADR;
+						TVRAM_WDAT<='0' & x"00";
+						STATE<=ST_NBR1;
+					when ST_NBR1 =>
+						TVRAM_WR<='1';
+						STATE<=ST_NBR2;
+					when ST_NBR2 =>
+						TVRAM_ADR<=CDSTADR+"001";
+						TVRAM_WDAT<='0' & x"80";
+						STATE<=ST_NBR3;
+					when ST_NBR3 =>
+						TVRAM_WR<='1';
+						if(CHARCNT<LINECHARS-1)then
+							CHARCNT<=CHARCNT+1;
+							CDSTADR<=CDSTADR+x"002";
+							STATE<=ST_NBR;
+						else
+							if(SMODE='1' and LINESKIP='0')then
+								LINESKIP<='1';
+							else
+								LINESKIP<='0';
+							end if;
+							CDSTADR<=SDSTADR+x"0a0";
+							SDSTADR<=SDSTADR+x"0a0";
+							CHARCNT<=0;
+							ATRCNT<=0;
+							STATE<=ST_IDLE;
 						end if;
 					when ST_RELBUS =>
 						SBLK<='0';
@@ -1537,7 +1606,7 @@ begin
 				end if;
 
 				--V1S: count rasters and row requests.
-				if(TEXTENr='0')then
+				if(TXEu='0')then
 					STP<='0';
 					PKQ<='0';
 					DMXF<='0';
@@ -1600,7 +1669,7 @@ begin
 						end if;
 						if(RASTER+1=CAPLINE)then
 							capV1S<=V1S;
-							capTEXTEN<=TEXTENr;
+							capTEXTEN<=TXCu;
 							capCPUMD<=CPUMD;
 							if(TXLr2=TXLr3)then
 								if(conv_integer(TXLr3)<MAXLINES)then
@@ -1622,7 +1691,7 @@ begin
 							end if;
 							CAPD<='1';
 							--A read-ahead taken with other screen settings is not used.
-							if((PFOK='1' or PFHOLD='1') and (V1S='0' or VT24s/=pfVT24 or VT15s/=pfVT15 or TEXTENr/=pfTEXTEN
+							if((PFOK='1' or PFHOLD='1') and (V1S='0' or VT24s/=pfVT24 or VT15s/=pfVT15 or TXCu/=pfTEXTEN
 								or (VT24s='1' and (conv_integer(TSok(17 downto 13))/=pfROWS or conv_integer(TSok(12 downto 8))/=pfCHRL))))then
 								PFRST<='1';
 							end if;
@@ -1634,7 +1703,7 @@ begin
 							XREQ<='1';
 							REQLINE<=REQLINE+capCHRL;
 						end if;
-						if(CAPD='1' and RASTER+1=REQLINE and TEXTENr='1'
+						if(CAPD='1' and RASTER+1=REQLINE and TXEu='1'
 							and ((REQ>0 and REQ<capROWS and DMA0='1') or (REQ>=capROWS and DMAX='0'))
 							and (STP='0' or REQ<=STK or REQ>=capROWS)
 							and (SMODE='0' or REQ>=capROWS or (REQ mod 2)=0))then
@@ -1788,6 +1857,46 @@ begin
 					FOL<='0';
 					SPP<='0';
 					SPLON<='0';
+				end if;
+			end if;
+		end if;
+	end process;
+
+	--V1S: channel 2 off through dulim clocks of the display (the count waits over the
+	--retrace) while the CRTC runs is an underrun. It lasts until the next CRTC command.
+	DU<=DUL;
+	V1SN<=V1S and capV1S;
+	TXCu<=TXC when V1SN='1' else TEXTENr;
+	TXEu<=TXE when V1SN='1' else TEXTENr;
+	dulim<=DUCLK4 when CPUMD='0' and VT24='1' and VT15='1' else DUCLK;
+	process(clk,rstn)begin
+		if(rstn='0')then
+			DUL<='0';
+			DUH<='0';
+			DUH2<='0';
+			ducnt<=0;
+			lCMD<='0';
+		elsif(clk' event and clk='1')then
+			lCMD<=CRTCMD;
+			if(V1SN='0')then
+				DUH<='0';
+				DUH2<='0';
+			elsif(ce='1')then
+				DUH<='0';
+				DUH2<=DUH;
+			end if;
+			if(CRTCMD/=lCMD or capV1S='0' or V1S='0')then
+				DUL<='0';
+				ducnt<=0;
+			elsif(CRTCON='0' or DMAON='1' or DMA0='0')then
+				--a frame the 8257 does not move (just after a restart) asks for nothing: no underrun
+				ducnt<=0;
+			elsif(DUL='0' and VRET='0')then
+				if(ducnt>=dulim-1)then
+					DUL<='1';
+					DUH<='1';
+				else
+					ducnt<=ducnt+1;
 				end if;
 			end if;
 		end if;
