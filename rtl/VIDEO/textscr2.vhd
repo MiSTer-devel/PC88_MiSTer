@@ -64,6 +64,7 @@ signal	NXTFS	:std_logic;
 signal	NXTBL	:std_logic;
 signal	CHAR	:std_logic_vector(7 downto 0);
 signal	TRAMADRb	:std_logic_vector(TVAW-1 downto 0);
+signal	TROWADR	:std_logic_vector(TVAW-1 downto 0);	-- the row being drawn: rows are HUVIS*2 apart, whatever H shows
 signal	DHCOMP	:std_logic;
 signal	DVCOMP	:std_logic;
 signal	C_LOW	:integer range 0 to ROWCAP-1;
@@ -259,6 +260,7 @@ begin
 			NXTFS<='0';
 			NXTBL<='0';
 			TRAMADRb<=(others=>'0');
+			TROWADR<=(others=>'0');
 			FRAMADR<=(others=>'0');
 			FRAMADR8<=(others=>'0');
 			C_LOW<=0;
@@ -269,14 +271,19 @@ begin
 			if(DHCOMP='1')then
 				if(VCOUNT>vivs)then
 					if(C_LIN/=0)then
-						TRAMADRb<=TRAMADRb-(HUVIS*2);
-					elsif(C_LOW<ROWCAP-1)then
-						C_LOW<=C_LOW+1;
+						TRAMADRb<=TROWADR;
+					else
+						TRAMADRb<=TROWADR+(HUVIS*2);
+						TROWADR<=TROWADR+(HUVIS*2);
+						if(C_LOW<ROWCAP-1)then
+							C_LOW<=C_LOW+1;
+						end if;
 					end if;
 				end if;
 			end if;
 			if(DVCOMP='1')then
 				TRAMADRb<=(others=>'0');
+				TROWADR<=(others=>'0');
 				C_LOW<=0;
 			end if;
 			
