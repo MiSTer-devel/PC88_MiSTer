@@ -78,6 +78,7 @@ parameter CONF_STR = {
 	"P2-;",
 	"P2OK,Input,Joypad,Mouse;",
 	"P2ON,Keyboard layout,JP,US;",
+	"P2O[34],Arrow keys,Cursor,Numpad 8/2/4/6;",
 	"P2O[33:32],SNAC,Off,Keyboard;",
 	"P2-;",
 	"P2OA,Basic mode,Basic,Terminal;",
@@ -668,6 +669,7 @@ PC88MiSTer PC88_top
 	.pLed(disk_led),
 	.pDip({clkmode,2'b0,cDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
 	.pCoreConfig({cKbUS,cVtiming,cSB,cInDev}),
+	.pNumArrow(status[34]),
 	.pPsw(2'b11),
 
 	.pVideoR(red),

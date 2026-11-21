@@ -21,6 +21,7 @@ port(
 	KBRX	:out std_logic;
 	KBEN	:in std_logic	:='1';
 	USLAYOUT:in std_logic	:='0';
+	NUMARROW:in std_logic	:='0';
 	
 	monout	:out std_logic_vector(7 downto 0);
 	
@@ -267,7 +268,7 @@ begin
 	--BS and DEL as INS/DEL, and the two keys in row 13 bits 0 and 1 as SPACE.
 	--The FH has one CTRL. The right CTRL is held in row 14 bit 4, which software
 	--still reads as 1, and either CTRL reads as CTRL.
-	process(SCANADR,KBROW,OWN,DST,SADD,CURV,CURI,CURP)
+	process(SCANADR,KBROW,OWN,DST,SADD,CURV,CURI,CURP,NUMARROW)
 	variable r	:std_logic_vector(7 downto 0);
 	begin
 		r:=KBROW(conv_integer(SCANADR));
@@ -286,6 +287,21 @@ begin
 			r(4):='1';
 		when others =>
 		end case;
+		--Arrow keys as numpad: the arrows stay in their cells (up 8-1, right 8-2, down 10-1, left 10-2)
+		--and are read as numpad 8, 6, 2 and 4, so a change of the option with a key held leaves nothing held.
+		if(NUMARROW='1')then
+			case SCANADR is
+			when x"0" =>
+				r(2):=r(2) and KBROW(10)(1);
+				r(4):=r(4) and KBROW(10)(2);
+				r(6):=r(6) and KBROW(8)(2);
+			when x"1" =>
+				r(0):=r(0) and KBROW(8)(1);
+			when x"8" | x"a" =>
+				r(2 downto 1):="11";
+			when others =>
+			end case;
+		end if;
 		--US layout: the cells of the keys held, and SHIFT for the key that changes it
 		for i in 0 to 13 loop
 			if(OWN(i)=OW_HOLD and DST(i)(6 downto 3)=SCANADR)then
