@@ -137,7 +137,7 @@ constant LINECHARS	:integer	:=80;
 --Rows of the frame in 31kHz (and the rows processed at least, in all timings)
 constant MAXLINES	:integer	:=25;
 --The start of the row being read. Its text is read from byte CHARCNT of the row, its
---attributes from byte AOFF (from 80 on).
+--attributes from byte AOFF (from HCHR on).
 signal	STXTADR	:std_logic_vector(15 downto 0);
 signal	AOFF	:std_logic_vector(15 downto 0);
 signal	SDSTADR	:std_logic_vector(TVAW-1 downto 0);
@@ -272,6 +272,7 @@ signal	SETHs		:std_logic_vector(6 downto 0);
 signal	ATTRLENs	:std_logic_vector(4 downto 0);
 signal	SPCHRs		:std_logic;
 signal	HCHR		:integer range 2 to 80;		-- characters a row (CRTC)
+signal	ABASE		:std_logic_vector(15 downto 0);	-- the first attribute byte of a row
 signal	RBYTES		:integer range 0 to 255;	-- bytes a row
 signal	hadj4		:integer range -8192 to 8191;
 signal	hadj8		:integer range -8192 to 8191;
@@ -501,7 +502,9 @@ begin
 	STPR<='1' when STP='1' and STK<LINECNT and EPOCH=REPOCH and RRLA='0' else '0';
 	MRAM_ADR<=RDADR;
 	iATTRLEN<=conv_integer(ATTRLEN);
-	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
+	--A row is HCHR characters, then its attributes (a FH: the CRTC takes H+2A bytes a row)
+	LINEADD<=conv_std_logic_vector(RBYTES,16);
+	ABASE<=conv_std_logic_vector(HCHR,16);
 	--31kHz keeps 5 bits of the rows set in the CRTC, as before
 	LINES<=conv_integer(TXTLINES) when VT24s='1' else conv_integer(TXTLINES(4 downto 0));
 	LEND<=capROWS when capROWS>MAXLINES else MAXLINES;
@@ -1280,7 +1283,7 @@ begin
 								STXTADR<=F0A;
 								RREM<=F0R;
 								RLA<=F0B;
-								AOFF<=x"0050"+(x"00" & "00" & ATTRLEN & "0");
+								AOFF<=ABASE+(x"00" & "00" & ATTRLEN & "0");
 								PKM<='1';
 								PKP<='1';
 								STATE<=ST_STPCK;
@@ -1327,7 +1330,8 @@ begin
 							PBWA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 							PBWD<=RDDAT;
 							TVRAM_ADR<=CDSTADR;
-							if (LINESKIP='1' or BLKR='1')then
+							--(a column past the CRTC characters is read as before, but shown blank)
+							if (LINESKIP='1' or BLKR='1' or CHARCNT>=HCHR)then
 								TVRAM_WDAT<='0' & x"00";
 							else
 								TVRAM_WDAT<='0' & RDDAT;
@@ -1343,7 +1347,7 @@ begin
 						else
 							CDSTADR<=SDSTADR+"001";
 							CHARCNT<=0;
-							AOFF<=x"0050";
+							AOFF<=ABASE;
 							if (LINESKIP='1' or SBLK='1')then
 								STATE<=ST_SKIPATR;
 							elsif (SPCHR='1')then
@@ -1387,14 +1391,14 @@ begin
 								ATRCNT<=0;
 								if(RDDAT(6 downto 4)="110" and STEL='1')then
 									--The last pair may stop the rows after this one: read its value
-									AOFF(0)<='1';
+									AOFF<=AOFF+1;
 									STATE<=ST_STPCK;
 								else
 									if(STP='1' and STK=STRI and STEL='1')then
 										--(this row, read again, no longer stops them)
 										STP<='0';
 									end if;
-									AOFF<=x"0051";
+									AOFF<=ABASE+1;
 									if (fATTR(0)='1' or iATTRCUL=0)then
 										STATE<=ST_RDATR2;
 									else
@@ -1469,7 +1473,7 @@ begin
 								--row 0 of the next frame: its column, then its value
 								PKP<='0';
 								if(RDDAT(6 downto 4)="110")then
-									AOFF(0)<='1';
+									AOFF<=AOFF+1;
 									STATE<=ST_STPCK;
 								else
 									PKM<='0';
@@ -1497,7 +1501,7 @@ begin
 								elsif(STP='1' and STK=STRI)then
 									STP<='0';
 								end if;
-								AOFF<=x"0051";
+								AOFF<=ABASE+1;
 								if (fATTR(0)='1')then
 									STATE<=ST_RDATR2;
 								else
