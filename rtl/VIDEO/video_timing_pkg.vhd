@@ -96,6 +96,10 @@ package VIDEO_TIMING_pkg is
 	constant CAPLINE	:integer	:=8;
 	-- fewest retrace characters a line in 24kHz or 15kHz timing: front porch, sync and 2
 	constant HIVMIN24	:integer	:=HFP24+HSY24+2;
+	-- fewest characters a line, and a row (lines times characters): the graphics read 80
+	-- bytes a line and TRAMCONV converts 80 columns a row whatever H shows
+	constant HUMIN24	:integer	:=32;
+	constant ROWUMIN24	:integer	:=160;
 
 	--counter ranges for all timings
 	constant HUWMAX	:integer	:=HUWIDTH15;

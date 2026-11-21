@@ -97,6 +97,11 @@ begin
 			RSTTOG<='0';
 			CMDT<='0';
 			SETOK<='0';
+			--H and Z as a full 80-character line until a set is written (TRAMCONV reads SETH as it is)
+			sH<="1001110";
+			sZ<="11000";
+			SETH<="1001110";
+			SETZ<="11000";
 			mon1<=x"00";
 			mon2<=x"00";
 			mon3<=x"00";

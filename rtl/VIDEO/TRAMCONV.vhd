@@ -49,7 +49,7 @@ generic(
 	DUCLK4		:integer	:=15179;
 	DUCLK		:integer	:=30357;
 	--24kHz, 15kHz: a set whose row (of lines of H+Z+4 characters) lasts less than its bytes
-	--(H + 2 + 2 * ATTRLEN, H without attributes) times these clocks is a DMA underrun from
+	--(characters + 2 + 2 * ATTRLEN, the characters without attributes) times these clocks is a DMA underrun from
 	--the frame it is taken (the defaults are from a real PC-8801FH, see VIDEO_TIMING_pkg)
 	TBYTES4		:integer	:=TBYTES4D;
 	TBYTES8		:integer	:=TBYTES8D;
@@ -243,6 +243,7 @@ signal	pfCHRL		:integer range CHRLMIN24 to CHRLMAX24;
 signal	pfTEXTEN,pfVT24,pfVT15	:std_logic;
 signal	pfSMODE,pfSPCHR,pfCOLOR,pfATTRCOLOR	:std_logic;
 signal	pfATTRLEN	:std_logic_vector(4 downto 0);
+signal	pfHCHR		:integer range 2 to 80;
 signal	hTADR		:std_logic_vector(15 downto 0);	-- frame start values held at VRET
 signal	hTVRMODE,hTMODE	:std_logic;
 signal	HOLDTGT		:integer range 0 to 65535;
@@ -315,6 +316,7 @@ signal	RDAT1		:std_logic;	-- the row after this one is a row of the screen
 signal	FOLL		:std_logic;	-- FOL, and this row can be followed (LFOL)
 signal	LFOL		:std_logic;	-- the rows have attributes (1 to 32: fhp15 W1/X1 follow the 8257 too)
 signal	FATL		:std_logic_vector(4 downto 0);	-- the attribute count when row 0 was taken (a change stops following)
+signal	FHCH		:integer range 2 to 80;			-- and the characters a row (so does a change of it)
 --A FH draws from the new address the rows the 8257 has not moved when 64h or 65h is written
 --(fhp3 Q4), and draws a frame after a CRTC or DMA restart black but its last row (Q6).
 signal	EPOCH		:std_logic_vector(1 downto 0);	-- counts the moves of row 0
@@ -597,7 +599,7 @@ begin
 				end if;
 				hadj4<=((120-RBYTES)*V1SBYTE4)/16;
 				hadj8<=((120-RBYTES)*V1SBYTE8)/16;
-				--a line is TLINE characters of LINECLK/HUWIDTH clocks (8 bits of fraction)
+				--a line is TLINE characters of LINECLK/HUWIDTH clocks (8 bits of fraction, rounded)
 				if(TLok="0000000")then
 					if(VT15s='1')then
 						lnclk<=LINECLK15;
@@ -606,9 +608,9 @@ begin
 					end if;
 				else
 					if(VT15s='1')then
-						lnv:=conv_std_logic_vector(conv_integer(TLok)*LNCPC15,21);
+						lnv:=conv_std_logic_vector(conv_integer(TLok)*LNCPC15+128,21);
 					else
-						lnv:=conv_std_logic_vector(conv_integer(TLok)*LNCPC24,21);
+						lnv:=conv_std_logic_vector(conv_integer(TLok)*LNCPC24+128,21);
 					end if;
 					lnclk<=conv_integer(lnv(20 downto 8));
 				end if;
@@ -670,6 +672,10 @@ begin
 			TSr2<=TSDEF;
 			TSr3<=TSDEF;
 			TSok<=TSDEF;
+			TLr<=(others=>'0');
+			TLr2<=(others=>'0');
+			TLr3<=(others=>'0');
+			TLok<=(others=>'0');
 			pVRET<='1';
 			pHRET<='1';
 			RASTER<=0;
@@ -721,6 +727,7 @@ begin
 			pfCOLOR<='0';
 			pfATTRCOLOR<='0';
 			pfATTRLEN<=(others=>'0');
+			pfHCHR<=80;
 			hTADR<=(others=>'0');
 			hTVRMODE<='0';
 			hTMODE<='0';
@@ -736,6 +743,7 @@ begin
 			F0OK<='0';
 			FOL<='0';
 			FATL<=(others=>'0');
+			FHCH<=80;
 			RREM<=0;
 			RLA<=(others=>'0');
 			RLR<=0;
@@ -833,7 +841,7 @@ begin
 				end if;
 				--The read-ahead row is converted with the live settings: one that changed
 				--while it ran is not used.
-				if(PFROW='1' and (SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR))then
+				if(PFROW='1' and (SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR or HCHR/=pfHCHR))then
 					PFDIRTY<='1';
 				end if;
 				if(waitcount>0)then
@@ -971,7 +979,7 @@ begin
 							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ and PFHOLD='1' and LINECNT=0 and (DMAONr='1' or DMA0='0' or V1SN='0'))then
 								--Not after a stop or an underrun since the read-ahead (DMA0='0'): the rows are blank.
 								if((DMA0='1' or V1SN='0') and VT24s='1' and VT15s=pfVT15 and TMODE=rTMODE and TVRMODE=rTVRMODE
-									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR
+									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR and HCHR=pfHCHR
 									and RSTP='0')then
 									--Row 0 was read ahead (not before a RESET): skip it.
 									LINECNT<=1;
@@ -1106,6 +1114,7 @@ begin
 								pfCOLOR<=COLOR;
 								pfATTRCOLOR<=ATTRCOLOR;
 								pfATTRLEN<=ATTRLEN;
+								pfHCHR<=HCHR;
 								STATE<=ST_GETBUS;
 								BUSREQi<='0';
 							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1' and (DMAONr='1' or V1SN='0'))then
@@ -1546,6 +1555,9 @@ begin
 							TVRAM_WDAT<='0' & x"80";
 						elsif(FIXATR='1')then
 							TVRAM_WDAT<=FIXVAL;
+						elsif(CHARCNT>=HCHR)then
+							--(a column past the CRTC characters: plain, as a blank row)
+							TVRAM_WDAT<='0' & x"80";
 						else
 							TVRAM_WDAT<=CURATR;
 						end if;
@@ -1593,7 +1605,7 @@ begin
 								--Not when VRET rises in this same step (then it did not end before VRET),
 								--nor when a format setting changed while it ran.
 								if((pVRET='0' and VRETr='1') or PFDIRTY='1'
-									or SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR)then
+									or SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR or HCHR/=pfHCHR)then
 									PFOK<='0';
 								else
 									PFOK<=PFARM;
@@ -1849,6 +1861,7 @@ begin
 								if(DMOK='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LFOL='1')then
 									F0OK<='1';
 									FATL<=ATTRLEN;
+									FHCH<=HCHR;
 								else
 									F0OK<='0';
 								end if;
@@ -1967,6 +1980,12 @@ begin
 				--Rows that cannot be followed, or whose length changed, stop following the 8257 for the rest of the frame
 				--(last, so a frame start in the same step does not set it again)
 				if(LFOL='0' or (FOL='1' and ATTRLEN/=FATL))then
+					FOL<='0';
+					SPP<='0';
+					SPLON<='0';
+				end if;
+				--(a row is HCHR characters too: its change does the same)
+				if(FOL='1' and HCHR/=FHCH)then
 					FOL<='0';
 					SPP<='0';
 					SPLON<='0';

@@ -464,7 +464,8 @@ begin
 				aHUEND<=HUWIDTH15-1;
 			elsif(VCOMP='1' and pVCOMP='0' and SETOK='1')then
 				if(VT24='1')then
-					if(xOK='1' and nHCHR<=HUVIS and nHIV>=HIVMIN24 and nHCHR+nHIV<=HUWMAX)then
+					if(xOK='1' and nHCHR<=HUVIS and nHIV>=HIVMIN24 and nHCHR+nHIV<=HUWMAX
+						and nHCHR+nHIV>=HUMIN24 and nCHRL*(nHCHR+nHIV)>=ROWUMIN24)then
 						aROWS<=nROWS;
 						aCHRL<=nCHRL;
 						aVRET<=xVRET;
