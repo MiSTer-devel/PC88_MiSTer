@@ -276,11 +276,11 @@ signal	m1adj		:integer range -8192 to 8191;
 signal	SETHs		:std_logic_vector(6 downto 0);
 signal	ATTRLENs	:std_logic_vector(4 downto 0);
 signal	SPCHRs		:std_logic;
-signal	HCHR		:integer range 2 to 80;		-- characters a row (CRTC)
+signal	HCHR		:integer range 2 to 80	:=80;		-- characters a row (CRTC)
 signal	ABASE		:std_logic_vector(15 downto 0);	-- the first attribute byte of a row
-signal	RBYTES		:integer range 0 to 255;	-- bytes a row
-signal	hadj4		:integer range -8192 to 8191;
-signal	hadj8		:integer range -8192 to 8191;
+signal	RBYTES		:integer range 0 to 255	:=120;	-- bytes a row
+signal	hadj4		:integer range -8192 to 8191	:=0;
+signal	hadj8		:integer range -8192 to 8191	:=0;
 signal	hadj		:integer range -8192 to 8191;	-- steps the hold of this row is shortened by
 --a shift register in logic, not in block RAM
 attribute altera_attribute	:string;
@@ -1355,22 +1355,25 @@ begin
 							end if;
 						end if;
 					when ST_RDTXT =>
-						MRAM_RDn<='0';
+						--(no read for a column past the CRTC characters: it is shown blank)
+						if(CHARCNT<HCHR)then
+							MRAM_RDn<='0';
+						end if;
 						PBRA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 						RDADR<=RDA;
 						STATE<=ST_RDTXT1;
-						if(rTMODE='1')then
+						if(rTMODE='1' and CHARCNT<HCHR)then
 							--One cycle more, to pay back the cycle spent registering MRAM_WAIT.
 							waitcount<=3;
 						end if;
 					when ST_RDTXT1 =>
-						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1' or RPTR='1')then
+						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1' or RPTR='1' or CHARCNT>=HCHR)then
 							MRAM_RDn<='1';
 							PBWE<=not (RPTR or BLKR or LINESKIP);
 							PBWA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 							PBWD<=RDDAT;
 							TVRAM_ADR<=CDSTADR;
-							--(a column past the CRTC characters is read as before, but shown blank)
+							--(a column past the CRTC characters is shown blank)
 							if (LINESKIP='1' or BLKR='1' or CHARCNT>=HCHR)then
 								TVRAM_WDAT<='0' & x"00";
 							else
@@ -1555,11 +1558,12 @@ begin
 							TVRAM_WDAT<='0' & x"80";
 						elsif(FIXATR='1')then
 							TVRAM_WDAT<=FIXVAL;
-						elsif(CHARCNT>=HCHR)then
-							--(a column past the CRTC characters: plain, as a blank row)
-							TVRAM_WDAT<='0' & x"80";
 						else
 							TVRAM_WDAT<=CURATR;
+						end if;
+						--(a column past the CRTC characters: plain, as a blank row)
+						if(CHARCNT>=HCHR)then
+							TVRAM_WDAT<='0' & x"80";
 						end if;
 						STATE<=ST_SETATR1;
 					when ST_SETATR1 =>

@@ -378,7 +378,8 @@ begin
 					CURDOT<=CURDOT(6 downto 0) & '0';
 				end if;
 			else
-				if(UCOUNT=0 and (HUCOUNT mod 2)=1)then
+				--(on the second character of each pair from the start of the display: hivs may be odd)
+				if(UCOUNT=0 and ((HUCOUNT+hivs) mod 2)=1)then
 					if(NXTFS='0')then
 						BITOUT<=NXTDOT0(7);
 						CURDOT<=NXTDOT0;
