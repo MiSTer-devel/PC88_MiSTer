@@ -47,7 +47,8 @@ package VIDEO_TIMING_pkg is
 	constant CHRLMIN31	:integer	:=8;
 	constant CHRLMAX31	:integer	:=20;
 	constant ROWSMAX31	:integer	:=25;
-	--24kHz, 15kHz: a parameter set is used when its frame is 24 to 120Hz and it shows
+	--24kHz, 15kHz: a parameter set is used when its frame has the lines of 24 to 120Hz (with
+	--full-length lines: shorter lines make it faster, up to about 220Hz) and it shows
 	--8 lines or more (the frame from MiSTer's video output stays in range), with the
 	--retrace made long enough for the sync and for TRAMCONV to take the set
 	constant FRMMIN24	:integer	:=207;

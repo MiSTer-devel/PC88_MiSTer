@@ -419,8 +419,10 @@ begin
 
 	--24kHz, 15kHz: a parameter set is used from the next frame, if it is in range.
 	--Its retrace is made long enough for the sync and for its first row to be requested
-	--after TRAMCONV takes it (at CAPLINE), and the frame must be 24 to 120Hz with 8 lines
-	--or more shown. 31kHz takes a set as before (25 rows, 8 to 20 lines).
+	--after TRAMCONV takes it (at CAPLINE), and the frame must have the lines of 24 to 120Hz
+	--with full-length lines (fewer characters a line make it faster, as on a FH) and 8 lines
+	--or more shown. A line is H+Z+4 characters, 60 or more. 31kHz takes a set as before
+	--(25 rows, 8 to 20 lines, the line of 80 characters).
 	--A PC-8801FH shows sets past 400 (200) lines and with a short retrace, too.
 	--Until one is written (power on, reset), the ROM's 25-line set is used; in 15kHz
 	--it is loaded on the clock after reset.
