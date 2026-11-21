@@ -22,10 +22,12 @@ generic(
 	V1SHOLD8S15	:integer	:=2629;
 	--The holds above are for a row of 120 bytes (80 characters, 20 attributes). A row
 	--of fewer bytes is held V1SBYTE4/16 (4MHz) or V1SBYTE8/16 (8MHz) steps shorter
-	--for each byte it lacks, longer for each byte over (a FH: 1.30us and 1.105us a
-	--byte, in 24kHz and 15kHz alike). Not for rows taken while the CPU is slowed down.
-	V1SBYTE4	:integer	:=422;
-	V1SBYTE8	:integer	:=358;
+	--for each byte it lacks, longer for each byte over (a FH: the CPU gains 1.30us and
+	--1.105us a byte, in 24kHz and 15kHz alike; the time freed runs at the V1S speed of
+	--the display, so the hold changes by more). Not for rows taken while the CPU is
+	--slowed down.
+	V1SBYTE4	:integer	:=486;
+	V1SBYTE8	:integer	:=434;
 	--8MHz: a row taken while the CPU is slowed down is followed by up to SHNUM
 	--short holds, SHPERIOD steps apart from the row request plus 0 to
 	--2**SHJITBITS-1 steps; each ends SHDW steps after its own request, or 2 steps
