@@ -423,7 +423,7 @@ begin
 	--Its retrace is made long enough for the sync and for its first row to be requested
 	--after TRAMCONV takes it (at CAPLINE), and the frame must have the lines of 24 to 120Hz
 	--with full-length lines (fewer characters a line make it faster, as on a FH) and 8 lines
-	--or more shown. A line is H+Z+4 characters, 60 or more. 31kHz takes a set as before
+	--or more shown. A line is H+Z+4 characters, 48 or more, and a row 160 or more. 31kHz takes a set as before
 	--(25 rows, 8 to 20 lines, the line of 80 characters).
 	--A PC-8801FH shows sets past 400 (200) lines and with a short retrace, too.
 	--Until one is written (power on, reset), the ROM's 25-line set is used; in 15kHz
@@ -469,7 +469,7 @@ begin
 			elsif(VCOMP='1' and pVCOMP='0' and SETOK='1')then
 				if(VT24='1')then
 					if(xOK='1' and nHCHR<=HUVIS and nHIV>=HIVMIN24 and nHCHR+nHIV<=HUWMAX
-						and nHCHR+nHIV>=HUMIN24)then
+						and nHCHR+nHIV>=HUMIN24 and nCHRL*(nHCHR+nHIV)>=ROWUMIN24)then
 						aROWS<=nROWS;
 						aCHRL<=nCHRL;
 						aVRET<=xVRET;

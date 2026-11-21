@@ -48,7 +48,7 @@ package VIDEO_TIMING_pkg is
 	constant CHRLMAX31	:integer	:=20;
 	constant ROWSMAX31	:integer	:=25;
 	--24kHz, 15kHz: a parameter set is used when its frame has the lines of 24 to 120Hz (with
-	--full-length lines: shorter lines make it faster, up to about 220Hz) and it shows
+	--full-length lines: shorter lines make it faster, up to about 280Hz) and it shows
 	--8 lines or more (the frame from MiSTer's video output stays in range), with the
 	--retrace made long enough for the sync and for TRAMCONV to take the set
 	constant FRMMIN24	:integer	:=207;
@@ -97,10 +97,12 @@ package VIDEO_TIMING_pkg is
 	constant CAPLINE	:integer	:=8;
 	-- fewest retrace characters a line in 24kHz or 15kHz timing: front porch, sync and 2
 	constant HIVMIN24	:integer	:=HFP24+HSY24+2;
-	-- fewest characters a line: the graphics read H bytes for the next line, one in each
-	-- 19-clock round of the SDRAM in 24kHz and one in two in 15kHz, and TRAMCONV converts
-	-- 80 columns a row whatever H shows
-	constant HUMIN24	:integer	:=60;
+	-- fewest characters a row (lines times H+Z+4): TRAMCONV converts 80 columns a row
+	-- whatever H shows (the graphics read only the H bytes a line shows, which fit any line)
+	constant ROWUMIN24	:integer	:=160;
+	-- fewest characters a line, so that the frame stays under about 280Hz (a FH measured
+	-- 24 characters shown in lines of 50 and 56)
+	constant HUMIN24	:integer	:=48;
 
 	--counter ranges for all timings
 	constant HUWMAX	:integer	:=HUWIDTH15;
