@@ -39,10 +39,29 @@ package VIDEO_TIMING_pkg is
 	--rtl/pll/pll_0002.v): (400/19)/(2125/28) = 448/1615 exactly
 	constant DOTNUM24	:integer	:=448;
 	constant DOTDEN24	:integer	:=1615;
-	--accepted CRTC parameters: character height 8-20, rows 1-25, retrace 40 lines or more
-	constant CHRLMIN24	:integer	:=8;
-	constant CHRLMAX24	:integer	:=20;
-	constant ROWSMAX24	:integer	:=25;
+	--accepted CRTC parameters (31kHz keeps the 24kHz limits of 25 rows and 8-20 lines,
+	--with the retrace from the CRTC): rows 1-64, character height 3-32
+	constant CHRLMIN24	:integer	:=3;
+	constant CHRLMAX24	:integer	:=32;
+	constant ROWSMAX24	:integer	:=64;
+	constant CHRLMIN31	:integer	:=8;
+	constant CHRLMAX31	:integer	:=20;
+	constant ROWSMAX31	:integer	:=25;
+	--24kHz, 15kHz: a parameter set is used when its frame is 24 to 120Hz and it shows
+	--8 lines or more (the frame from MiSTer's video output stays in range), with the
+	--retrace made long enough for the sync and for TRAMCONV to take the set
+	constant FRMMIN24	:integer	:=207;
+	constant FRMMAX24	:integer	:=1034;
+	constant FRMMIN15	:integer	:=134;
+	constant FRMMAX15	:integer	:=665;
+	constant DISPMIN	:integer	:=8;
+	--24kHz, 15kHz: rclk per byte of a row below which a set is a DMA underrun (TRAMCONV's
+	--defaults; a real PC-8801FH, the middle of its bounds: V1S 4MHz 2.61 to 2.68us, 8MHz
+	--1.87 to 2.01us, V1H and V2 4MHz 2.35 to 2.46us, 8MHz 2.10 to 2.24us)
+	constant TBYTES4D	:integer	:=201;
+	constant TBYTES8D	:integer	:=147;
+	constant TBYTEH4D	:integer	:=182;
+	constant TBYTEH8D	:integer	:=165;
 	--the retrace floor stays 40 lines, as before the sync position was moved
 	constant VRETMIN24	:integer	:=40;
 	--used until a parameter set is written: the ROM's 25-line set
@@ -79,6 +98,9 @@ package VIDEO_TIMING_pkg is
 	--counter ranges for all timings
 	constant HUWMAX	:integer	:=HUWIDTH15;
 	constant DOTDENMAX	:integer	:=DOTDEN24;
-	constant VWMAX	:integer	:=(ROWSMAX24+8)*CHRLMAX24;
+	constant VWMAX	:integer	:=FRMMAX24;
+	--rows kept by TRAMCONV and textscr2, and the bits of their address
+	constant ROWCAP	:integer	:=64;
+	constant TVAW	:integer	:=14;
 
 end VIDEO_TIMING_pkg;

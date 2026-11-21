@@ -57,7 +57,10 @@ port(
 	DMSPM	:out std_logic_vector(7 downto 0);
 	DMSPX	:out std_logic;
 	DMSPA	:out std_logic_vector(15 downto 0);
-	DMRSA	:out std_logic_vector(15 downto 0)
+	DMRSA	:out std_logic_vector(15 downto 0);
+	-- 24kHz, 15kHz: clocks of a text row (TRAMCONV, all ones otherwise). A row shorter than
+	-- DMABURST is moved in its own time less ROWGAP clocks, so the next request finds it done.
+	DMAROW	:in std_logic_vector(17 downto 0) := (others=>'1')
 );
 end TDMAREGS;
 
@@ -90,6 +93,8 @@ signal	SYNC	:std_logic;
 signal	WEC		:std_logic_vector(1 downto 0);
 signal	BUSY	:std_logic;
 signal	BCNT	:integer range 0 to DMABURST;
+constant ROWGAP	:integer	:=64;
+signal	BBURST	:integer range 1 to DMABURST;	-- clocks of the row being moved
 signal	BLEN	:std_logic_vector(7 downto 0);
 -- A FH moves a row a byte at a time over the row transfer (fhp3 Q7, fhp5), and a CPU write to 64h
 -- takes effect at once: the rest of the row comes from the new address (fhp5 S3, W1). Here MB counts
@@ -210,6 +215,7 @@ begin
 			WEC<="00";
 			BUSY<='0';
 			BCNT<=0;
+			BBURST<=DMABURST;
 			BLEN<=(others=>'0');
 			CA0<=(others=>'0');
 			CC0<=(others=>'0');
@@ -388,7 +394,13 @@ begin
 						C3W<='0';
 						TCR<='0';
 						BUSY<='1';
-						BCNT<=DMABURST;
+						if(conv_integer(unsigned(DMAROW))<DMABURST+ROWGAP)then
+							BCNT<=conv_integer(unsigned(DMAROW))-ROWGAP;
+							BBURST<=conv_integer(unsigned(DMAROW))-ROWGAP;
+						else
+							BCNT<=DMABURST;
+							BBURST<=DMABURST;
+						end if;
 						BLEN<=DMALEN;
 					end if;
 				end if;
@@ -398,8 +410,8 @@ begin
 				-- byte read back does not change during the read)
 				if(IOBUSY='0')then
 					acn:=ACC+conv_integer(unsigned(BLEN));
-					if(acn>=DMABURST)then
-						ACC<=acn-DMABURST;
+					if(acn>=BBURST)then
+						ACC<=acn-BBURST;
 						if(unsigned(MB)<unsigned(BLEN))then
 							MB<=unsigned(MB)+1;
 							-- TC inside the row: channel 3 goes on with the rest of the row (autoload), or the row runs on

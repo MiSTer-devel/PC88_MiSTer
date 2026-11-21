@@ -39,7 +39,14 @@ generic(
 	--others 400us (a real PC-8801FH: 4MHz 15kHz underruns from about half a row of
 	--8257 off, 8MHz and 24kHz from about three quarters)
 	DUCLK4		:integer	:=15179;
-	DUCLK		:integer	:=30357
+	DUCLK		:integer	:=30357;
+	--24kHz, 15kHz: a set whose row lasts less than its bytes (82 + 2 * ATTRLEN, 80 without
+	--attributes) times these clocks is a DMA underrun from the frame it is taken (the
+	--defaults are from a real PC-8801FH, see VIDEO_TIMING_pkg)
+	TBYTES4		:integer	:=TBYTES4D;
+	TBYTES8		:integer	:=TBYTES8D;
+	TBYTEH4		:integer	:=TBYTEH4D;
+	TBYTEH8		:integer	:=TBYTEH8D
 );
 port(
 	TVRMODE		:in std_logic;
@@ -58,7 +65,7 @@ port(
 	GVSTR		:in std_logic	:='0';	-- 1:the CPU is slowed down (rclk)
 	VT24		:in std_logic	:='0';	-- 1:24kHz or 15kHz timing (rclk)
 	VT15		:in std_logic	:='0';	-- 1:15kHz timing (rclk)
-	TSET		:in std_logic_vector(17 downto 0)	:=(others=>'0');	-- 24kHz, 15kHz: rows, height, first request line (rclk)
+	TSET		:in std_logic_vector(18 downto 0)	:=(others=>'0');	-- 24kHz, 15kHz: rows-1, height-1, first request line (rclk)
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -75,7 +82,7 @@ port(
 	BUSACKn		:in std_logic;
 	
 
-	TVRAM_ADR	:out std_logic_vector(11 downto 0);
+	TVRAM_ADR	:out std_logic_vector(TVAW-1 downto 0);
 	TVRAM_WDAT	:out std_logic_vector(8 downto 0);	-- bit 8 of an attribute: over line
 	TVRAM_WR	:out std_logic;
 	
@@ -84,6 +91,7 @@ port(
 	DONE		:out std_logic;
 	DMAREQ		:out std_logic_vector(1 downto 0);	-- counts where a FH starts the DMA of a text row (TDMAREGS)
 	DMALEN		:out std_logic_vector(7 downto 0);	-- bytes in that row
+	DMAROW		:out std_logic_vector(17 downto 0);	-- 24kHz, 15kHz: rclk clocks of a row (all ones in 31kHz)
 	--TDMAREGS: where the next row transfer starts, bytes to TC, the autoload values, and
 	--whether the rows can follow the 8257 (taken for row 0 of the next frame)
 	DMNXA		:in std_logic_vector(15 downto 0)	:=(others=>'0');
@@ -108,7 +116,7 @@ port(
 	CRTCON		:in std_logic	:='1';	-- the CRTC display is started
 	DMAON		:in std_logic	:='1';	-- 8257 channel 2 is enabled
 	CRTCMD		:in std_logic	:='0';	-- toggles on each CRTC RESET or START command (CRTCREGS)
-	DU			:out std_logic;			-- V1S: DMA underrun (51h bit 3)
+	DU			:out std_logic;			-- DMA underrun (51h bit 3)
 	clk			:in std_logic;
 	ce			:in std_logic	:='1';	-- one step: 4 times in 15 rclk clocks (20.24MHz)
 	rstn		:in std_logic
@@ -117,13 +125,14 @@ end TRAMCONV;
 
 architecture MAIN of TRAMCONV is
 constant LINECHARS	:integer	:=80;
+--Rows of the frame in 31kHz (and the rows processed at least, in all timings)
 constant MAXLINES	:integer	:=25;
 --The start of the row being read. Its text is read from byte CHARCNT of the row, its
 --attributes from byte AOFF (from 80 on).
 signal	STXTADR	:std_logic_vector(15 downto 0);
 signal	AOFF	:std_logic_vector(15 downto 0);
-signal	SDSTADR	:std_logic_vector(11 downto 0);
-signal	CDSTADR	:std_logic_vector(11 downto 0);
+signal	SDSTADR	:std_logic_vector(TVAW-1 downto 0);
+signal	CDSTADR	:std_logic_vector(TVAW-1 downto 0);
 signal	ATRCNT	:integer range 0 to 32;	-- up to 32 attributes, and one past the last applied
 signal	CURATR	:std_logic_vector(8 downto 0);
 --The attribute at the end of the last row, without the over and under lines: a
@@ -139,7 +148,7 @@ signal	FIXATR		:std_logic;
 signal	FIXVAL		:std_logic_vector(8 downto 0);
 signal	NXTATR	:std_logic_vector(7 downto 0);
 signal	CHARCNT	:integer range 0 to LINECHARS-1;
-signal	LINECNT	:integer range 0 to MAXLINES;
+signal	LINECNT	:integer range 0 to ROWCAP;
 type STATE_T is(ST_IDLE,ST_GETBUS,ST_RDTXT,ST_RDTXT1,ST_WRTXT,ST_RDATR,ST_RDATR1,ST_RDATR2,ST_RDATR3,ST_SETATR,ST_SETATR1,ST_SETATR2,ST_RELBUS,ST_WAITREL,ST_SKIPATR,ST_NOATTR,ST_HOLD,ST_BLANK,ST_BLANK1,ST_BLANK2,ST_NBR,ST_NBR1,ST_NBR2,ST_NBR3,ST_STPCK,ST_STPCK1);
 signal	STATE	:STATE_T;
 --signal	STATE	:integer range 0 to 12;
@@ -168,7 +177,7 @@ signal	iATTRLEN	:integer range 0 to 31;
 signal	LINEADD		:std_logic_vector(15 downto 0);
 signal	LINESKIP	:std_logic;
 signal	fATTR		:std_logic_vector(79 downto 0);
-signal	LINES		:integer range 0 to MAXLINES;
+signal	LINES		:integer range 0 to ROWCAP;
 
 --Bound the ST_GETBUS wait so BUSREQn cannot remain asserted indefinitely. Not applied
 --to the MRAM_WAIT waits, where an SDRAM read is already outstanding and cannot be
@@ -183,7 +192,10 @@ signal	relcnt		:integer range 0 to RELQUIET;
 
 --V1S: each text row is requested one row before it is drawn and the bus is
 --held for a fixed time per row. The settings are taken once per frame, at CAPLINE.
-constant BLANKEND	:integer	:=LINECHARS*2*MAXLINES-1;
+--Rows processed in this frame: MAXLINES, or the rows of a 24kHz or 15kHz set with more
+--(a set of up to MAXLINES rows goes through the same steps as before)
+signal	LEND		:integer range MAXLINES to ROWCAP;
+signal	BLANKEND	:integer range 0 to LINECHARS*2*ROWCAP-1;
 signal	pVRET,pHRET	:std_logic;
 signal	RASTER		:integer range 0 to VWMAX-1;
 signal	BNDPEND		:std_logic;
@@ -193,10 +205,10 @@ signal	BLANKR		:std_logic;	-- clearing has started in this frame
 signal	capV1S		:std_logic;
 signal	capTEXTEN	:std_logic;
 signal	capCPUMD	:std_logic;
-signal	capROWS		:integer range 0 to MAXLINES;
+signal	capROWS		:integer range 0 to ROWCAP;
 signal	capCHRL		:integer range CHRLMIN24 to CHRLMAX24;
-signal	REQ			:integer range 0 to MAXLINES;	-- rows requested so far in this frame
-signal	REQLINE		:integer range 0 to 1023;		-- raster of the next request
+signal	REQ			:integer range 0 to ROWCAP;	-- rows requested so far in this frame
+signal	REQLINE		:integer range 0 to VWMAX+CHRLMAX24;	-- raster of the next request
 signal	VMODEs		:std_logic;
 signal	GVSTRs		:std_logic;
 signal	VT24s		:std_logic;
@@ -216,7 +228,7 @@ signal	PFOK		:std_logic;	-- the read-ahead ended before VRET
 signal	PFHOLD		:std_logic;	-- the frame start was held back: row 0 can be skipped
 signal	PFRST		:std_logic;	-- the held-back frame start must be done after all
 signal	PFDIRTY		:std_logic;	-- a format setting changed during the read-ahead
-signal	pfROWS		:integer range 0 to MAXLINES;
+signal	pfROWS		:integer range 0 to ROWCAP;
 signal	pfCHRL		:integer range CHRLMIN24 to CHRLMAX24;
 signal	pfTEXTEN,pfVT24,pfVT15	:std_logic;
 signal	pfSMODE,pfSPCHR,pfCOLOR,pfATTRCOLOR	:std_logic;
@@ -226,8 +238,8 @@ signal	hTVRMODE,hTMODE	:std_logic;
 signal	HOLDTGT		:integer range 0 to 65535;
 --TSET, taken when TSr2 and TSr3 agree. Until then (a few clocks after reset, before
 --any CAPLINE), the 24kHz 25-line set.
-constant TSDEF	:std_logic_vector(17 downto 0)	:=conv_std_logic_vector(ROWSDEF24,5) & conv_std_logic_vector(CHRLDEF24,5) & conv_std_logic_vector(VRETDEF24-CHRLDEF24,8);
-signal	TSr,TSr2,TSr3,TSok	:std_logic_vector(17 downto 0);
+constant TSDEF	:std_logic_vector(18 downto 0)	:=conv_std_logic_vector(ROWSDEF24-1,6) & conv_std_logic_vector(CHRLDEF24-1,5) & conv_std_logic_vector(VRETDEF24-CHRLDEF24,8);
+signal	TSr,TSr2,TSr3,TSok	:std_logic_vector(18 downto 0);
 signal	capSTR		:std_logic;	-- GVSTR when the bus was taken for this row
 signal	holdcnt		:integer range 0 to 65535;
 signal	SHACT		:std_logic;	-- short holds are due for this row
@@ -250,7 +262,7 @@ attribute altera_attribute	:string;
 attribute altera_attribute of m1hist	:signal is "-name AUTO_SHIFT_REGISTER_RECOGNITION OFF";
 signal	HOLDING		:std_logic;
 signal	SINCEBND	:integer range 0 to 3;
-signal	BLKADR		:integer range 0 to BLANKEND;
+signal	BLKADR		:integer range 0 to LINECHARS*2*ROWCAP;
 --A FH moves row k while row k-1 is shown and row 0 of the next frame while the last
 --row is shown. After the text DMA or the CRTC stops, it moves no row until the
 --place for row 0 of the next frame.
@@ -264,9 +276,9 @@ signal	DMA0		:std_logic;	-- row 0 of this frame was moved in the last frame
 --The rows follow it when they have attributes, 1 to 32 (82 to 144 bytes, measured on a FH: fhp3, fhp12 N1 to N9,
 --fhp15 W1 and X1), not without attributes (SPCHR) (LFOL).
 signal	F0A,F0B		:std_logic_vector(15 downto 0);
---Byte counts to TC stop at RMAX: a frame moves at most 26 rows before they are taken again,
---and a count above 26*144+255 reads the same as any other there.
-constant RMAX		:integer	:=4095;
+--Byte counts to TC stop at RMAX: a frame moves at most ROWCAP+1 rows before they are taken again,
+--and a count above ROWCAP*144+255 reads the same as any other there.
+constant RMAX		:integer	:=ROWCAP*144+255;
 signal	F0R,F0C		:integer range 0 to RMAX;
 signal	F0OK		:std_logic;
 signal	FSA,FSX		:std_logic_vector(15 downto 0);	-- start of row 0 for this frame
@@ -283,7 +295,7 @@ signal	FATL		:std_logic_vector(4 downto 0);	-- the attribute count when row 0 wa
 --(fhp3 Q4), and draws a frame after a CRTC or DMA restart black but its last row (Q6).
 signal	EPOCH		:std_logic_vector(1 downto 0);	-- counts the moves of row 0
 signal	REPOCH		:std_logic_vector(1 downto 0);	-- EPOCH of the frame being read
-signal	DNX			:integer range 0 to 27;	-- the next row the 8257 moves
+signal	DNX			:integer range 0 to ROWCAP+2;	-- the next row the 8257 moves
 signal	lDMWE		:std_logic_vector(1 downto 0);
 signal	lDMSPL		:std_logic;	-- DMSPL as last taken with a change of DMWE
 --Rows from RRK on are read from RRA. QLP: the last row of a restart frame is read
@@ -297,7 +309,7 @@ signal	RSE			:std_logic_vector(1 downto 0);
 signal	RSA,RSB		:std_logic_vector(15 downto 0);
 signal	RSR,RSC		:integer range 0 to RMAX;
 signal	RRE			:std_logic_vector(1 downto 0);
-signal	RRK			:integer range 0 to 27;
+signal	RRK			:integer range 0 to ROWCAP+2;
 signal	RRA,RRB		:std_logic_vector(15 downto 0);
 signal	RRR,RRC		:integer range 0 to RMAX;
 signal	BLKR		:std_logic;	-- this row is drawn blank (the 8257 did not move it)
@@ -305,7 +317,7 @@ signal	BLKR		:std_logic;	-- this row is drawn blank (the 8257 did not move it)
 --(of frame SPE) starts at SPRA and takes bytes SPMr on from SPAr (SPP, a mark of its own, as later writes
 --mark the rows after it). While SPLON, the row being read takes bytes SPLMa on from SPLAa (ra, nxs).
 signal	SPP,SPLON	:std_logic;
-signal	SPK			:integer range 0 to 27;
+signal	SPK			:integer range 0 to ROWCAP+2;
 signal	SPE			:std_logic_vector(1 downto 0);
 signal	SPRA,SPRB	:std_logic_vector(15 downto 0);
 signal	SPRR,SPRC	:integer range 0 to RMAX;
@@ -317,7 +329,7 @@ signal	SPOK		:std_logic;	-- a write seen now made the row just moved change over
 --write that can be followed comes before the next row request (PDR, PDQ: the request as last seen)
 signal	PDR			:std_logic;
 signal	PDQ			:std_logic_vector(1 downto 0);
-signal	EVK			:integer range 0 to 27;	-- the row a write to 64h, 65h now takes effect from
+signal	EVK			:integer range 0 to ROWCAP+2;	-- the row a write to 64h, 65h now takes effect from
 signal	EVOK		:std_logic;	-- such a write is seen now, and the rows can follow it
 --A FH moves no more rows in the frame after a row whose last attribute pair has a column with
 --bits 6..4 = 110 and an odd value, up to the row it moves for the next frame (that row comes from where
@@ -330,9 +342,9 @@ signal	STP,PKQ,PKM,PKP	:std_logic;
 --PKL: STXTADR, RREM, RLA)
 signal	PKS,PKL		:std_logic_vector(15 downto 0);
 signal	PKR			:integer range 0 to RMAX;
-signal	STK			:integer range 0 to MAXLINES-1;
+signal	STK			:integer range 0 to ROWCAP-1;
 signal	STEL		:std_logic;	-- the row being read can stop the rows after it (row STRI)
-signal	STRI		:integer range 0 to MAXLINES-1;
+signal	STRI		:integer range 0 to ROWCAP-1;
 signal	STPR		:std_logic;	-- the row starting now is after a stop: drawn black, not moved
 signal	SBLK		:std_logic;	-- this row is such a row: no attributes, and in V1S no bus
 --The value of that last pair with bit 1 clear (SRPT): a FH shows the rows after it from its two row buffers,
@@ -346,14 +358,14 @@ signal	PBUF		:PBUF_T;
 signal	PSL			:std_logic;
 --PSL at the start of each row, for a row read again (it writes the same buffer as before; V2, which reads
 --rows ahead and so reads them again)
-signal	PSLK		:std_logic_vector(0 to MAXLINES);
+signal	PSLK		:std_logic_vector(0 to ROWCAP);
 signal	PBWE		:std_logic;
 signal	PBWA,PBRA	:std_logic_vector(8 downto 0);
 signal	PBWD,PBQ	:std_logic_vector(7 downto 0);
 signal	PKA			:std_logic_vector(11 downto 0);	-- (the read of row 0 leaves RDADR as it is)
 --The attribute at the start of each row, without the over and under lines (CURATR has
 --them clear between rows): bits 7 and 5..0
-type ATRK_T is array(0 to MAXLINES-1) of std_logic_vector(6 downto 0);
+type ATRK_T is array(0 to ROWCAP-1) of std_logic_vector(6 downto 0);
 signal	ATRK		:ATRK_T;
 signal	RDOFS		:std_logic_vector(15 downto 0);	-- the byte of the row read now (text or attribute)
 signal	RDA			:std_logic_vector(15 downto 0);	-- its address
@@ -430,6 +442,19 @@ signal	V1SN		:std_logic;	-- V1S from the start of the frame: the channel 2 wait,
 signal	TXCu,TXEu	:std_logic;	-- TXC and TXE in V1S, else TEXTENr as before
 signal	DUH,DUH2	:std_logic;	-- an underrun held over two ce (the stop runs twice even if a command clears it first)
 signal	DUL			:std_logic;
+--24kHz, 15kHz: an underrun of a set whose rows are too short for their bytes (all modes)
+constant LINECLK24	:integer	:=3057;	-- rclk clocks of a line (848 dots of 400/19MHz)
+constant LINECLK15	:integer	:=4749;	-- (896 dots of 315/22MHz)
+signal	DUT,DUTH,DUTH2	:std_logic;
+signal	DUTQ,lDUTQ	:std_logic;	-- a set is taken (one step at CAPLINE)
+signal	DUTX		:std_logic;	-- the set taken is too short for its bytes
+signal	DUTLN		:integer range 0 to LINECLK15;
+signal	DUTBY		:integer range 0 to 144;
+signal	DUTTB		:integer range 0 to 255;
+signal	DUSKIP		:std_logic;	-- a command in the retrace before CAPLINE: the next set taken is not judged
+signal	lCMDT		:std_logic;
+signal	lVRETT,INRET	:std_logic;	-- in the retrace, before the set is taken
+signal	DUTM,lDUTM	:std_logic_vector(3 downto 0);
 signal	ducnt		:integer range 0 to DUCLK;
 signal	dulim		:integer range 0 to DUCLK;
 signal	lCMD		:std_logic;
@@ -458,7 +483,10 @@ begin
 	MRAM_ADR<=RDADR;
 	iATTRLEN<=conv_integer(ATTRLEN);
 	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
-	LINES<=conv_integer(TXTLINES);
+	--31kHz keeps 5 bits of the rows set in the CRTC, as before
+	LINES<=conv_integer(TXTLINES) when VT24s='1' else conv_integer(TXTLINES(4 downto 0));
+	LEND<=capROWS when capROWS>MAXLINES else MAXLINES;
+	BLANKEND<=LINECHARS*2*LEND-1;
 
 	BUSREQn<=BUSREQi;
 	DMAREQ<=DMAT;
@@ -531,9 +559,9 @@ begin
 	variable iNXTATR	:integer range 0 to 255;
 	variable iCOUNTER	:integer range 0 to 80;
 	variable iATTRCUL	:integer range 0 to 80;
-	variable iRRK		:integer range 0 to 27;
+	variable iRRK		:integer range 0 to ROWCAP+2;
 	variable evu		:boolean;	-- a row start took the write seen in this step
-	variable irk		:integer range 0 to MAXLINES-1;	-- the row read again (SPK or RRK, as in ST_IDLE)
+	variable irk		:integer range 0 to ROWCAP-1;	-- the row read again (SPK or RRK, as in ST_IDLE)
 	begin
 		if(rstn='0')then
 			STATE<=ST_IDLE;
@@ -586,6 +614,7 @@ begin
 			RASTER<=0;
 			BNDPEND<='0';
 			CAPD<='0';
+			DUTQ<='0';
 			BLANKD<='0';
 			BLANKR<='0';
 			capV1S<='0';
@@ -710,7 +739,8 @@ begin
 				TEXTENr<=TEXTEN;
 				--TEXTEN is CRTCON and DMAON: with channel 2 off only the CRTC counts here
 				TXC<=TEXTEN or (CRTCON and not DMAON);
-				TXE<=(TEXTEN or (CRTCON and not DMAON)) and not (DUL or DUH or DUH2);
+				TXE<=(TEXTEN or (CRTCON and not DMAON)) and not (DUL or DUH or DUH2 or DUT or DUTH or DUTH2);
+				DUTQ<='0';
 				DMAONr<=DMAON;
 				TXLr<=TXTLINES;
 				TXLr2<=TXLr;
@@ -727,7 +757,7 @@ begin
 				evu:=false;
 				if(SPP='1' and SPE=REPOCH and SPK<LINECNT and FOL='1')then
 					irk:=SPK;
-				elsif(RRK<MAXLINES)then
+				elsif(RRK<LEND)then
 					irk:=RRK;
 				else
 					irk:=0;
@@ -855,7 +885,7 @@ begin
 									LINECNT<=0;
 								else
 									--Leaving V1S: no rows until the next VRET.
-									LINECNT<=MAXLINES;
+									LINECNT<=LEND;
 								end if;
 								CURATR<=ATRCARRY;
 								RSTP<='0';
@@ -863,7 +893,7 @@ begin
 								BNDPEND<='0';
 							elsif(CAPD='1' and BLANKD='0' and VT24s='0')then
 								--Clear the rows below capROWS without the bus.
-								if(capROWS=MAXLINES)then
+								if(capROWS>=LEND)then
 									BLANKD<='1';
 								else
 									BLKADR<=capROWS*LINECHARS*2;
@@ -1033,7 +1063,7 @@ begin
 								--24kHz, 15kHz: a due row request goes first (few rows and a short retrace
 								--can leave no time to clear first), then the clearing continues
 								--where it stopped.
-								if(capROWS=MAXLINES)then
+								if(capROWS>=LEND)then
 									BLANKD<='1';
 								elsif(BLANKR='1')then
 									STATE<=ST_BLANK;
@@ -1088,8 +1118,8 @@ begin
 							RLA<=F0B;
 							RLR<=F0C;
 							FOL<=F0OK;
-							SDSTADR<=conv_std_logic_vector((capROWS-1)*LINECHARS*2,12);
-							CDSTADR<=conv_std_logic_vector((capROWS-1)*LINECHARS*2,12);
+							SDSTADR<=conv_std_logic_vector((capROWS-1)*LINECHARS*2,TVAW);
+							CDSTADR<=conv_std_logic_vector((capROWS-1)*LINECHARS*2,TVAW);
 							--the attribute the frame started with (the blank rows still decode theirs)
 							CURATR<='0' & ATRK(0)(6) & '0' & ATRK(0)(5 downto 0);
 							LINESKIP<='0';
@@ -1107,8 +1137,8 @@ begin
 							RREM<=SPRR;
 							RLA<=SPRB;
 							RLR<=SPRC;
-							SDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,12);
-							CDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,12);
+							SDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,TVAW);
+							CDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,TVAW);
 							CURATR<='0' & ATRK(irk)(6) & '0' & ATRK(irk)(5 downto 0);
 							LINESKIP<='0';
 							SPP<='0';
@@ -1126,8 +1156,8 @@ begin
 							RREM<=RRR;
 							RLA<=RRB;
 							RLR<=RRC;
-							SDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,12);
-							CDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,12);
+							SDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,TVAW);
+							CDSTADR<=conv_std_logic_vector(irk*LINECHARS*2,TVAW);
 							CURATR<='0' & ATRK(irk)(6) & '0' & ATRK(irk)(5 downto 0);
 							LINESKIP<='0';
 							RRP<='0';
@@ -1137,7 +1167,7 @@ begin
 						elsif(lHRET='1' and HRETr='0' and TEXTENr='1')then
 							CHARCNT<=0;
 							ATRCNT<=0;
-							if(LINECNT<MAXLINES)then
+							if(LINECNT<LEND)then
 		--					if(LINECNT<LINES-1)then
 								LINECNT<=LINECNT+1;
 								ATRK(LINECNT)<=CURATR(7) & CURATR(5 downto 0);
@@ -1195,7 +1225,7 @@ begin
 									STATE<=ST_RDTXT;
 								end if;
 
-							elsif(LINECNT=MAXLINES)then
+							elsif(LINECNT=LEND)then
 								DONE<='1';
 							end if;
 							for iCOUNTER in 0 to 79 loop
@@ -1204,7 +1234,7 @@ begin
 							if(LINECNT>LINES)then
 								LINESKIP<='1';
 							end if;
-						elsif(PKQ='1' and LINECNT=MAXLINES)then
+						elsif(PKQ='1' and LINECNT=LEND)then
 							--Read the last attribute pair of row 0 of the next frame, moved just now
 							PKQ<='0';
 							if(rTMODE='0' and capV1S='0')then
@@ -1520,7 +1550,7 @@ begin
 							STATE<=ST_RELBUS;
 						end if;
 					when ST_BLANK =>
-						TVRAM_ADR<=conv_std_logic_vector(BLKADR,12);
+						TVRAM_ADR<=conv_std_logic_vector(BLKADR,TVAW);
 						if(BLKADR mod 2=0)then
 							TVRAM_WDAT<='0' & x"00";
 						else
@@ -1641,6 +1671,10 @@ begin
 				else
 					holdcnt<=0;
 				end if;
+				--31kHz keeps 25 rows: a 24kHz or 15kHz set taken before a switch to 31kHz
+				if(VT24s='0' and capROWS>MAXLINES)then
+					capROWS<=MAXLINES;
+				end if;
 				if(pVRET='0' and VRETr='1')then
 					RASTER<=0;
 					REQ<=0;
@@ -1679,8 +1713,8 @@ begin
 								end if;
 							end if;
 							if(VT24s='1')then
-								capROWS<=conv_integer(TSok(17 downto 13));
-								capCHRL<=conv_integer(TSok(12 downto 8));
+								capROWS<=conv_integer(TSok(18 downto 13))+1;
+								capCHRL<=conv_integer(TSok(12 downto 8))+1;
 								REQLINE<=conv_integer(TSok(7 downto 0));
 							elsif(VMODEs='1')then
 								capCHRL<=16;
@@ -1690,9 +1724,10 @@ begin
 								REQLINE<=VIV-20;
 							end if;
 							CAPD<='1';
+							DUTQ<='1';
 							--A read-ahead taken with other screen settings is not used.
 							if((PFOK='1' or PFHOLD='1') and (V1S='0' or VT24s/=pfVT24 or VT15s/=pfVT15 or TXCu/=pfTEXTEN
-								or (VT24s='1' and (conv_integer(TSok(17 downto 13))/=pfROWS or conv_integer(TSok(12 downto 8))/=pfCHRL))))then
+								or (VT24s='1' and (conv_integer(TSok(18 downto 13))+1/=pfROWS or conv_integer(TSok(12 downto 8))+1/=pfCHRL))))then
 								PFRST<='1';
 							end if;
 						elsif(CAPD='1' and RASTER+1=REQLINE and REQ<capROWS)then
@@ -1864,10 +1899,69 @@ begin
 
 	--V1S: channel 2 off through dulim clocks of the display (the count waits over the
 	--retrace) while the CRTC runs is an underrun. It lasts until the next CRTC command.
-	DU<=DUL;
+	DU<=DUL or DUT;
 	V1SN<=V1S and capV1S;
 	TXCu<=TXC when V1SN='1' else TEXTENr;
-	TXEu<=TXE when V1SN='1' else TEXTENr;
+	TXEu<=TXE when V1SN='1' else TEXTENr and not (DUT or DUTH or DUTH2);
+
+	--24kHz, 15kHz: judged on each set taken while the CRTC shows; the rows still convert
+	--(blank) but no row is moved. It lasts until the next CRTC command or a change of the
+	--mode, scan or clock. A command in the retrace before CAPLINE skips the next judgement
+	--(a FH shows one frame after START, then underruns again).
+	DUTLN<=LINECLK15 when VT15s='1' else LINECLK24;
+	DUTBY<=80 when SPCHR='1' else 82+2*conv_integer(ATTRLEN);
+	DUTTB<=	TBYTES4 when capV1S='1' and capCPUMD='0' else
+			TBYTES8 when capV1S='1' else
+			TBYTEH4 when capCPUMD='0' else
+			TBYTEH8;
+	DUTX<='1' when capCHRL*DUTLN < DUTBY*DUTTB else '0';
+	DMAROW<=conv_std_logic_vector(capCHRL*DUTLN,18) when VT24s='1' else (others=>'1');
+	DUTM<=V1SN & VT24s & VT15s & CPUMD;
+	process(clk,rstn)begin
+		if(rstn='0')then
+			DUT<='0';
+			DUTH<='0';
+			DUTH2<='0';
+			DUSKIP<='0';
+			lDUTQ<='0';
+			lCMDT<='0';
+			lVRETT<='0';
+			INRET<='0';
+			lDUTM<=(others=>'0');
+		elsif(clk' event and clk='1')then
+			lDUTQ<=DUTQ;
+			lCMDT<=CRTCMD;
+			lVRETT<=VRET;
+			lDUTM<=DUTM;
+			if(VRET='1' and lVRETT='0')then
+				INRET<='1';
+			elsif(DUTQ='1' or VRET='0')then
+				INRET<='0';
+			end if;
+			if(ce='1')then
+				DUTH<='0';
+				DUTH2<=DUTH;
+			end if;
+			if(CRTCMD/=lCMDT)then
+				DUT<='0';
+				--a command on the clock the set is taken skips that frame only
+				if((INRET='1' or (VRET='1' and lVRETT='0')) and not (DUTQ='1' and lDUTQ='0'))then
+					DUSKIP<='1';
+				else
+					DUSKIP<='0';
+				end if;
+			elsif(DUTM/=lDUTM or VT24s='0')then
+				DUT<='0';
+				DUSKIP<='0';
+			elsif(DUTQ='1' and lDUTQ='0')then
+				DUSKIP<='0';
+				if(DUSKIP='0' and CRTCON='1' and DUTX='1')then
+					DUT<='1';
+					DUTH<='1';
+				end if;
+			end if;
+		end if;
+	end process;
 	dulim<=DUCLK4 when CPUMD='0' and VT24='1' and VT15='1' else DUCLK;
 	process(clk,rstn)begin
 		if(rstn='0')then

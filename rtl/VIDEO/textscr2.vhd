@@ -10,7 +10,7 @@ generic(
 	BLINKINT :integer	:=40
 );
 port(
-	TRAMADR	:out std_logic_vector(11 downto 0);
+	TRAMADR	:out std_logic_vector(TVAW-1 downto 0);
 	TRAMDAT	:in std_logic_vector(8 downto 0);	-- bit 8 of an attribute: over line
 	
 	FRAMADR	:out std_logic_vector(11 downto 0);
@@ -24,7 +24,7 @@ port(
 	BGCOLOR	:out std_logic_vector(2 downto 0);
 	BLINK	:out std_logic;
 	
-	CURL	:in std_logic_vector(4 downto 0);
+	CURL	:in std_logic_vector(5 downto 0);
 	CURC	:in std_logic_vector(6 downto 0);
 	CURE	:in std_logic;
 	CURM	:in std_logic;
@@ -61,30 +61,30 @@ signal	NXTBGCLR :std_logic_vector(2 downto 0);
 signal	NXTFS	:std_logic;
 signal	NXTBL	:std_logic;
 signal	CHAR	:std_logic_vector(7 downto 0);
-signal	TRAMADRb	:std_logic_vector(11 downto 0);
+signal	TRAMADRb	:std_logic_vector(TVAW-1 downto 0);
 signal	DHCOMP	:std_logic;
 signal	DVCOMP	:std_logic;
-signal	C_LOW	:integer range 0 to 31;
-signal	C_LIN	:integer range 0 to 19;
+signal	C_LOW	:integer range 0 to ROWCAP-1;
+signal	C_LIN	:integer range 0 to CHRLMAX24-1;
 signal	C_LIN31	:integer range 0 to 19;
 signal	LIN31Q	:std_logic_vector(9 downto 0);	-- VCOUNT-VIV, used from VIV on
 type	MOD5_T is array(0 to 30) of integer range 0 to 4;
 constant	MOD5	:MOD5_T:=(0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0,1,2,3,4,0);
-signal	C_LIN24	:integer range 0 to 19;
-signal	C_LIN2	:integer range 0 to 38;	-- C_LIN in the lines of a 16-line glyph
+signal	C_LIN24	:integer range 0 to CHRLMAX24-1;
+signal	C_LIN2	:integer range 0 to CHRLMAX24*2-2;	-- C_LIN in the lines of a 16-line glyph
 signal	LBASE	:integer range 0 to VWMAX-1;	-- 24kHz: first line of the row being drawn
 signal	LDIFF	:integer range -VWMAX to VWMAX;
 signal	vivs	:integer range 0 to VWMAX-1;
 signal	hivs	:integer range 0 to HUWMAX-1;
 signal	C_COL	:integer range 0 to 127;
-signal	iCURL	:integer range 0 to 31;
+signal	iCURL	:integer range 0 to 63;
 signal	iCURC	:integer range 0 to 127;
 signal	CURV	:std_logic;
 signal	CURF	:std_logic;
 signal	CICOUNT	:integer range 0 to CBLINKINT-1;
 signal	BLKF	:std_logic;
 signal	BICOUNT	:integer range 0 to BLINKINT-1;
-signal	CHRLINES	:integer range 0 to 20;
+signal	CHRLINES	:integer range 0 to CHRLMAX24;
 signal	CHRL31	:integer range 16 to 20;
 signal	VMODEC	:std_logic;
 signal	HMODEC	:std_logic;
@@ -105,7 +105,8 @@ end component;
 
 begin
 
-	iCURL<=conv_integer(CURL);
+	--31kHz compares the cursor row in 5 bits as before (25 rows at most)
+	iCURL<=conv_integer(CURL) when VT24='1' else conv_integer(CURL(4 downto 0));
 	iCURC<=conv_integer(CURC);
 
 	Hdelay	:delayer generic map(1) port map(HCOMP,DHCOMP,clk,rstn,ce);
@@ -228,7 +229,7 @@ begin
 				if(VCOUNT>vivs)then
 					if(C_LIN/=0)then
 						TRAMADRb<=TRAMADRb-(HUVIS*2);
-					else
+					elsif(C_LOW<ROWCAP-1)then
 						C_LOW<=C_LOW+1;
 					end if;
 				end if;

@@ -110,6 +110,7 @@ signal	MONOFL2	:std_logic_vector(7 downto 0);
 signal  BUFWEL : std_logic;
 signal	GAPL	:std_logic;
 signal	vivs	:integer range 0 to VWMAX-1;
+signal	GOVER	:std_logic;	-- 24kHz, 15kHz: past the 400 (200) graphic lines of a long text set
 signal	hivs	:integer range 0 to HUWMAX-1;
 
 begin
@@ -119,8 +120,9 @@ begin
 	bufe    :graphbuf port map(clk,WDATE,RADR,WADR,BUFWEL,RDATE,ce);
 
 	-- 200-line graphics: 24kHz writes the skipped line as no graphics (see GAPL);
-	-- 31kHz repeats the line above
-	BUFWEL <= BUFWE when LINEEN='1' or (VT24='1' and VT15='0') else '0';
+	-- 31kHz repeats the line above. Past the 400 (15kHz 200) graphic lines the line is
+	-- written as no graphics in 15kHz too.
+	BUFWEL <= BUFWE when LINEEN='1' or (VT24='1' and VT15='0') or GOVER='1' else '0';
 	
 	WDAT0<=GRAMDAT0 when LINEEN='1' else (others=>'0');
 	WDAT1<=GRAMDAT1 when LINEEN='1' else (others=>'0');
@@ -130,6 +132,10 @@ begin
 	GRAMADR<=GRAMADRb;
 
 	vivs<=VRET24 when VT24='1' else VIV;
+	--A text set may show more than 400 (15kHz 200) lines: the lines past them have no graphics
+	GOVER<='1' when VT24='1' and VT15='0' and VCOUNT>=vivs+VVIS else
+			'1' when VT24='1' and VT15='1' and VCOUNT>=vivs+VVIS/2 else
+			'0';
 	hivs<=HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
 	
 	process(clk,rstn)begin
@@ -178,6 +184,12 @@ begin
 					else
 							BUFSTATE<=BS_RWAIT;
 							GRAMRD<='1';
+					end if;
+					if(GOVER='1')then
+						LINEEN<='0';
+						GAPL<='1';
+						BUFSTATE<=BS_LOFF;
+						GRAMRD<='0';
 					end if;
 				end if;
 			when BS_RWAIT =>
