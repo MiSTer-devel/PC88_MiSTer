@@ -406,6 +406,7 @@ port(
 
 	VT24		:in std_logic	:='0';
 	VT15		:in std_logic	:='0';
+	TXT16		:in std_logic	:='1';
 	CTYPE		:in std_logic_vector(1 downto 0)	:="11";
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
@@ -2018,6 +2019,7 @@ signal	GRAMDAT2	:std_logic_vector(7 downto 0);
 
 signal	GRAPHEN		:std_logic;
 signal	L200		:std_logic;
+signal	TXT16		:std_logic;	-- 31h bit 5: 1 = 16-line glyphs repeat in tall rows, 0 = a line counter blanks 4 of every 20 lines (24kHz)
 signal	LOWRES		:std_logic;
 signal	GCOLOR		:std_logic;
 
@@ -3214,7 +3216,7 @@ port map(
 	cmt_cds<=CDS;
 	DCDs	:cdc_sync2 port map(cmt_dcd,DCD,rclk);
 	IOR31	:IO_RD generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,RD_n,IDAT_IOR31,IOR31_OE,cVer,cHS,'1','1','1','0','0','1');
-	IOW31	:IO_WRS generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,open,GCOLOR,GRAPHEN,RMODE,MMODE,L200,rclk,CPU_rstnr,cpuce_r);
+	IOW31	:IO_WRS generic map(x"31")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,open,TXT16,GCOLOR,GRAPHEN,RMODE,MMODE,L200,rclk,CPU_rstnr,cpuce_r);
 	IO32	:IO_RWS generic map(x"32")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR32,IOR32_OE,SINTM,open,PMODE,TMODE,open,open,EROMSEL1,EROMSEL0,rclk,CPU_rstnr,cpuce_r);
 	IO33	:IO_RWS generic map(x"33")port map(CPUADR(7 downto 0),IORQ_n,RD_n,WR_n,CPUDAT_W,IDAT_IOR33,IOR33_OE,open,open,open,open,open,open,open,open,rclk,CPU_rstnr,cpuce_r);
 	IOW34	:IO_WRS generic map(x"34")port map(CPUADR(7 downto 0),IORQ_n,WR_n,CPUDAT_W,open,ALU2(1),ALU1(1),ALU0(1),open,ALU2(0),ALU1(0),ALU0(0),rclk,CPU_rstnr,cpuce_r);
@@ -3487,6 +3489,7 @@ port map(
 
 	VT24		=>VT24,
 	VT15		=>VT15,
+	TXT16		=>TXT16,
 	CTYPE		=>CRTC_C,
 	SETL		=>CRTC_SETL,
 	SETR		=>CRTC_SETR,
