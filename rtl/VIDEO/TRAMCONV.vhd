@@ -264,8 +264,15 @@ signal	m1hist		:std_logic_vector(127 downto 0);
 signal	m1cnt		:integer range 0 to 128;
 signal	lCPUBUS		:std_logic;
 signal	m1adj		:integer range -8192 to 8191;
+--Bytes a row and the hold shortening for them, a step or more behind SETH and ATTRLEN
+--(they change only with a CRTC set)
+signal	SETHs		:std_logic_vector(6 downto 0);
+signal	ATTRLENs	:std_logic_vector(4 downto 0);
+signal	SPCHRs		:std_logic;
 signal	HCHR		:integer range 2 to 80;		-- characters a row (CRTC)
 signal	RBYTES		:integer range 0 to 255;	-- bytes a row
+signal	hadj4		:integer range -8192 to 8191;
+signal	hadj8		:integer range -8192 to 8191;
 signal	hadj		:integer range -8192 to 8191;	-- steps the hold of this row is shortened by
 --a shift register in logic, not in block RAM
 attribute altera_attribute	:string;
@@ -539,8 +546,6 @@ begin
 	SHDW<=	SHDW31	when VT24s='0' else
 			SHDW15	when VT15s='1' else
 			SHDW24;
-	HCHR<=80 when SETH>"1001110" else conv_integer(SETH)+2;
-	RBYTES<=HCHR when SPCHR='1' else HCHR+2*(conv_integer(ATTRLEN)+1);
 	HOLDTGT<=	V1SHOLD4		when capCPUMD='0' and capSTR='0' and VT24s='0' else
 				V1SHOLD8		when capCPUMD='1' and capSTR='0' and VT24s='0' else
 				V1SHOLD4S		when capCPUMD='0' and VT24s='0' else
@@ -563,6 +568,21 @@ begin
 				VT24s<=VT24s1;
 				VT15s1<=VT15;
 				VT15s<=VT15s1;
+				SETHs<=SETH;
+				ATTRLENs<=ATTRLEN;
+				SPCHRs<=SPCHR;
+				if(SETHs>"1001110")then
+					HCHR<=80;
+				else
+					HCHR<=conv_integer(SETHs)+2;
+				end if;
+				if(SPCHRs='1')then
+					RBYTES<=HCHR;
+				else
+					RBYTES<=HCHR+2*(conv_integer(ATTRLENs)+1);
+				end if;
+				hadj4<=((120-RBYTES)*V1SBYTE4)/16;
+				hadj8<=((120-RBYTES)*V1SBYTE8)/16;
 			end if;
 		end if;
 	end process;
@@ -1284,9 +1304,9 @@ begin
 							if(GVSTRs='1')then
 								hadj<=0;
 							elsif(capCPUMD='0')then
-								hadj<=((120-RBYTES)*V1SBYTE4)/16;
+								hadj<=hadj4;
 							else
-								hadj<=((120-RBYTES)*V1SBYTE8)/16;
+								hadj<=hadj8;
 							end if;
 						end if;
 					when ST_RDTXT =>
