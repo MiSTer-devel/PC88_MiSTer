@@ -20,6 +20,12 @@ generic(
 	V1SHOLD8S24	:integer	:=2811;
 	V1SHOLD4S15	:integer	:=2293;
 	V1SHOLD8S15	:integer	:=2629;
+	--The holds above are for a row of 120 bytes (80 characters, 20 attributes). A row
+	--of fewer bytes is held V1SBYTE4/16 (4MHz) or V1SBYTE8/16 (8MHz) steps shorter
+	--for each byte it lacks, longer for each byte over (a FH: 1.30us and 1.105us a
+	--byte, in 24kHz and 15kHz alike). Not for rows taken while the CPU is slowed down.
+	V1SBYTE4	:integer	:=422;
+	V1SBYTE8	:integer	:=358;
 	--8MHz: a row taken while the CPU is slowed down is followed by up to SHNUM
 	--short holds, SHPERIOD steps apart from the row request plus 0 to
 	--2**SHJITBITS-1 steps; each ends SHDW steps after its own request, or 2 steps
@@ -66,6 +72,7 @@ port(
 	VT24		:in std_logic	:='0';	-- 1:24kHz or 15kHz timing (rclk)
 	VT15		:in std_logic	:='0';	-- 1:15kHz timing (rclk)
 	TSET		:in std_logic_vector(18 downto 0)	:=(others=>'0');	-- 24kHz, 15kHz: rows-1, height-1, first request line (rclk)
+	SETH		:in std_logic_vector(6 downto 0)	:="1001110";	-- CRTC characters a row, less 2
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -257,6 +264,9 @@ signal	m1hist		:std_logic_vector(127 downto 0);
 signal	m1cnt		:integer range 0 to 128;
 signal	lCPUBUS		:std_logic;
 signal	m1adj		:integer range -8192 to 8191;
+signal	HCHR		:integer range 2 to 80;		-- characters a row (CRTC)
+signal	RBYTES		:integer range 0 to 255;	-- bytes a row
+signal	hadj		:integer range -8192 to 8191;	-- steps the hold of this row is shortened by
 --a shift register in logic, not in block RAM
 attribute altera_attribute	:string;
 attribute altera_attribute of m1hist	:signal is "-name AUTO_SHIFT_REGISTER_RECOGNITION OFF";
@@ -529,6 +539,8 @@ begin
 	SHDW<=	SHDW31	when VT24s='0' else
 			SHDW15	when VT15s='1' else
 			SHDW24;
+	HCHR<=80 when SETH>"1001110" else conv_integer(SETH)+2;
+	RBYTES<=HCHR when SPCHR='1' else HCHR+2*(conv_integer(ATTRLEN)+1);
 	HOLDTGT<=	V1SHOLD4		when capCPUMD='0' and capSTR='0' and VT24s='0' else
 				V1SHOLD8		when capCPUMD='1' and capSTR='0' and VT24s='0' else
 				V1SHOLD4S		when capCPUMD='0' and VT24s='0' else
@@ -637,6 +649,7 @@ begin
 			lBUSREQ<='1';
 			shlfsr<=x"ACE1";
 			m1adj<=0;
+			hadj<=0;
 			BLKADR<=0;
 			SINCEBND<=3;
 			XREQ<='0';
@@ -1268,6 +1281,13 @@ begin
 							else
 								m1adj<=0;
 							end if;
+							if(GVSTRs='1')then
+								hadj<=0;
+							elsif(capCPUMD='0')then
+								hadj<=((120-RBYTES)*V1SBYTE4)/16;
+							else
+								hadj<=((120-RBYTES)*V1SBYTE8)/16;
+							end if;
 						end if;
 					when ST_RDTXT =>
 						MRAM_RDn<='0';
@@ -1546,7 +1566,7 @@ begin
 							shbase<=SHPERIOD;
 							shnext<=SHPERIOD+conv_integer(shlfsr(SHJITBITS-1 downto 0));
 							STATE<=ST_RELBUS;
-						elsif(holdcnt>=HOLDTGT-2+m1adj)then
+						elsif(holdcnt>=HOLDTGT-2+m1adj-hadj)then
 							STATE<=ST_RELBUS;
 						end if;
 					when ST_BLANK =>

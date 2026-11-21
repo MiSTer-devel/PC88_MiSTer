@@ -991,6 +991,7 @@ port(
 	VT24		:in std_logic;
 	VT15		:in std_logic;
 	TSET		:in std_logic_vector(18 downto 0);
+	SETH		:in std_logic_vector(6 downto 0);
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -2975,6 +2976,7 @@ port map(
 	VT24		=>VT24,
 	VT15		=>VT15,
 	TSET		=>CRTC_TSET,
+	SETH		=>CRTC_SETH,
 	
 	TADR_TOP	=>TRAMTOP,
 
