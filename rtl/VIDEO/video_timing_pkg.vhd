@@ -97,8 +97,9 @@ package VIDEO_TIMING_pkg is
 	constant CAPLINE	:integer	:=8;
 	-- fewest retrace characters a line in 24kHz or 15kHz timing: front porch, sync and 2
 	constant HIVMIN24	:integer	:=HFP24+HSY24+2;
-	-- fewest characters a line: the graphics read 80 bytes for the next line, one in each
-	-- 19-clock round of the SDRAM (1520 rclk, 53 characters of 24kHz)
+	-- fewest characters a line: the graphics read H bytes for the next line, one in each
+	-- 19-clock round of the SDRAM in 24kHz and one in two in 15kHz, and TRAMCONV converts
+	-- 80 columns a row whatever H shows
 	constant HUMIN24	:integer	:=60;
 
 	--counter ranges for all timings

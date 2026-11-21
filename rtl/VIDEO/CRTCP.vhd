@@ -196,7 +196,8 @@ port(
 	VT24	:in std_logic	:='0';
 	VT15	:in std_logic	:='0';
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;
-	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24;
+	HCHT	:in integer range 2 to HUVIS	:=HUVIS
 );
 end component;
 
@@ -393,6 +394,7 @@ signal	xOK		:std_logic;
 --24kHz, 15kHz: a line is H+2 characters shown and Z+2 retrace characters (PC-8801FH)
 signal	aHIV	:integer range 0 to HUWMAX-1	:=HIV24;
 signal	aHUEND	:integer range 0 to HUWMAX-1	:=HUWIDTH24-1;
+signal	aHCH	:integer range 2 to HUVIS;	-- characters shown a line
 signal	nHCHR	:integer range 2 to 129;
 signal	nHIV	:integer range 2 to 33;
 
@@ -410,7 +412,7 @@ begin
 	VSY		=>VSY
 ) port map(VT24,VT15,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b,aHUEND);
 	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL,TXT16,aHIV);
-	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET,aHIV);
+	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET,aHIV,aHCH);
 
 	--The cursor is as set by the CRTC (C of the RESET command): the whole row or
 	--its last line, blinking or not.
@@ -488,6 +490,7 @@ begin
 	end process;
 	TSET<=conv_std_logic_vector(aROWS-1,6) & conv_std_logic_vector(aCHRL-1,5) & conv_std_logic_vector(aREQ0,8);
 	TLINE<=conv_std_logic_vector(aHUEND+1,7);
+	aHCH<=aHUEND+1-aHIV;
 
 	FRAMWEN<=FRAMWR when FRAMWADR(12)='0' else '0';
 	GRAMWEN<=FRAMWR when FRAMWADR(12)='1' else '0';
