@@ -76,7 +76,8 @@ port(
 	SETH		:in std_logic_vector(6 downto 0)	:="1001110";	-- characters a row - 2
 	SETZ		:in std_logic_vector(4 downto 0)	:="11000";	-- horizontal retrace - 2
 	SETOK		:in std_logic	:='0';
-	TSET		:out std_logic_vector(18 downto 0)	-- rows-1, height-1, first request line, for TRAMCONV
+	TSET		:out std_logic_vector(18 downto 0);	-- rows-1, height-1, first request line, for TRAMCONV
+	TLINE		:out std_logic_vector(6 downto 0)	-- characters a line of that set (H+Z+4), for TRAMCONV
 );
 end CRTCP;
 
@@ -483,6 +484,7 @@ begin
 		end if;
 	end process;
 	TSET<=conv_std_logic_vector(aROWS-1,6) & conv_std_logic_vector(aCHRL-1,5) & conv_std_logic_vector(aREQ0,8);
+	TLINE<=conv_std_logic_vector(aHUEND+1,7);
 
 	FRAMWEN<=FRAMWR when FRAMWADR(12)='0' else '0';
 	GRAMWEN<=FRAMWR when FRAMWADR(12)='1' else '0';
