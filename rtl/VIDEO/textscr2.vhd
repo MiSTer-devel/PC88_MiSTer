@@ -48,7 +48,8 @@ port(
 	VT24	:in std_logic	:='0';		-- 1:24kHz or 15kHz timing (lines from the CRTC)
 	VT15	:in std_logic	:='0';		-- 1:15kHz timing
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz or 15kHz timing
-	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24	-- character height in 24kHz or 15kHz timing
+	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24;	-- character height in 24kHz or 15kHz timing
+	TXT16	:in std_logic	:='1'	-- 31h bit 5: 0 blanks the text 4 lines in every 20 at 24kHz (below)
 );
 end TEXTSCR2;
 
@@ -74,6 +75,15 @@ signal	C_LIN24	:integer range 0 to CHRLMAX24-1;
 signal	C_LIN2	:integer range 0 to CHRLMAX24*2-2;	-- C_LIN in the lines of a 16-line glyph
 signal	LBASE	:integer range 0 to VWMAX-1;	-- 24kHz: first line of the row being drawn
 signal	LDIFF	:integer range -VWMAX to VWMAX;
+--24kHz, 31h bit 5 = 0: a count of 0 to 4 that is 0 at the first display line and
+--steps when bit 1 of the line in the row goes from 1 to 0. While it is 4 the
+--glyph is not drawn (the PC-8801FH: 4 lines in 20 when the row height is a
+--multiple of 4, rows of 10 lines step 8 lines a row).
+signal	B5CNT	:integer range 0 to 4;
+signal	B5L1	:std_logic;
+signal	B5VC	:integer range 0 to VWMAX-1;
+signal	B5OFF	:std_logic;
+signal	C_LINV	:std_logic_vector(4 downto 0);
 signal	vivs	:integer range 0 to VWMAX-1;
 signal	hivs	:integer range 0 to HUWMAX-1;
 signal	C_COL	:integer range 0 to 127;
@@ -128,10 +138,40 @@ begin
 			LDIFF-CHRLINES when LDIFF<CHRLINES*2 else
 			0;
 	C_LIN<=C_LIN24 when VT24='1' else C_LIN31;
+	C_LINV<=conv_std_logic_vector(C_LIN,5);
 	--15kHz draws a glyph line once, 24kHz and 31kHz twice. The 8x8 font and the
 	--graphic characters (4 lines a cell in 16) are read at C_LIN2, and lines from
-	--16 on (the bottom of a 20-line row) are blank.
-	C_LIN2<=C_LIN*2 when VT15='1' else C_LIN;
+	--16 on (the bottom of a 20-line row) are blank. 24kHz takes the line mod 16,
+	--as the PC-8801FH repeats the top of the glyph in a row taller than 16 lines;
+	--B5OFF blanks the lines instead.
+	C_LIN2<=C_LIN*2 when VT15='1' else
+			conv_integer(C_LINV(3 downto 0)) when VT24='1' else
+			C_LIN;
+
+	process(clk,rstn)begin
+		if(rstn='0')then
+			B5CNT<=0;
+			B5L1<='0';
+			B5VC<=0;
+		elsif(clk' event and clk='1')then
+		 if(ce='1')then
+			B5VC<=VCOUNT;
+			if(VCOUNT/=B5VC)then
+				if(VCOUNT<=vivs)then
+					B5CNT<=0;
+				elsif(B5L1='1' and C_LINV(1)='0')then
+					if(B5CNT=4)then
+						B5CNT<=0;
+					else
+						B5CNT<=B5CNT+1;
+					end if;
+				end if;
+				B5L1<=C_LINV(1);
+			end if;
+		 end if;
+		end if;
+	end process;
+	B5OFF<='1' when VT24='1' and VT15='0' and TXT16='0' and B5CNT=4 else '0';
 	C_COL<=0 when HUCOUNT<hivs else HUCOUNT-hivs;
 
 	process(clk,rstn)begin
@@ -258,7 +298,7 @@ begin
 						BNXTDOT0:=(others=>'0');
 						BNXTDOT1:=(others=>'0');
 					else
-						if(C_LIN2<16)then
+						if(C_LIN2<16 and B5OFF='0')then
 							BNXTDOT0:=FRAMDAT8;
 							BNXTDOT1:=FRAMDAT1;
 						else
