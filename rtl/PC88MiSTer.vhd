@@ -28,7 +28,7 @@ port(
 	LOADER_WR	:in std_logic;
 	LOADER_ACK	:out std_logic;
 	LOADER_DONE	:in std_logic;
-	--RAM type from the OSD (clk21m): "00" Fx, "01" Mx, "10" 512KB (RAMFILL, RAMTYPECTL)
+	--RAM type from the OSD (clk21m): "00" Fx, "01" Mx, "10" 512KB, "11" 1MB (RAMFILL, RAMTYPECTL)
 	RAMTYPE		:in std_logic_vector(1 downto 0) := "00";
 	
 	-- SD-RAM ports
@@ -814,7 +814,7 @@ port(
 	CTYPE	:in std_logic_vector(1 downto 0);
 	RAM_WAIT	:in std_logic;
 
-	ADR		:out std_logic_vector(21 downto 0);
+	ADR		:out std_logic_vector(22 downto 0);
 	WDAT	:out std_logic_vector(7 downto 0);
 	WR		:out std_logic;
 	OE		:out std_logic;
@@ -1768,7 +1768,7 @@ signal	VRAMWEo		:std_logic_vector(3 downto 0);
 signal	RAM_POST	:std_logic;
 signal	PWSEL		:std_logic;
 -- signal	LOADER_rstn :std_logic;
-signal	CLR_ADR		:std_logic_vector(21 downto 0);
+signal	CLR_ADR		:std_logic_vector(22 downto 0);
 signal	CLR_WDAT	:std_logic_vector(7 downto 0);
 signal	CLR_WR		:std_logic;
 signal	CLR_OE		:std_logic;
@@ -2529,7 +2529,7 @@ begin
 	LOADER_WE<=LOADER_WRr and not LOADER_WRd;
 
 	RAMADR<=
-			ADDR_BACKRAM(RAMAWIDTH-1 downto 22) & CLR_ADR when CLR_OE='1' else
+			ADDR_N88(RAMAWIDTH-1 downto 23) & CLR_ADR when CLR_OE='1' else
 			ADDR_N88(RAMAWIDTH-1 downto 19) & LOADER_ADR when LOADER_OEr='1' else
 			VMAP_RADR when TCNV_BUSUSE='1' else
 			MAP_RADR;

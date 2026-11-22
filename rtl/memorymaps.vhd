@@ -42,7 +42,10 @@ port(
 	ALURE		:out std_logic;
 	GADR_MSEL	:out std_logic;
 	
-	--Extended RAM (E2h/E3h): "00" none, "01" 4 banks (E3h 0-3), "10" 16 banks.
+	--Extended RAM (E2h/E3h): "00" none, "01" 4 banks (E3h 0-3), "10" 16 banks,
+	--"11" 1MB as an I-O DATA board: 32 banks 00h-07h, 10h-17h, 20h-27h, 30h-37h.
+	--"01" and "10" decode the low 4 bits of E3h and read it back with the high
+	--4 bits set, as NEC's 128KB boards. "11" decodes and reads back all 8 bits.
 	--A bank that is not there acts as if E2h had the RAM disabled, and E2h/E3h
 	--then read as FFh, as on the MA.
 	EXTTYPE		:in std_logic_vector(1 downto 0);
@@ -95,7 +98,8 @@ constant	TVRMODE		:std_logic	:='0';	--A PC-8801FH has no port 38h.
 signal	IOWRn		:std_logic;
 signal	lWRn		:std_logic;
 signal	TXTWINENb	:std_logic;
-signal	extsel		:std_logic_vector(3 downto 0);
+signal	extsel		:std_logic_vector(7 downto 0);
+signal	extidx		:std_logic_vector(5 downto 0);
 signal	extwe		:std_logic;
 signal	extre		:std_logic;
 signal	extbank		:std_logic;
@@ -167,7 +171,7 @@ begin
 					if(EXTTYPE="00")then
 						extsel<=(others=>'0');
 					else
-						extsel<=CPU_WDAT(3 downto 0);
+						extsel<=CPU_WDAT;
 					end if;
 				when others=>
 				end case;
@@ -189,7 +193,11 @@ begin
 
 	extbank<=	'1' when EXTTYPE="10" else
 				'1' when EXTTYPE="01" and extsel(3 downto 2)="00" else
+				'1' when EXTTYPE="11" and extsel(7 downto 6)="00" and extsel(3)='0' else
 				'0';
+	--Bank in the 2MB at ADDR_EXTRAM, 32KB each.
+	extidx<=	'0' & extsel(5 downto 4) & extsel(2 downto 0) when EXTTYPE="11" else
+				"00" & extsel(3 downto 0);
 	extren<=extre and extbank;
 	extwen<=extwe and extbank;
 
@@ -199,8 +207,8 @@ begin
 	RAM_ADRF<=	
 				ADDR_KANJI1(27 downto 17) & KNJ1_ADR when KNJ1_RD='1' else		--Kanji1 ROM
 				ADDR_KANJI2(27 downto 17) & KNJ2_ADR when KNJ2_RD='1' else		--Kanji2 ROM
-				ADDR_EXTRAM(27 downto 19) & extsel & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extren='1' and CPU_RDn='0' else	--ext ram(read)
-				ADDR_EXTRAM(27 downto 19) & extsel & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extwen='1' and CPU_WRn='0' else	--ext ram(write)
+				ADDR_EXTRAM(27 downto 21) & extidx & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extren='1' and CPU_RDn='0' else	--ext ram(read)
+				ADDR_EXTRAM(27 downto 21) & extidx & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extwen='1' and CPU_WRn='0' else	--ext ram(write)
 				ADDR_BACKRAM(27 downto 15) & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and CPU_WRn='0' else	--write ram when rom assigned
 				ADDR_GVRAM(27 downto 15) & TXW_SUM(13 downto 0) & '0' when TXTWINENb='1' and TXW_SELV='1' else	--text window(VRAM area)
 				ADDR_MAINRAM(27 downto 16) & TXW_SUM when TXTWINENb='1' else		--text window
@@ -253,7 +261,7 @@ begin
 	
 	IO71<=	"1111111" & IEROMn;
 	
-	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71,extwe,extre,extsel,extbank)begin
+	process(CPU_ADR,CPU_IORQn,CPU_RDn,IO5c,IO70,IO71,extwe,extre,extsel,extbank,EXTTYPE)begin
 		if(CPU_IORQn='1' or CPU_RDn='1')then
 			CPU_RDAT<=(others=>'1');
 			CPU_OE<='0';
@@ -278,7 +286,11 @@ begin
 				end if;
 			when x"e3" =>
 				if(extbank='1')then
-					CPU_RDAT<="1111" & extsel;
+					if(EXTTYPE="11")then
+						CPU_RDAT<=extsel;
+					else
+						CPU_RDAT<="1111" & extsel(3 downto 0);
+					end if;
 					CPU_OE<='1';
 				else
 					CPU_RDAT<=(others=>'1');
