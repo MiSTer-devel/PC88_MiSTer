@@ -758,6 +758,9 @@ port(
 end component;
 
 component KNJWAIT
+generic(
+	N8		:integer range 0 to 3 := 3
+);
 port(
 	SEL		:in std_logic;
 	CPUMD	:in std_logic;
@@ -1892,6 +1895,7 @@ signal	M1_WAITn	:std_logic;
 signal	V1S4M		:std_logic;
 signal	TRAM_WAITn	:std_logic;
 signal	KNJ_WAITn	:std_logic;
+signal	JIS_WAITn	:std_logic;
 signal	KNJWSEL		:std_logic;
 signal	TRWSEL		:std_logic;
 signal	WAIT_nb		:std_logic;
@@ -3120,7 +3124,7 @@ port map(
 );
 
 
-	WAIT_nb<=	not RAM_WAIT when RAM_CE='1' else
+	WAIT_nb<=	(not RAM_WAIT) and JIS_WAITn when RAM_CE='1' else
 				TRAM_WAITn when TRAM_CE='1' else
 				(not RAM_WAIT) and KNJ_WAITn when KANJI1RD='1' or KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
@@ -3363,6 +3367,9 @@ port map(
 	-- Wait states on the kanji ROM ports, as measured on a real FH: 2 at 8MHz.
 	KNJWSEL<=KANJI1RD or KANJI2RD;
 	KNJW	:KNJWAIT port map(KNJWSEL,CPUMD,KNJ_WAITn,rclk,cpuce_f,CPU_rstnr);
+	-- Reads of the dictionary ROM, as measured on a MA2: one wait state more
+	-- than a main RAM read at 8MHz (2 in all), none at 4MHz.
+	JISW	:KNJWAIT generic map(2) port map(JISYO_RD,CPUMD,JIS_WAITn,rclk,cpuce_f,CPU_rstnr);
 	M1W		:M1WAIT port map(M1_n,MREQ_n,WAIT_other,V1S4M,M1_WAITn,rclk,cpuce_f,CPU_rstnr);
 	-- Wait states on graphic VRAM reads and writes, as measured on a real FH:
 	-- V1H and V2, and V1S when the ALU is in use or in the high-speed mode.
