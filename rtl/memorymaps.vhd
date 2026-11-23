@@ -51,7 +51,7 @@ port(
 	EXTTYPE		:in std_logic_vector(1 downto 0);
 
 	--Dictionary ROM of the MA (F0h/F1h), 32 banks of 16KB. JISYO_EN is '1' when
-	--boot1.rom was loaded. As measured on a MA2: F1h=00h shows the bank of F0h at
+	--a whole boot1.rom (512KB) was loaded. As measured on a MA2: F1h=00h shows the bank of F0h at
 	--C000h-FFFFh for reads, any other value hides it. F0h with any of bits 5-7 set
 	--picks bank 0. The bank wins over the text RAM at F000h and the graphic VRAM.
 	--Writes go where they go without it. F0h and F1h read as FFh.
@@ -226,8 +226,8 @@ begin
 	extren<=extre and extbank;
 	extwen<=extwe and extbank;
 
-	jrd<='1' when JISYO_EN='1' and jshow='1' and CPU_ADR(15 downto 14)="11" and CPU_RDn='0' else '0';
-	JISYO_RD<=jrd and not CPU_MREQn;
+	jrd<='1' when JISYO_EN='1' and jshow='1' and CPU_ADR(15 downto 14)="11" and CPU_MREQn='0' and CPU_RDn='0' else '0';
+	JISYO_RD<=jrd;
 
 	TRAMSEL<=	'1' when GVAM='0' and G_RAMSELb=3 else
 				'1' when GVAM='1' and GAM='0' else

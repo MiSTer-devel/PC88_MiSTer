@@ -2566,11 +2566,11 @@ begin
 			
 	NMI_n<='1';
 	
-	--The dictionary ROM is there once boot1.rom has been loaded. It stays until
-	--the core is loaded again.
+	--The dictionary ROM is there once boot1.rom has been loaded up to its last
+	--byte (512KB). It stays until the core is loaded again.
 	process(rclk)begin
 		if(rclk' event and rclk='1')then
-			if(LOADER_OEr='1' and LOADER_WE='1' and LOADER_ADR(19)='1')then
+			if(LOADER_OEr='1' and LOADER_WE='1' and LOADER_ADR=x"FFFFF")then
 				JISYO_EN<='1';
 			end if;
 		end if;

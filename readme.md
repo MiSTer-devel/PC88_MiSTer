@@ -43,7 +43,7 @@ There are several revisions of the N88 4th-0 ROM. Use the one listed above (710A
 
 ## Dictionary ROM (optional)
 
-The dictionary ROM of the PC-8801MA (512KB, ports F0h and F1h) can be placed as **boot1.rom** next to boot.rom. The core loads it at start, and F1h = 00h shows the 16KB bank set in F0h at C000h-FFFFh for reads, as on a MA. Without boot1.rom, F0h and F1h do nothing, as on models without the dictionary.
+The dictionary ROM of the PC-8801MA (512KB, ports F0h and F1h) can be placed as **boot1.rom** next to boot.rom (not with boot0.rom). The core loads it at start, and F1h = 00h shows the 16KB bank set in F0h at C000h-FFFFh for reads, as on a MA. Without boot1.rom, F0h and F1h do nothing, as on models without the dictionary.
 
 ## Special key assignments are as follows:
 

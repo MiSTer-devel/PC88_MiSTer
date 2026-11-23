@@ -153,7 +153,7 @@ wire  [5:0] joyA = ~{joystick_0[5:4],joystick_0[0],joystick_0[1],joystick_0[2],j
 wire  [5:0] joyB = ~{joystick_1[5:4],joystick_1[0],joystick_1[1],joystick_1[2],joystick_1[3]};
 
 wire        ioctl_download;
-wire  [7:0] ioctl_index;
+wire [15:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
@@ -703,8 +703,8 @@ wire ldr_ack;
 reg ldr_wr = 0;
 reg ldr_end = 0;
 reg ldr_done = 0;
-wire ldr_idx0 = (ioctl_index == 8'h00);
-wire ldr_idx1 = (ioctl_index == 8'h40);
+wire ldr_idx0 = (ioctl_index == 16'h0000);
+wire ldr_idx1 = (ioctl_index == 16'h0040) & ~|ioctl_addr[24:19];	// the first 512KB
 always @(posedge clk_sys) begin
 	reg old_ack, old_download;
 
