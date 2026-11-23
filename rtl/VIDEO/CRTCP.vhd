@@ -73,8 +73,11 @@ port(
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
+	SETH		:in std_logic_vector(6 downto 0)	:="1001110";	-- characters a row - 2
+	SETZ		:in std_logic_vector(4 downto 0)	:="11000";	-- horizontal retrace - 2
 	SETOK		:in std_logic	:='0';
-	TSET		:out std_logic_vector(18 downto 0)	-- rows-1, height-1, first request line, for TRAMCONV
+	TSET		:out std_logic_vector(18 downto 0);	-- rows-1, height-1, first request line, for TRAMCONV
+	TLINE		:out std_logic_vector(6 downto 0)	-- characters a line of that set (H+Z+4), for TRAMCONV
 );
 end CRTCP;
 
@@ -109,7 +112,8 @@ port(
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	CE3		:out std_logic
+	CE3		:out std_logic;
+	HUENDT	:in integer range 0 to HUWMAX-1	:=HUWIDTH24-1
 );
 end component;
 
@@ -154,7 +158,8 @@ port(
 	VT15	:in std_logic	:='0';
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;
 	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24;
-	TXT16	:in std_logic	:='1'
+	TXT16	:in std_logic	:='1';
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24
 );
 end component;
 
@@ -190,7 +195,9 @@ port(
 
 	VT24	:in std_logic	:='0';
 	VT15	:in std_logic	:='0';
-	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24;
+	HCHT	:in integer range 2 to HUVIS	:=HUVIS
 );
 end component;
 
@@ -229,7 +236,8 @@ port(
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	ce		:in std_logic := '1'
+	ce		:in std_logic := '1';
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24
 );
 end component;
 
@@ -383,6 +391,12 @@ signal	xVRET	:integer range 0 to 256;
 signal	xDISP	:integer range 1 to ROWSMAX24*CHRLMAX24;
 signal	xTOT	:integer range 1 to ROWSMAX24*CHRLMAX24+256;
 signal	xOK		:std_logic;
+--24kHz, 15kHz: a line is H+2 characters shown and Z+2 retrace characters (PC-8801FH)
+signal	aHIV	:integer range 0 to HUWMAX-1	:=HIV24;
+signal	aHUEND	:integer range 0 to HUWMAX-1	:=HUWIDTH24-1;
+signal	aHCH	:integer range 2 to HUVIS;	-- characters shown a line
+signal	nHCHR	:integer range 2 to 129;
+signal	nHIV	:integer range 2 to 33;
 
 begin
 	TIM	:vtiming generic map(
@@ -396,9 +410,9 @@ begin
 	HSY		=>HSY,
 	VFP		=>VFP,
 	VSY		=>VSY
-) port map(VT24,VT15,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b);
-	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL,TXT16);
-	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET);
+) port map(VT24,VT15,aVEND,VCOUNT,HUCOUNT,UCOUNT,HCOMP,VCOMP,clk2,clk3,clk,rstn,ce3b,aHUEND);
+	TXT	:textscr2 port map(TRAM_ADR,TRAM_DAT,FRAMADR,FRAMDAT,GRAMDAT,FRAMADR8,FRAMDAT8,T_BIT,T_FGCOLOR,T_BGCOLOR,T_BLINK,CURL,CURC,CURE,T_CURM,T_CBLINK,HMODE,VMODE,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,CURVMODE,VT24,VT15,aVRET,aCHRL,TXT16,aHIV);
+	GRP	:graphscr port map(GRAMADR,GRAMRD,GRAMWAIT,GRAMDAT0,GRAMDAT1,GRAMDAT2,G0_BIT,G1_BIT,G2_BIT,GM_BIT,GE_BIT,GG_BIT,GRAPHEN,LOWRES,MONOEN,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,clk,rstn,ce3b,VT24,VT15,aVRET,aHIV,aHCH);
 
 	--The cursor is as set by the CRTC (C of the RESET command): the whole row or
 	--its last line, blinking or not.
@@ -407,8 +421,10 @@ begin
 
 	--24kHz, 15kHz: a parameter set is used from the next frame, if it is in range.
 	--Its retrace is made long enough for the sync and for its first row to be requested
-	--after TRAMCONV takes it (at CAPLINE), and the frame must be 24 to 120Hz with 8 lines
-	--or more shown. 31kHz takes a set as before (25 rows, 8 to 20 lines).
+	--after TRAMCONV takes it (at CAPLINE), and the frame must have the lines of 24 to 120Hz
+	--with full-length lines (fewer characters a line make it faster, as on a FH) and 8 lines
+	--or more shown. A line is H+Z+4 characters, 48 or more, and a row 160 or more. 31kHz takes a set as before
+	--(25 rows, 8 to 20 lines, the line of 80 characters).
 	--A PC-8801FH shows sets past 400 (200) lines and with a short retrace, too.
 	--Until one is written (power on, reset), the ROM's 25-line set is used; in 15kHz
 	--it is loaded on the clock after reset.
@@ -417,6 +433,8 @@ begin
 	nROWS<=conv_integer(SETL)+1;
 	nCHRL<=conv_integer(SETR)+1;
 	nVRET<=(conv_integer(SETV)+1)*(conv_integer(SETR)+1);
+	nHCHR<=conv_integer(SETH)+2;
+	nHIV<=conv_integer(SETZ)+2;
 	vretmin<=VRETMIN15 when VT15='1' else VRETMIN24;
 	xVRET<=	nVRET when nVRET>=vretmin and nVRET>=nCHRL+CAPLINE+1 else
 			vretmin when vretmin>=nCHRL+CAPLINE+1 else
@@ -434,6 +452,8 @@ begin
 			aVRET<=VRETDEF24;
 			aVEND<=ROWSDEF24*CHRLDEF24+VRETDEF24-1;
 			aREQ0<=VRETDEF24-CHRLDEF24;
+			aHIV<=HIV24;
+			aHUEND<=HUWIDTH24-1;
 			pVCOMP<='0';
 			aDEF<='1';
 		elsif(clk' event and clk='1')then
@@ -444,14 +464,19 @@ begin
 				aVRET<=VRETDEF15;
 				aVEND<=ROWSDEF24*CHRLDEF15+VRETDEF15-1;
 				aREQ0<=VRETDEF15-CHRLDEF15;
+				aHIV<=HIV15;
+				aHUEND<=HUWIDTH15-1;
 			elsif(VCOMP='1' and pVCOMP='0' and SETOK='1')then
 				if(VT24='1')then
-					if(xOK='1')then
+					if(xOK='1' and nHCHR<=HUVIS and nHIV>=HIVMIN24 and nHCHR+nHIV<=HUWMAX
+						and nHCHR+nHIV>=HUMIN24 and nCHRL*(nHCHR+nHIV)>=ROWUMIN24)then
 						aROWS<=nROWS;
 						aCHRL<=nCHRL;
 						aVRET<=xVRET;
 						aVEND<=xTOT-1;
 						aREQ0<=xVRET-nCHRL;
+						aHIV<=nHIV;
+						aHUEND<=nHCHR+nHIV-1;
 					end if;
 				elsif(nROWS<=ROWSMAX31 and nCHRL>=CHRLMIN31 and nCHRL<=CHRLMAX31 and nVRET>=vretmin and nVRET-nCHRL>CAPLINE)then
 					aROWS<=nROWS;
@@ -464,6 +489,8 @@ begin
 		end if;
 	end process;
 	TSET<=conv_std_logic_vector(aROWS-1,6) & conv_std_logic_vector(aCHRL-1,5) & conv_std_logic_vector(aREQ0,8);
+	TLINE<=conv_std_logic_vector(aHUEND+1,7);
+	aHCH<=aHUEND+1-aHIV;
 
 	FRAMWEN<=FRAMWR when FRAMWADR(12)='0' else '0';
 	GRAMWEN<=FRAMWR when FRAMWADR(12)='1' else '0';
@@ -484,7 +511,7 @@ begin
 		HSY		=>HSY,
 		VFP		=>VFP,
 		VSY		=>VSY
-	) port map(VT24,VT15,aVRET,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk,rstn,ce3b);
+	) port map(VT24,VT15,aVRET,UCOUNT,HUCOUNT,VCOUNT,HCOMP,VCOMP,HSYNC,VSYNC,VISIBLE,VIDENb,HRTC,VRTC,clk,rstn,ce3b,aHIV);
 	
 	F_REVERSE <= T_BGCOLOR(0) xor REVERSE;
 	A_REVERSE <= (others=>F_REVERSE);

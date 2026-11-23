@@ -38,7 +38,9 @@ port(
 	
 	clk		:in std_logic;
 	rstn	:in std_logic;
-	ce		:in std_logic := '1'
+	ce		:in std_logic := '1';
+
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24	-- retrace characters of a line in 24kHz or 15kHz timing
 );
 end synccont2;
 
@@ -67,7 +69,7 @@ begin
 	--15kHz: front porch 15, sync 3, back porch in the retrace lines
 	hfps<=	HFP15 when VT15='1' else HFP24 when VT24='1' else HFP;
 	hsye<=	HFP15+HSY15 when VT15='1' else HFP24+HSY24 when VT24='1' else HFP+HSY;
-	hivs<=	HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
+	hivs<=	HIVT when VT24='1' else HIV;
 	vfps<=	VFP15 when VT15='1' else VFP24 when VT24='1' else VFP;
 	vsye<=	VFP15+VSY15 when VT15='1' else VFP24+VSY24 when VT24='1' else VFP+VSY;
 	vivs<=	VRET24 when VT24='1' else VIV;

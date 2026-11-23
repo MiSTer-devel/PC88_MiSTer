@@ -20,6 +20,14 @@ generic(
 	V1SHOLD8S24	:integer	:=2811;
 	V1SHOLD4S15	:integer	:=2293;
 	V1SHOLD8S15	:integer	:=2629;
+	--The holds above are for a row of 120 bytes (80 characters, 20 attributes). A row
+	--of fewer bytes is held V1SBYTE4/16 (4MHz) or V1SBYTE8/16 (8MHz) steps shorter
+	--for each byte it lacks, longer for each byte over (a FH: the CPU gains 1.30us and
+	--1.105us a byte, in 24kHz and 15kHz alike; the time freed runs at the V1S speed of
+	--the display, so the hold changes by more). Not for rows taken while the CPU is
+	--slowed down.
+	V1SBYTE4	:integer	:=486;
+	V1SBYTE8	:integer	:=434;
 	--8MHz: a row taken while the CPU is slowed down is followed by up to SHNUM
 	--short holds, SHPERIOD steps apart from the row request plus 0 to
 	--2**SHJITBITS-1 steps; each ends SHDW steps after its own request, or 2 steps
@@ -40,9 +48,9 @@ generic(
 	--8257 off, 8MHz and 24kHz from about three quarters)
 	DUCLK4		:integer	:=15179;
 	DUCLK		:integer	:=30357;
-	--24kHz, 15kHz: a set whose row lasts less than its bytes (82 + 2 * ATTRLEN, 80 without
-	--attributes) times these clocks is a DMA underrun from the frame it is taken (the
-	--defaults are from a real PC-8801FH, see VIDEO_TIMING_pkg)
+	--24kHz, 15kHz: a set whose row (of lines of H+Z+4 characters) lasts less than its bytes
+	--(characters + 2 + 2 * ATTRLEN, the characters without attributes) times these clocks is a DMA underrun from
+	--the frame it is taken (the defaults are from a real PC-8801FH, see VIDEO_TIMING_pkg)
 	TBYTES4		:integer	:=TBYTES4D;
 	TBYTES8		:integer	:=TBYTES8D;
 	TBYTEH4		:integer	:=TBYTEH4D;
@@ -66,6 +74,8 @@ port(
 	VT24		:in std_logic	:='0';	-- 1:24kHz or 15kHz timing (rclk)
 	VT15		:in std_logic	:='0';	-- 1:15kHz timing (rclk)
 	TSET		:in std_logic_vector(18 downto 0)	:=(others=>'0');	-- 24kHz, 15kHz: rows-1, height-1, first request line (rclk)
+	SETH		:in std_logic_vector(6 downto 0)	:="1001110";	-- CRTC characters a row, less 2
+	TLINE		:in std_logic_vector(6 downto 0)	:=(others=>'0');	-- 24kHz, 15kHz: characters a line of the set in TSET (H+Z+4), 0: a full line (rclk)
 	
 	TADR_TOP	:in std_logic_vector(15 downto 0);
 
@@ -128,7 +138,7 @@ constant LINECHARS	:integer	:=80;
 --Rows of the frame in 31kHz (and the rows processed at least, in all timings)
 constant MAXLINES	:integer	:=25;
 --The start of the row being read. Its text is read from byte CHARCNT of the row, its
---attributes from byte AOFF (from 80 on).
+--attributes from byte AOFF (from HCHR on).
 signal	STXTADR	:std_logic_vector(15 downto 0);
 signal	AOFF	:std_logic_vector(15 downto 0);
 signal	SDSTADR	:std_logic_vector(TVAW-1 downto 0);
@@ -233,6 +243,7 @@ signal	pfCHRL		:integer range CHRLMIN24 to CHRLMAX24;
 signal	pfTEXTEN,pfVT24,pfVT15	:std_logic;
 signal	pfSMODE,pfSPCHR,pfCOLOR,pfATTRCOLOR	:std_logic;
 signal	pfATTRLEN	:std_logic_vector(4 downto 0);
+signal	pfHCHR		:integer range 2 to 80;
 signal	hTADR		:std_logic_vector(15 downto 0);	-- frame start values held at VRET
 signal	hTVRMODE,hTMODE	:std_logic;
 signal	HOLDTGT		:integer range 0 to 65535;
@@ -240,6 +251,9 @@ signal	HOLDTGT		:integer range 0 to 65535;
 --any CAPLINE), the 24kHz 25-line set.
 constant TSDEF	:std_logic_vector(18 downto 0)	:=conv_std_logic_vector(ROWSDEF24-1,6) & conv_std_logic_vector(CHRLDEF24-1,5) & conv_std_logic_vector(VRETDEF24-CHRLDEF24,8);
 signal	TSr,TSr2,TSr3,TSok	:std_logic_vector(18 downto 0);
+signal	TLr,TLr2,TLr3,TLok	:std_logic_vector(6 downto 0);
+signal	lnclk		:integer range 0 to 8191;	-- rclk clocks of a line of the set in TSET
+signal	capLN		:integer range 0 to 8191;	-- that, taken with the set
 signal	capSTR		:std_logic;	-- GVSTR when the bus was taken for this row
 signal	holdcnt		:integer range 0 to 65535;
 signal	SHACT		:std_logic;	-- short holds are due for this row
@@ -257,6 +271,17 @@ signal	m1hist		:std_logic_vector(127 downto 0);
 signal	m1cnt		:integer range 0 to 128;
 signal	lCPUBUS		:std_logic;
 signal	m1adj		:integer range -8192 to 8191;
+--Bytes a row and the hold shortening for them, a step or more behind SETH and ATTRLEN
+--(they change only with a CRTC set)
+signal	SETHs		:std_logic_vector(6 downto 0);
+signal	ATTRLENs	:std_logic_vector(4 downto 0);
+signal	SPCHRs		:std_logic;
+signal	HCHR		:integer range 2 to 80	:=80;		-- characters a row (CRTC)
+signal	ABASE		:std_logic_vector(15 downto 0);	-- the first attribute byte of a row
+signal	RBYTES		:integer range 0 to 255	:=120;	-- bytes a row
+signal	hadj4		:integer range -8192 to 8191	:=0;
+signal	hadj8		:integer range -8192 to 8191	:=0;
+signal	hadj		:integer range -8192 to 8191;	-- steps the hold of this row is shortened by
 --a shift register in logic, not in block RAM
 attribute altera_attribute	:string;
 attribute altera_attribute of m1hist	:signal is "-name AUTO_SHIFT_REGISTER_RECOGNITION OFF";
@@ -291,6 +316,7 @@ signal	RDAT1		:std_logic;	-- the row after this one is a row of the screen
 signal	FOLL		:std_logic;	-- FOL, and this row can be followed (LFOL)
 signal	LFOL		:std_logic;	-- the rows have attributes (1 to 32: fhp15 W1/X1 follow the 8257 too)
 signal	FATL		:std_logic_vector(4 downto 0);	-- the attribute count when row 0 was taken (a change stops following)
+signal	FHCH		:integer range 2 to 80;			-- and the characters a row (so does a change of it)
 --A FH draws from the new address the rows the 8257 has not moved when 64h or 65h is written
 --(fhp3 Q4), and draws a frame after a CRTC or DMA restart black but its last row (Q6).
 signal	EPOCH		:std_logic_vector(1 downto 0);	-- counts the moves of row 0
@@ -445,11 +471,14 @@ signal	DUL			:std_logic;
 --24kHz, 15kHz: an underrun of a set whose rows are too short for their bytes (all modes)
 constant LINECLK24	:integer	:=3057;	-- rclk clocks of a line (848 dots of 400/19MHz)
 constant LINECLK15	:integer	:=4749;	-- (896 dots of 315/22MHz)
+--clocks of a character, 8 bits of fraction (LINECLK*256/HUWIDTH, rounded)
+constant LNCPC24	:integer	:=(LINECLK24*256+HUWIDTH24/2)/HUWIDTH24;
+constant LNCPC15	:integer	:=(LINECLK15*256+HUWIDTH15/2)/HUWIDTH15;
 signal	DUT,DUTH,DUTH2	:std_logic;
 signal	DUTQ,lDUTQ	:std_logic;	-- a set is taken (one step at CAPLINE)
 signal	DUTX		:std_logic;	-- the set taken is too short for its bytes
-signal	DUTLN		:integer range 0 to LINECLK15;
-signal	DUTBY		:integer range 0 to 144;
+signal	DUTLN		:integer range 0 to 8191;
+signal	DUTBY		:integer range 0 to 255;
 signal	DUTTB		:integer range 0 to 255;
 signal	DUSKIP		:std_logic;	-- a command in the retrace before CAPLINE: the next set taken is not judged
 signal	lCMDT		:std_logic;
@@ -482,7 +511,9 @@ begin
 	STPR<='1' when STP='1' and STK<LINECNT and EPOCH=REPOCH and RRLA='0' else '0';
 	MRAM_ADR<=RDADR;
 	iATTRLEN<=conv_integer(ATTRLEN);
-	LINEADD<=x"0052" + (x"00" & "00" & ATTRLEN & "0") when SPCHR='0' else x"0050";
+	--A row is HCHR characters, then its attributes (a FH: the CRTC takes H+2A bytes a row)
+	LINEADD<=conv_std_logic_vector(RBYTES,16);
+	ABASE<=conv_std_logic_vector(HCHR,16);
 	--31kHz keeps 5 bits of the rows set in the CRTC, as before
 	LINES<=conv_integer(TXTLINES) when VT24s='1' else conv_integer(TXTLINES(4 downto 0));
 	LEND<=capROWS when capROWS>MAXLINES else MAXLINES;
@@ -540,7 +571,9 @@ begin
 				V1SHOLD4S24		when capCPUMD='0' else
 				V1SHOLD8S24;
 
-	process(clk)begin
+	process(clk)
+	variable lnv	:std_logic_vector(20 downto 0);
+	begin
 		if(clk' event and clk='1')then
 			if(ce='1')then
 				VMODEs1<=VMODE;
@@ -551,6 +584,36 @@ begin
 				VT24s<=VT24s1;
 				VT15s1<=VT15;
 				VT15s<=VT15s1;
+				SETHs<=SETH;
+				ATTRLENs<=ATTRLEN;
+				SPCHRs<=SPCHR;
+				if(SETHs>"1001110")then
+					HCHR<=80;
+				else
+					HCHR<=conv_integer(SETHs)+2;
+				end if;
+				if(SPCHRs='1')then
+					RBYTES<=HCHR;
+				else
+					RBYTES<=HCHR+2*(conv_integer(ATTRLENs)+1);
+				end if;
+				hadj4<=((120-RBYTES)*V1SBYTE4)/16;
+				hadj8<=((120-RBYTES)*V1SBYTE8)/16;
+				--a line is TLINE characters of LINECLK/HUWIDTH clocks (8 bits of fraction, rounded)
+				if(TLok="0000000")then
+					if(VT15s='1')then
+						lnclk<=LINECLK15;
+					else
+						lnclk<=LINECLK24;
+					end if;
+				else
+					if(VT15s='1')then
+						lnv:=conv_std_logic_vector(conv_integer(TLok)*LNCPC15+128,21);
+					else
+						lnv:=conv_std_logic_vector(conv_integer(TLok)*LNCPC24+128,21);
+					end if;
+					lnclk<=conv_integer(lnv(20 downto 8));
+				end if;
 			end if;
 		end if;
 	end process;
@@ -609,6 +672,10 @@ begin
 			TSr2<=TSDEF;
 			TSr3<=TSDEF;
 			TSok<=TSDEF;
+			TLr<=(others=>'0');
+			TLr2<=(others=>'0');
+			TLr3<=(others=>'0');
+			TLok<=(others=>'0');
 			pVRET<='1';
 			pHRET<='1';
 			RASTER<=0;
@@ -623,6 +690,7 @@ begin
 			capSTR<='0';
 			capROWS<=MAXLINES;
 			capCHRL<=16;
+			capLN<=LINECLK24;
 			REQ<=0;
 			REQLINE<=0;
 			holdcnt<=0;
@@ -637,6 +705,7 @@ begin
 			lBUSREQ<='1';
 			shlfsr<=x"ACE1";
 			m1adj<=0;
+			hadj<=0;
 			BLKADR<=0;
 			SINCEBND<=3;
 			XREQ<='0';
@@ -658,6 +727,7 @@ begin
 			pfCOLOR<='0';
 			pfATTRCOLOR<='0';
 			pfATTRLEN<=(others=>'0');
+			pfHCHR<=80;
 			hTADR<=(others=>'0');
 			hTVRMODE<='0';
 			hTMODE<='0';
@@ -673,6 +743,7 @@ begin
 			F0OK<='0';
 			FOL<='0';
 			FATL<=(others=>'0');
+			FHCH<=80;
 			RREM<=0;
 			RLA<=(others=>'0');
 			RLR<=0;
@@ -751,6 +822,12 @@ begin
 				if(TSr2=TSr3)then
 					TSok<=TSr3;
 				end if;
+				TLr<=TLINE;
+				TLr2<=TLr;
+				TLr3<=TLr2;
+				if(TLr2=TLr3)then
+					TLok<=TLr3;
+				end if;
 				TVRAM_WR<='0';
 				PBWE<='0';
 				DONE<='0';
@@ -764,7 +841,7 @@ begin
 				end if;
 				--The read-ahead row is converted with the live settings: one that changed
 				--while it ran is not used.
-				if(PFROW='1' and (SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR))then
+				if(PFROW='1' and (SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR or HCHR/=pfHCHR))then
 					PFDIRTY<='1';
 				end if;
 				if(waitcount>0)then
@@ -902,7 +979,7 @@ begin
 							elsif(CAPD='1' and capTEXTEN='1' and LINECNT<REQ and PFHOLD='1' and LINECNT=0 and (DMAONr='1' or DMA0='0' or V1SN='0'))then
 								--Not after a stop or an underrun since the read-ahead (DMA0='0'): the rows are blank.
 								if((DMA0='1' or V1SN='0') and VT24s='1' and VT15s=pfVT15 and TMODE=rTMODE and TVRMODE=rTVRMODE
-									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR
+									and SMODE=pfSMODE and SPCHR=pfSPCHR and ATTRLEN=pfATTRLEN and COLOR=pfCOLOR and ATTRCOLOR=pfATTRCOLOR and HCHR=pfHCHR
 									and RSTP='0')then
 									--Row 0 was read ahead (not before a RESET): skip it.
 									LINECNT<=1;
@@ -1037,6 +1114,7 @@ begin
 								pfCOLOR<=COLOR;
 								pfATTRCOLOR<=ATTRCOLOR;
 								pfATTRLEN<=ATTRLEN;
+								pfHCHR<=HCHR;
 								STATE<=ST_GETBUS;
 								BUSREQi<='0';
 							elsif(CAPD='1' and capTEXTEN='1' and XREQ='1' and rTMODE='1' and (DMAONr='1' or V1SN='0'))then
@@ -1245,7 +1323,7 @@ begin
 								STXTADR<=F0A;
 								RREM<=F0R;
 								RLA<=F0B;
-								AOFF<=x"0050"+(x"00" & "00" & ATTRLEN & "0");
+								AOFF<=ABASE+(x"00" & "00" & ATTRLEN & "0");
 								PKM<='1';
 								PKP<='1';
 								STATE<=ST_STPCK;
@@ -1268,24 +1346,35 @@ begin
 							else
 								m1adj<=0;
 							end if;
+							if(GVSTRs='1')then
+								hadj<=0;
+							elsif(capCPUMD='0')then
+								hadj<=hadj4;
+							else
+								hadj<=hadj8;
+							end if;
 						end if;
 					when ST_RDTXT =>
-						MRAM_RDn<='0';
+						--(no read for a column past the CRTC characters: it is shown blank)
+						if(CHARCNT<HCHR)then
+							MRAM_RDn<='0';
+						end if;
 						PBRA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 						RDADR<=RDA;
 						STATE<=ST_RDTXT1;
-						if(rTMODE='1')then
+						if(rTMODE='1' and CHARCNT<HCHR)then
 							--One cycle more, to pay back the cycle spent registering MRAM_WAIT.
 							waitcount<=3;
 						end if;
 					when ST_RDTXT1 =>
-						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1' or RPTR='1')then
+						if(rTMODE='0' or MRAM_WAITr='0' or SBLK='1' or RPTR='1' or CHARCNT>=HCHR)then
 							MRAM_RDn<='1';
 							PBWE<=not (RPTR or BLKR or LINESKIP);
 							PBWA<=PSL & '0' & conv_std_logic_vector(CHARCNT,7);
 							PBWD<=RDDAT;
 							TVRAM_ADR<=CDSTADR;
-							if (LINESKIP='1' or BLKR='1')then
+							--(a column past the CRTC characters is shown blank)
+							if (LINESKIP='1' or BLKR='1' or CHARCNT>=HCHR)then
 								TVRAM_WDAT<='0' & x"00";
 							else
 								TVRAM_WDAT<='0' & RDDAT;
@@ -1301,7 +1390,7 @@ begin
 						else
 							CDSTADR<=SDSTADR+"001";
 							CHARCNT<=0;
-							AOFF<=x"0050";
+							AOFF<=ABASE;
 							if (LINESKIP='1' or SBLK='1')then
 								STATE<=ST_SKIPATR;
 							elsif (SPCHR='1')then
@@ -1345,14 +1434,14 @@ begin
 								ATRCNT<=0;
 								if(RDDAT(6 downto 4)="110" and STEL='1')then
 									--The last pair may stop the rows after this one: read its value
-									AOFF(0)<='1';
+									AOFF<=AOFF+1;
 									STATE<=ST_STPCK;
 								else
 									if(STP='1' and STK=STRI and STEL='1')then
 										--(this row, read again, no longer stops them)
 										STP<='0';
 									end if;
-									AOFF<=x"0051";
+									AOFF<=ABASE+1;
 									if (fATTR(0)='1' or iATTRCUL=0)then
 										STATE<=ST_RDATR2;
 									else
@@ -1427,7 +1516,7 @@ begin
 								--row 0 of the next frame: its column, then its value
 								PKP<='0';
 								if(RDDAT(6 downto 4)="110")then
-									AOFF(0)<='1';
+									AOFF<=AOFF+1;
 									STATE<=ST_STPCK;
 								else
 									PKM<='0';
@@ -1455,7 +1544,7 @@ begin
 								elsif(STP='1' and STK=STRI)then
 									STP<='0';
 								end if;
-								AOFF<=x"0051";
+								AOFF<=ABASE+1;
 								if (fATTR(0)='1')then
 									STATE<=ST_RDATR2;
 								else
@@ -1471,6 +1560,10 @@ begin
 							TVRAM_WDAT<=FIXVAL;
 						else
 							TVRAM_WDAT<=CURATR;
+						end if;
+						--(a column past the CRTC characters: plain, as a blank row)
+						if(CHARCNT>=HCHR)then
+							TVRAM_WDAT<='0' & x"80";
 						end if;
 						STATE<=ST_SETATR1;
 					when ST_SETATR1 =>
@@ -1516,7 +1609,7 @@ begin
 								--Not when VRET rises in this same step (then it did not end before VRET),
 								--nor when a format setting changed while it ran.
 								if((pVRET='0' and VRETr='1') or PFDIRTY='1'
-									or SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR)then
+									or SMODE/=pfSMODE or SPCHR/=pfSPCHR or ATTRLEN/=pfATTRLEN or COLOR/=pfCOLOR or ATTRCOLOR/=pfATTRCOLOR or HCHR/=pfHCHR)then
 									PFOK<='0';
 								else
 									PFOK<=PFARM;
@@ -1546,7 +1639,7 @@ begin
 							shbase<=SHPERIOD;
 							shnext<=SHPERIOD+conv_integer(shlfsr(SHJITBITS-1 downto 0));
 							STATE<=ST_RELBUS;
-						elsif(holdcnt>=HOLDTGT-2+m1adj)then
+						elsif(holdcnt>=HOLDTGT-2+m1adj-hadj)then
 							STATE<=ST_RELBUS;
 						end if;
 					when ST_BLANK =>
@@ -1715,6 +1808,7 @@ begin
 							if(VT24s='1')then
 								capROWS<=conv_integer(TSok(18 downto 13))+1;
 								capCHRL<=conv_integer(TSok(12 downto 8))+1;
+								capLN<=lnclk;
 								REQLINE<=conv_integer(TSok(7 downto 0));
 							elsif(VMODEs='1')then
 								capCHRL<=16;
@@ -1771,6 +1865,7 @@ begin
 								if(DMOK='1' and conv_integer(DMRLR)>=conv_integer(LINEADD) and LFOL='1')then
 									F0OK<='1';
 									FATL<=ATTRLEN;
+									FHCH<=HCHR;
 								else
 									F0OK<='0';
 								end if;
@@ -1893,6 +1988,12 @@ begin
 					SPP<='0';
 					SPLON<='0';
 				end if;
+				--(a row is HCHR characters too: its change does the same)
+				if(FOL='1' and HCHR/=FHCH)then
+					FOL<='0';
+					SPP<='0';
+					SPLON<='0';
+				end if;
 			end if;
 		end if;
 	end process;
@@ -1908,8 +2009,8 @@ begin
 	--(blank) but no row is moved. It lasts until the next CRTC command or a change of the
 	--mode, scan or clock. A command in the retrace before CAPLINE skips the next judgement
 	--(a FH shows one frame after START, then underruns again).
-	DUTLN<=LINECLK15 when VT15s='1' else LINECLK24;
-	DUTBY<=80 when SPCHR='1' else 82+2*conv_integer(ATTRLEN);
+	DUTLN<=capLN;
+	DUTBY<=RBYTES;
 	DUTTB<=	TBYTES4 when capV1S='1' and capCPUMD='0' else
 			TBYTES8 when capV1S='1' else
 			TBYTEH4 when capCPUMD='0' else

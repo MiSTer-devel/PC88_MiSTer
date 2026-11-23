@@ -49,7 +49,8 @@ port(
 	VT15	:in std_logic	:='0';		-- 1:15kHz timing
 	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz or 15kHz timing
 	CHRL24	:in integer range CHRLMIN24 to CHRLMAX24	:=CHRLDEF24;	-- character height in 24kHz or 15kHz timing
-	TXT16	:in std_logic	:='1'	-- 31h bit 5: 0 blanks the text 4 lines in every 20 at 24kHz (below)
+	TXT16	:in std_logic	:='1';	-- 31h bit 5: 0 blanks the text 4 lines in every 20 at 24kHz (below)
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24	-- retrace characters of a line in 24kHz or 15kHz timing
 );
 end TEXTSCR2;
 
@@ -63,6 +64,7 @@ signal	NXTFS	:std_logic;
 signal	NXTBL	:std_logic;
 signal	CHAR	:std_logic_vector(7 downto 0);
 signal	TRAMADRb	:std_logic_vector(TVAW-1 downto 0);
+signal	TROWADR	:std_logic_vector(TVAW-1 downto 0);	-- the row being drawn: rows are HUVIS*2 apart, whatever H shows
 signal	DHCOMP	:std_logic;
 signal	DVCOMP	:std_logic;
 signal	C_LOW	:integer range 0 to ROWCAP-1;
@@ -123,7 +125,7 @@ begin
 	Vdelay	:delayer generic map(2) port map(VCOMP,DVCOMP,clk,rstn,ce);
 
 	vivs<=VRET24 when VT24='1' else VIV;
-	hivs<=HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
+	hivs<=HIVT when VT24='1' else HIV;
 
 	--no divider: a divider does not fit in a clock. Mod 20 is 4*((q/4) mod 5) + q mod 4,
 	--and (q/4) mod 5 is the sum of its two nibbles mod 5, as 16 mod 5 = 1.
@@ -258,6 +260,7 @@ begin
 			NXTFS<='0';
 			NXTBL<='0';
 			TRAMADRb<=(others=>'0');
+			TROWADR<=(others=>'0');
 			FRAMADR<=(others=>'0');
 			FRAMADR8<=(others=>'0');
 			C_LOW<=0;
@@ -268,14 +271,19 @@ begin
 			if(DHCOMP='1')then
 				if(VCOUNT>vivs)then
 					if(C_LIN/=0)then
-						TRAMADRb<=TRAMADRb-(HUVIS*2);
-					elsif(C_LOW<ROWCAP-1)then
-						C_LOW<=C_LOW+1;
+						TRAMADRb<=TROWADR;
+					else
+						TRAMADRb<=TROWADR+(HUVIS*2);
+						TROWADR<=TROWADR+(HUVIS*2);
+						if(C_LOW<ROWCAP-1)then
+							C_LOW<=C_LOW+1;
+						end if;
 					end if;
 				end if;
 			end if;
 			if(DVCOMP='1')then
 				TRAMADRb<=(others=>'0');
+				TROWADR<=(others=>'0');
 				C_LOW<=0;
 			end if;
 			
@@ -370,7 +378,8 @@ begin
 					CURDOT<=CURDOT(6 downto 0) & '0';
 				end if;
 			else
-				if(UCOUNT=0 and (HUCOUNT mod 2)=1)then
+				--(on the second character of each pair from the start of the display: hivs may be odd)
+				if(UCOUNT=0 and ((HUCOUNT+hivs) mod 2)=1)then
 					if(NXTFS='0')then
 						BITOUT<=NXTDOT0(7);
 						CURDOT<=NXTDOT0;

@@ -36,7 +36,9 @@ port(
 
 	VT24	:in std_logic	:='0';		-- 1:24kHz or 15kHz timing (lines from the CRTC)
 	VT15	:in std_logic	:='0';		-- 1:15kHz timing: every line read once
-	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24	-- retrace lines in 24kHz or 15kHz timing
+	VRET24	:in integer range 0 to VWMAX-1	:=VRETMIN24;	-- retrace lines in 24kHz or 15kHz timing
+	HIVT	:in integer range 0 to HUWMAX-1	:=HIV24;	-- retrace characters of a line in 24kHz or 15kHz timing
+	HCHT	:in integer range 2 to HUVIS	:=HUVIS	-- characters shown a line in 24kHz or 15kHz timing
 );
 end GRAPHSCR;
 
@@ -112,6 +114,7 @@ signal	GAPL	:std_logic;
 signal	vivs	:integer range 0 to VWMAX-1;
 signal	GOVER	:std_logic;	-- 24kHz, 15kHz: past the 400 (200) graphic lines of a long text set
 signal	hivs	:integer range 0 to HUWMAX-1;
+signal	gchs	:integer range 2 to HUVIS;	-- bytes read a line (the rest are past the line)
 
 begin
 	buf0    :graphbuf port map(clk,WDAT0,RADR,WADR,BUFWEL,RDAT0,ce);
@@ -136,7 +139,8 @@ begin
 	GOVER<='1' when VT24='1' and VT15='0' and VCOUNT>=vivs+VVIS else
 			'1' when VT24='1' and VT15='1' and VCOUNT>=vivs+VVIS/2 else
 			'0';
-	hivs<=HIV15 when VT15='1' else HIV24 when VT24='1' else HIV;
+	hivs<=HIVT when VT24='1' else HIV;
+	gchs<=HCHT when VT24='1' else HUVIS;
 	
 	process(clk,rstn)begin
 		if(rstn='0')then
@@ -210,7 +214,7 @@ begin
 					GRAMADRb<=GRAMADRb+1;
 				end if;
 				WADR<=WADR+1;
-				if(BUFCNT<(HUVIS-1))then
+				if(BUFCNT<(gchs-1))then
 					if(LINEEN='1')then
 						BUFSTATE<=BS_RWAIT;
 						GRAMRD<='1';
@@ -219,6 +223,10 @@ begin
 					end if;
 					BUFCNT<=BUFCNT+1;
 				else
+					--a line of fewer characters reads only its bytes: the address steps past the rest
+					if(LINEEN='1')then
+						GRAMADRb<=GRAMADRb+1+(HUVIS-gchs);
+					end if;
 					if(LOWRESb='1' and VT15='0')then
 						if(LINEEN='0')then
 							LINEEN<='1';
