@@ -21,7 +21,7 @@ use IEEE.std_logic_1164.all;
 --
 --RELOK is high while the fill is done and the OSD type is the type of the fill;
 --the CPU reset is released on it (and held released until the next reset, by the
---caller). OSD value "11" is not a type and counts as the type of the last fill.
+--caller). OSD values: "00" Fx, "01" Mx, "10" 512KB, "11" 1MB.
 --
 --No reset: the state is kept over the OSD reset and a PLL relock, as RAMFILL keeps
 --its own. A command lost to a PLL relock (cdc_hs is reset by it) is sent again.
@@ -51,7 +51,7 @@ signal	tsel	:std_logic_vector(1 downto 0);
 signal	start_i	:std_logic := '0';
 
 begin
-	tsel<=ltype when OSDTYPE="11" else OSDTYPE;
+	tsel<=OSDTYPE;
 
 	process(clk)begin
 		if(clk' event and clk='1')then

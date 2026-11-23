@@ -19,7 +19,7 @@ package addressmap_pkg is
 	constant ADDR_MAINRAM	:std_logic_vector(27 downto 0)	:=x"0408000";
 	constant ADDR_SUBRAM		:std_logic_vector(27 downto 0)	:=x"0410000";
 	constant ADDR_GVRAM		:std_logic_vector(27 downto 0)	:=x"0420000";
-	constant ADDR_EXTRAM		:std_logic_vector(27 downto 0)	:=x"0480000";
+	constant ADDR_EXTRAM		:std_logic_vector(27 downto 0)	:=x"0200000";	-- 2MB
 	constant ADDR_ADPCM		:std_logic_vector(27 downto 0)	:=x"0600000";
 	constant ADDR_FDEMU		:std_logic_vector(27 downto 0)	:=x"0800000";
 end addressmap_pkg;

@@ -4,6 +4,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
+use work.addressmap_pkg.all;
 
 --Fills the RAM as a real machine has it at power on, once per fill command.
 --SDRAM keeps its contents over a core reload, so without this the RAM of the
@@ -16,16 +17,18 @@ use IEEE.numeric_std.all;
 --  "00" Fx: main RAM and sub CPU RAM as measured on a real FH, no extended RAM.
 --  "01" Mx: main RAM, sub CPU RAM and 4 banks of extended RAM as measured on a real MA.
 --  "10" 512KB: as Mx with 16 banks of extended RAM (banks 4-15 continue the MA tables).
+--  "11" 1MB: as Mx with 32 banks of extended RAM (banks 4-31 continue the MA tables).
 --  The ADPCM RAM is filled with the MA values for every type (only the MA was measured).
 --
 --Ranges, in order:
 --  main RAM 0000h-FFFFh: 0000h-BFFFh at ADDR_BACKRAM+address. C000h-FFFFh share the
 --    graphic VRAM words (memorymaps.vhd): the upper byte of the second word at
 --    ADDR_GVRAM+address(13:0)*2, written alone with VRAMWE "1000".
---  extended RAM (Mx, 512KB): bank n offset a at ADDR_EXTRAM+n*8000h+a.
+--  extended RAM (Mx, 512KB, 1MB): bank n offset a at ADDR_EXTRAM+n*8000h+a, n as
+--    memorymaps.vhd numbers the banks.
 --  ADPCM RAM: 256KB at ADDR_ADPCM.
 --  sub CPU RAM 4000h-7FFFh: block RAM, one byte per clock on SWR (no wait).
---ADR is the offset from ADDR_BACKRAM.
+--ADR is the SDRAM address in the low 8MB.
 --
 --FH main RAM: 00 00 FF FF FF FF 00 00 repeating.
 --FH sub CPU RAM: alternating 00h/FFh, the value at even addresses set per 2KB.
@@ -50,7 +53,7 @@ port(
 	CTYPE	:in std_logic_vector(1 downto 0);	-- RAM type of the command
 	RAM_WAIT	:in std_logic;
 
-	ADR		:out std_logic_vector(21 downto 0);
+	ADR		:out std_logic_vector(22 downto 0);
 	WDAT	:out std_logic_vector(7 downto 0);
 	WR		:out std_logic;
 	OE		:out std_logic;
@@ -89,7 +92,7 @@ type range_t is (R_MAIN,R_EXT,R_PCM);
 --No asynchronous reset: whether a reset restarts depends on the state.
 signal	state	:state_t := S_WAIT;
 signal	rg		:range_t := R_MAIN;
-signal	cnt		:unsigned(18 downto 0) := (others=>'0');
+signal	cnt		:unsigned(20 downto 0) := (others=>'0');
 signal	scnt	:unsigned(13 downto 0) := (others=>'0');
 signal	ltype	:std_logic_vector(1 downto 0) := "00";
 signal	wr_i	:std_logic := '0';
@@ -103,7 +106,8 @@ begin
 	--Last byte of the current SDRAM range.
 	last<=	'1' when rg=R_MAIN and cnt(15 downto 0)=x"FFFF" else
 			'1' when rg=R_EXT and ltype="01" and cnt(16 downto 0)="1" & x"FFFF" else
-			'1' when rg=R_EXT and ltype/="01" and cnt=to_unsigned(16#7FFFF#,19) else
+			'1' when rg=R_EXT and ltype="10" and cnt(18 downto 0)="111" & x"FFFF" else
+			'1' when rg=R_EXT and ltype="11" and cnt(19 downto 0)=x"FFFFF" else
 			'1' when rg=R_PCM and cnt(17 downto 0)="11" & x"FFFF" else
 			'0';
 
@@ -175,10 +179,10 @@ begin
 
 	OE<='1' when state=S_FILL else '0';
 	WR<=wr_i when state=S_FILL else '0';
-	ADR<=	"000" & "0100" & std_logic_vector(cnt(13 downto 0)) & '0' when rg=R_MAIN and cnt(15 downto 14)="11" else
-			"000000" & std_logic_vector(cnt(15 downto 0)) when rg=R_MAIN else
-			"001" & std_logic_vector(cnt(18 downto 0)) when rg=R_EXT else
-			"1000" & std_logic_vector(cnt(17 downto 0));
+	ADR<=	ADDR_GVRAM(22 downto 15) & std_logic_vector(cnt(13 downto 0)) & '0' when rg=R_MAIN and cnt(15 downto 14)="11" else
+			ADDR_BACKRAM(22 downto 16) & std_logic_vector(cnt(15 downto 0)) when rg=R_MAIN else
+			ADDR_EXTRAM(22 downto 21) & std_logic_vector(cnt(20 downto 0)) when rg=R_EXT else
+			ADDR_ADPCM(22 downto 18) & std_logic_vector(cnt(17 downto 0));
 
 	--Phase of the MA tables: main RAM by address bit 15, extended RAM by bank bit 0.
 	ph<=	T1(to_integer(cnt(14 downto 8))) when (rg=R_MAIN and cnt(15)='1') or (rg=R_EXT and cnt(15)='1') else

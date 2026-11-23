@@ -74,7 +74,7 @@ parameter CONF_STR = {
 	"P1OTU,Stereo Mix,None,25%,50%,100%;",
 	"P2,Hardware;",
 	"P2-;",
-	"P2OQR,RAM,Fx (SR/FR/FH/FA),Mx (MR/MH/MA/MC),512KB;",
+	"P2OQR,RAM,Fx (SR/FR/FH/FA),Mx (MR/MH/MA/MC),512KB,1MB;",
 	"P2-;",
 	"P2OK,Input,Joypad,Mouse;",
 	"P2ON,Keyboard layout,JP,US;",
