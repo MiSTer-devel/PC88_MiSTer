@@ -92,6 +92,7 @@ port(
     -- DIP switch, Lamp ports
 	pDip        : in std_logic_vector(9 downto 0);
 	pCoreConfig	: in std_logic_vector(5 downto 0);
+	pNumArrow	: in std_logic	:='0';
 	pLed        : out std_logic;
 	pPsw		: in std_logic_vector(1 downto 0);
 	pMonDbus	:out std_logic_vector(7 downto 0);
@@ -1059,6 +1060,7 @@ port(
 	KBRX	:out std_logic;
 	KBEN	:in std_logic	:='1';
 	USLAYOUT:in std_logic	:='0';
+	NUMARROW:in std_logic	:='0';
 	
 	monout	:out std_logic_vector(7 downto 0);
 
@@ -1710,6 +1712,7 @@ signal	c40C		:std_logic;
 signal	cDisk		:std_logic;
 signal	cInDev		:std_logic;
 signal	cKbUS		:std_logic;
+signal	cNumArrow	:std_logic;
 signal	cSB2		:std_logic;
 signal	cSBN		:std_logic;	-- Normal(SR): no YM2608
 signal	VTm,VTm2	:std_logic_vector(1 downto 0)	:="00";	-- the video timing from cfg_r
@@ -2305,6 +2308,7 @@ begin
 		if (clk21m' event and clk21m='1') then
 			cInDev	<=pCoreConfig(0);
 			cKbUS	<=pCoreConfig(5);
+			cNumArrow<=pNumArrow;
 			cSB2	<=pCoreConfig(1);
 			cSBN	<=not(pCoreConfig(1) or pCoreConfig(2));
 		end if;
@@ -3129,6 +3133,7 @@ port map(
 	-- KBRX	=>KBRX,
 	KBEN	=>'1',
 	USLAYOUT=>cKbUS,
+	NUMARROW=>cNumArrow,
 
 	monout	=>open,
 	
