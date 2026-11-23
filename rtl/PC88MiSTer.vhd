@@ -28,6 +28,9 @@ port(
 	LOADER_WR	:in std_logic;
 	LOADER_ACK	:out std_logic;
 	LOADER_DONE	:in std_logic;
+	--'1' when a 512KB boot1.rom (the dictionary ROM of the MA) was loaded. Set by
+	--the loader on clk21m before boot.rom, while the CPU is still held in reset.
+	JISYO_EN	:in std_logic := '0';
 	--RAM type from the OSD (clk21m): "00" Fx, "01" Mx, "10" 512KB, "11" 1MB (RAMFILL, RAMTYPECTL)
 	RAMTYPE		:in std_logic_vector(1 downto 0) := "00";
 	
@@ -1895,7 +1898,6 @@ signal	WAIT_nb		:std_logic;
 signal	WAIT_other	:std_logic;
 signal	GV_WAITn	:std_logic;
 signal	GVSEL		:std_logic;
-signal	JISYO_EN	:std_logic := '0';
 signal	JISYO_RD	:std_logic;
 signal	GVEN		:std_logic;
 signal	GVRET		:std_logic;
@@ -2566,16 +2568,6 @@ begin
 			
 	NMI_n<='1';
 	
-	--The dictionary ROM is there once boot1.rom has been loaded up to its last
-	--byte (512KB). It stays until the core is loaded again.
-	process(rclk)begin
-		if(rclk' event and rclk='1')then
-			if(LOADER_OEr='1' and LOADER_WE='1' and LOADER_ADR=x"FFFFF")then
-				JISYO_EN<='1';
-			end if;
-		end if;
-	end process;
-
 	FRAMADDR<=LOADER_ADR(12 downto 0);
 	FRAMWDAT<=LOADER_WDAT;
 	FRAMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(19 downto 13)=ADDR_FONT(19 downto 13) else '0';

@@ -626,6 +626,7 @@ PC88MiSTer PC88_top
 	.LOADER_WR(ldr_wr),
 	.LOADER_ACK(ldr_ack),
 	.LOADER_DONE(ldr_done),
+	.JISYO_EN(ldr_jisyo),
 	.RAMTYPE(status[27:26]),
 
 	.pMemCke(SDRAM_CKE),
@@ -704,7 +705,13 @@ reg ldr_wr = 0;
 reg ldr_end = 0;
 reg ldr_done = 0;
 wire ldr_idx0 = (ioctl_index == 16'h0000);
-wire ldr_idx1 = (ioctl_index == 16'h0040) & ~|ioctl_addr[24:19];	// the first 512KB
+wire ldr_idx1 = (ioctl_index == 16'h0040);
+wire ldr_in1 = ~|ioctl_addr[24:19];	// within the 512KB of the dictionary
+// The dictionary is used only when boot1.rom is 512KB: its last byte came and
+// nothing after it. Set before boot.rom, so before the CPU runs.
+reg ldr_jisyo = 0;
+reg jisyo_last = 0;
+reg jisyo_over = 0;
 always @(posedge clk_sys) begin
 	reg old_ack, old_download;
 
@@ -716,11 +723,21 @@ always @(posedge clk_sys) begin
 	// of the download hps_io moves ioctl_addr on without waiting for ioctl_wait.
 	// boot.rom (index 0) and the dictionary ROM of the MA in boot1.rom (index 40h),
 	// which Main_MiSTer sends first when it is there.
-	if(ioctl_wr & ~ldr_done & (ldr_idx0 | ldr_idx1)) begin
+	if(ioctl_wr & ~ldr_done & (ldr_idx0 | (ldr_idx1 & ldr_in1))) begin
 		ldr_wr <= 1;
 		ldr_addr <= {ldr_idx1, ioctl_addr[18:0]};
 		ldr_dout <= ioctl_dout;
 	end
+
+	if(~old_download & ioctl_download & ldr_idx1) begin
+		jisyo_last <= 0;
+		jisyo_over <= 0;
+	end
+	if(ioctl_wr & ~ldr_done & ldr_idx1) begin
+		if(~ldr_in1) jisyo_over <= 1;
+		if(ioctl_addr == 25'h7FFFF) jisyo_last <= 1;
+	end
+	if(old_download & ~ioctl_download & ldr_idx1 & ~ldr_done) ldr_jisyo <= jisyo_last & ~jisyo_over;
 
 	// Done only when the last write is acknowledged. Until then LOADER_OE keeps
 	// the loader on the SDRAM port, so the last byte is not lost.
