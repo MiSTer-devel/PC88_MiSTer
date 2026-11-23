@@ -22,13 +22,13 @@ port(
 
 	sysrtc	:in std_logic_vector(64 downto 0);
 	
-	LOADER_ADR	:in std_logic_vector(19 downto 0);	-- bit 19: boot1.rom
+	LOADER_ADR	:in std_logic_vector(19 downto 0);	-- bit 19: dictionary ROM
 	LOADER_WDAT	:in std_logic_vector(7 downto 0);
 	LOADER_OE	:in std_logic;
 	LOADER_WR	:in std_logic;
 	LOADER_ACK	:out std_logic;
 	LOADER_DONE	:in std_logic;
-	--'1' when a 512KB boot1.rom (the dictionary ROM of the MA) was loaded. Set by
+	--'1' when a 512KB dictionary ROM of the MA was loaded. Set by
 	--the loader on clk21m before boot.rom, while the CPU is still held in reset.
 	JISYO_EN	:in std_logic := '0';
 	--RAM type from the OSD (clk21m): "00" Fx, "01" Mx, "10" 512KB, "11" 1MB (RAMFILL, RAMTYPECTL)

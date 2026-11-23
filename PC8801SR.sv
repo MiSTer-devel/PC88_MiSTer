@@ -75,6 +75,7 @@ parameter CONF_STR = {
 	"P2,Hardware;",
 	"P2-;",
 	"P2OQR,RAM,Fx (SR/FR/FH/FA),Mx (MR/MH/MA/MC),512KB,1MB;",
+	"P2FC1,ROM,Dictionary ROM;",
 	"P2-;",
 	"P2OK,Input,Joypad,Mouse;",
 	"P2ON,Keyboard layout,JP,US;",
@@ -705,10 +706,12 @@ reg ldr_wr = 0;
 reg ldr_end = 0;
 reg ldr_done = 0;
 wire ldr_idx0 = (ioctl_index == 16'h0000);
-wire ldr_idx1 = (ioctl_index == 16'h0040);
+wire ldr_idx1 = (ioctl_index[5:0] == 6'd1);	// FC1 in CONF_STR
 wire ldr_in1 = ~|ioctl_addr[24:19];	// within the 512KB of the dictionary
-// The dictionary is used only when boot1.rom is 512KB: its last byte came and
-// nothing after it. Set before boot.rom, so before the CPU runs.
+// The dictionary is used only when the file is 512KB: its last byte came and
+// nothing after it. Main_MiSTer sends it at start before boot.rom, so before
+// the CPU runs. A file chosen while the core runs comes after ldr_done and is
+// not taken until the core is loaded again.
 reg ldr_jisyo = 0;
 reg jisyo_last = 0;
 reg jisyo_over = 0;
@@ -721,8 +724,8 @@ always @(posedge clk_sys) begin
 	if(~old_ack & ldr_ack & ldr_wr) ldr_wr <= 0;
 	// The address and data are held until the write is acknowledged: at the end
 	// of the download hps_io moves ioctl_addr on without waiting for ioctl_wait.
-	// boot.rom (index 0) and the dictionary ROM of the MA in boot1.rom (index 40h),
-	// which Main_MiSTer sends first when it is there.
+	// boot.rom (index 0) and the dictionary ROM of the MA chosen in the OSD
+	// (index 1).
 	if(ioctl_wr & ~ldr_done & (ldr_idx0 | (ldr_idx1 & ldr_in1))) begin
 		ldr_wr <= 1;
 		ldr_addr <= {ldr_idx1, ioctl_addr[18:0]};
