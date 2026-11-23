@@ -725,7 +725,7 @@ always @(posedge clk_sys) begin
 	// The address and data are held until the write is acknowledged: at the end
 	// of the download hps_io moves ioctl_addr on without waiting for ioctl_wait.
 	// boot.rom (index 0) and the dictionary ROM of the MA chosen in the OSD
-	// (index 1).
+	// (FC1: index 1 in the low 6 bits, the extension number above them).
 	if(ioctl_wr & ~ldr_done & (ldr_idx0 | (ldr_idx1 & ldr_in1))) begin
 		ldr_wr <= 1;
 		ldr_addr <= {ldr_idx1, ioctl_addr[18:0]};
