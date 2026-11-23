@@ -22,7 +22,7 @@ port(
 
 	sysrtc	:in std_logic_vector(64 downto 0);
 	
-	LOADER_ADR	:in std_logic_vector(18 downto 0);
+	LOADER_ADR	:in std_logic_vector(19 downto 0);	-- bit 19: boot1.rom
 	LOADER_WDAT	:in std_logic_vector(7 downto 0);
 	LOADER_OE	:in std_logic;
 	LOADER_WR	:in std_logic;
@@ -257,6 +257,8 @@ port(
 	GADR_MSEL	:out std_logic;
 	
 	EXTTYPE		:in std_logic_vector(1 downto 0);
+	JISYO_EN	:in std_logic;
+	JISYO_RD	:out std_logic;
 	HS			:in std_logic;
 
 	P31_RMODE	:in std_logic;
@@ -1893,6 +1895,8 @@ signal	WAIT_nb		:std_logic;
 signal	WAIT_other	:std_logic;
 signal	GV_WAITn	:std_logic;
 signal	GVSEL		:std_logic;
+signal	JISYO_EN	:std_logic := '0';
+signal	JISYO_RD	:std_logic;
 signal	GVEN		:std_logic;
 signal	GVRET		:std_logic;
 signal	GV_other	:std_logic;
@@ -2506,6 +2510,8 @@ begin
 	GADR_MSEL	=>GWME,
 	
 	EXTTYPE		=>FILL_RTYPE,
+	JISYO_EN	=>JISYO_EN,
+	JISYO_RD	=>JISYO_RD,
 	HS			=>cHS,
 
 	P31_RMODE	=>RMODE,
@@ -2544,7 +2550,7 @@ begin
 
 	RAMADR<=
 			ADDR_N88(RAMAWIDTH-1 downto 23) & CLR_ADR when CLR_OE='1' else
-			ADDR_N88(RAMAWIDTH-1 downto 19) & LOADER_ADR when LOADER_OEr='1' else
+			ADDR_N88(RAMAWIDTH-1 downto 20) & LOADER_ADR when LOADER_OEr='1' else
 			VMAP_RADR when TCNV_BUSUSE='1' else
 			MAP_RADR;
 	RAM_WDAT<=	CLR_WDAT when CLR_OE='1' else 
@@ -2560,13 +2566,23 @@ begin
 			
 	NMI_n<='1';
 	
+	--The dictionary ROM is there once boot1.rom has been loaded. It stays until
+	--the core is loaded again.
+	process(rclk)begin
+		if(rclk' event and rclk='1')then
+			if(LOADER_OEr='1' and LOADER_WE='1' and LOADER_ADR(19)='1')then
+				JISYO_EN<='1';
+			end if;
+		end if;
+	end process;
+
 	FRAMADDR<=LOADER_ADR(12 downto 0);
 	FRAMWDAT<=LOADER_WDAT;
-	FRAMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 13)=ADDR_FONT(18 downto 13) else '0';
+	FRAMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(19 downto 13)=ADDR_FONT(19 downto 13) else '0';
 	--8x8 font for 24kHz and 15kHz timing, from the kanji ROM. Loaded whatever the timing.
-	FRAM8WR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 11)=ADDR_FONT8(18 downto 11) else '0';
+	FRAM8WR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(19 downto 11)=ADDR_FONT8(19 downto 11) else '0';
 	--Sub CPU ROM, kept in block RAM with the sub CPU RAM (SUBMEM).
-	SUBROMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 13)=ADDR_SUBROM(18 downto 13) else '0';
+	SUBROMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(19 downto 13)=ADDR_SUBROM(19 downto 13) else '0';
 
 	GALU	:GraphALU
 port map(
@@ -3358,7 +3374,7 @@ port map(
 	M1W		:M1WAIT port map(M1_n,MREQ_n,WAIT_other,V1S4M,M1_WAITn,rclk,cpuce_f,CPU_rstnr);
 	-- Wait states on graphic VRAM reads and writes, as measured on a real FH:
 	-- V1H and V2, and V1S when the ALU is in use or in the high-speed mode.
-	GVSEL<='1' when RAM_CE='1' and CPUADR(15 downto 14)="11" and GWME='0' and (RD_n='0' or WR_n='0') else '0';
+	GVSEL<='1' when RAM_CE='1' and CPUADR(15 downto 14)="11" and GWME='0' and JISYO_RD='0' and (RD_n='0' or WR_n='0') else '0';
 	-- 40h bit 4 selects the V1S graphic high-speed mode. On a real FH it removes the
 	-- slowdown of a selected graphic VRAM and gives its accesses the V1H/V2 wait.
 	-- Only V1S with the graphic screen on, as measured; N keeps the normal mode.

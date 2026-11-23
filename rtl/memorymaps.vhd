@@ -50,6 +50,14 @@ port(
 	--then read as FFh, as on the MA.
 	EXTTYPE		:in std_logic_vector(1 downto 0);
 
+	--Dictionary ROM of the MA (F0h/F1h), 32 banks of 16KB. JISYO_EN is '1' when
+	--boot1.rom was loaded. As measured on a MA2: F1h=00h shows the bank of F0h at
+	--C000h-FFFFh for reads, any other value hides it. F0h with any of bits 5-7 set
+	--picks bank 0. The bank wins over the text RAM at F000h and the graphic VRAM.
+	--Writes go where they go without it. F0h and F1h read as FFh.
+	JISYO_EN	:in std_logic := '0';
+	JISYO_RD	:out std_logic;
+
 	--'1' in V1H and V2. A real FH in V1S and N keeps F000h-FFFFh in main RAM
 	--whatever 32h bit 4 says.
 	HS			:in std_logic;
@@ -105,6 +113,9 @@ signal	extre		:std_logic;
 signal	extbank		:std_logic;
 signal	extren		:std_logic;
 signal	extwen		:std_logic;
+signal	jbank		:std_logic_vector(4 downto 0);
+signal	jshow		:std_logic;
+signal	jrd			:std_logic;
 
 begin
 
@@ -125,6 +136,8 @@ begin
 			extre<='0';
 			extwe<='0';
 			extsel<=(others=>'0');
+			jbank<=(others=>'0');
+			jshow<='0';
 		elsif(clk' event and clk='1')then
 		 if(ce='1')then
 			if(IOWRn='0')then
@@ -173,6 +186,18 @@ begin
 					else
 						extsel<=CPU_WDAT;
 					end if;
+				when x"f0" =>
+					if(CPU_WDAT(7 downto 5)="000")then
+						jbank<=CPU_WDAT(4 downto 0);
+					else
+						jbank<=(others=>'0');
+					end if;
+				when x"f1" =>
+					if(CPU_WDAT=x"00")then
+						jshow<='1';
+					else
+						jshow<='0';
+					end if;
 				when others=>
 				end case;
 			end if;
@@ -201,12 +226,16 @@ begin
 	extren<=extre and extbank;
 	extwen<=extwe and extbank;
 
+	jrd<='1' when JISYO_EN='1' and jshow='1' and CPU_ADR(15 downto 14)="11" and CPU_RDn='0' else '0';
+	JISYO_RD<=jrd and not CPU_MREQn;
+
 	TRAMSEL<=	'1' when GVAM='0' and G_RAMSELb=3 else
 				'1' when GVAM='1' and GAM='0' else
 				'0';
 	RAM_ADRF<=	
 				ADDR_KANJI1(27 downto 17) & KNJ1_ADR when KNJ1_RD='1' else		--Kanji1 ROM
 				ADDR_KANJI2(27 downto 17) & KNJ2_ADR when KNJ2_RD='1' else		--Kanji2 ROM
+				ADDR_JISYO(27 downto 19) & jbank & CPU_ADR(13 downto 0) when jrd='1' else	--dictionary ROM
 				ADDR_EXTRAM(27 downto 21) & extidx & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extren='1' and CPU_RDn='0' else	--ext ram(read)
 				ADDR_EXTRAM(27 downto 21) & extidx & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and extwen='1' and CPU_WRn='0' else	--ext ram(write)
 				ADDR_BACKRAM(27 downto 15) & CPU_ADR(14 downto 0) when CPU_ADR(15)='0' and CPU_WRn='0' else	--write ram when rom assigned
@@ -219,6 +248,7 @@ begin
 				ADDR_MAINRAM(27 downto 16) & CPU_ADR;	--MAIN RAM
 	
 	ADRSEL<=	
+				ADR_ROM		when jrd='1' else
 				ADR_TRAM 	when TRAMSEL='1' and TMODE='0' and HS='1' and CPU_ADR(15 downto 12)=x"F" else
 				ADR_VRAM		when CPU_ADR(15 downto 14)="11" else
 				ADR_RAM		when CPU_ADR(15)='0' and extren='1' and CPU_WRn='1' else
