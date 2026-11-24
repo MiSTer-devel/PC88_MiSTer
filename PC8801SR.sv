@@ -75,6 +75,7 @@ parameter CONF_STR = {
 	"P2,Hardware;",
 	"P2-;",
 	"P2OQR,RAM,Fx (SR/FR/FH/FA),Mx (MR/MH/MA/MC),512KB,1MB;",
+	"P2FC1,ROM,Dictionary ROM;",
 	"P2-;",
 	"P2OK,Input,Joypad,Mouse;",
 	"P2ON,Keyboard layout,JP,US;",
@@ -153,11 +154,11 @@ wire  [5:0] joyA = ~{joystick_0[5:4],joystick_0[0],joystick_0[1],joystick_0[2],j
 wire  [5:0] joyB = ~{joystick_1[5:4],joystick_1[0],joystick_1[1],joystick_1[2],joystick_1[3]};
 
 wire        ioctl_download;
-wire  [7:0] ioctl_index;
+wire [15:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
-reg  [18:0] ldr_addr;
+reg  [19:0] ldr_addr;
 reg   [7:0] ldr_dout;
 
 wire        ps2_kbd_clk_out;
@@ -626,6 +627,7 @@ PC88MiSTer PC88_top
 	.LOADER_WR(ldr_wr),
 	.LOADER_ACK(ldr_ack),
 	.LOADER_DONE(ldr_done),
+	.JISYO_EN(ldr_jisyo),
 	.RAMTYPE(status[27:26]),
 
 	.pMemCke(SDRAM_CKE),
@@ -703,6 +705,16 @@ wire ldr_ack;
 reg ldr_wr = 0;
 reg ldr_end = 0;
 reg ldr_done = 0;
+wire ldr_idx0 = (ioctl_index == 16'h0000);
+wire ldr_idx1 = (ioctl_index[5:0] == 6'd1);	// FC1 in CONF_STR
+wire ldr_in1 = ~|ioctl_addr[24:19];	// within the 512KB of the dictionary
+// The dictionary is used only when the file is 512KB: its last byte came and
+// nothing after it. Main_MiSTer sends it at start before boot.rom, so before
+// the CPU runs. A file chosen while the core runs comes after ldr_done and is
+// not taken until the core is loaded again.
+reg ldr_jisyo = 0;
+reg jisyo_last = 0;
+reg jisyo_over = 0;
 always @(posedge clk_sys) begin
 	reg old_ack, old_download;
 
@@ -712,15 +724,27 @@ always @(posedge clk_sys) begin
 	if(~old_ack & ldr_ack & ldr_wr) ldr_wr <= 0;
 	// The address and data are held until the write is acknowledged: at the end
 	// of the download hps_io moves ioctl_addr on without waiting for ioctl_wait.
-	if(ioctl_wr & ~ldr_done) begin
+	// boot.rom (index 0) and the dictionary ROM of the MA chosen in the OSD
+	// (FC1: index 1 in the low 6 bits, the extension number above them).
+	if(ioctl_wr & ~ldr_done & (ldr_idx0 | (ldr_idx1 & ldr_in1))) begin
 		ldr_wr <= 1;
-		ldr_addr <= ioctl_addr[18:0];
+		ldr_addr <= {ldr_idx1, ioctl_addr[18:0]};
 		ldr_dout <= ioctl_dout;
 	end
 
+	if(~old_download & ioctl_download & ldr_idx1) begin
+		jisyo_last <= 0;
+		jisyo_over <= 0;
+	end
+	if(ioctl_wr & ~ldr_done & ldr_idx1) begin
+		if(~ldr_in1) jisyo_over <= 1;
+		if(ioctl_addr == 25'h7FFFF) jisyo_last <= 1;
+	end
+	if(old_download & ~ioctl_download & ldr_idx1 & ~ldr_done) ldr_jisyo <= jisyo_last & ~jisyo_over;
+
 	// Done only when the last write is acknowledged. Until then LOADER_OE keeps
 	// the loader on the SDRAM port, so the last byte is not lost.
-	if(old_download & ~ioctl_download) ldr_end <= 1;
+	if(old_download & ~ioctl_download & ldr_idx0) ldr_end <= 1;
 	if(ldr_end & ~ldr_wr & ~ioctl_wr) ldr_done <= 1;
 end
 

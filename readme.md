@@ -41,6 +41,10 @@ The resulting boot.rom is 393216 bytes, CRC32 7E4F92C3 (MD5 9f3ec09d19a0768f01fd
 
 There are several revisions of the N88 4th-0 ROM. Use the one listed above (710A63EC): with 61984BAB, some software does not run correctly (#35, #72).
 
+## Dictionary ROM (optional)
+
+The dictionary ROM of the PC-8801MA (ports F0h and F1h) can be chosen in the OSD under Hardware > Dictionary ROM (for example JISYO.ROM). The file must be exactly 512KB; other sizes are ignored. The OSD remembers the file and the core loads it at every start; a file chosen while the core runs is used from the next time the core is loaded. F1h = 00h shows the 16KB bank set in F0h at C000h-FFFFh for reads, as on a MA (F0h values with any of bits 5-7 set select bank 0). Without the file, F0h and F1h do nothing, as on models without the dictionary.
+
 ## Special key assignments are as follows:
 
 ### (PC88->PS/2)

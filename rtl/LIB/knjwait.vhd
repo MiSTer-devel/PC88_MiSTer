@@ -13,7 +13,13 @@ use IEEE.std_logic_1164.all;
 --2 more than other I/O reads.
 --Once a sample has passed without a wait, no wait is raised again in that
 --cycle, even if the CPU speed changes.
+--N8 sets the samples at 8MHz. The dictionary ROM of the MA uses it with 2 on
+--memory reads, where the first sample is the first wait state (MA2: one more
+--wait than a main RAM read at 8MHz, none at 4MHz).
 entity KNJWAIT is
+generic(
+	N8		:integer range 0 to 3 := 3
+);
 port(
 	SEL		:in std_logic;	-- kanji ROM read strobe is out
 	CPUMD	:in std_logic;	-- '1' at 8MHz
@@ -31,7 +37,7 @@ signal	num		:integer range 0 to 3;	-- samples to hold WAIT_n low in this cycle
 signal	cnt		:integer range 0 to 3;	-- samples taken in this cycle
 signal	done	:std_logic;	-- the CPU has passed the wait in this cycle
 begin
-	num<=	3 when CPUMD='1' else
+	num<=	N8 when CPUMD='1' else
 			0;
 
 	process(clk,rstn)begin

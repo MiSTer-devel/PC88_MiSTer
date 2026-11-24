@@ -22,12 +22,15 @@ port(
 
 	sysrtc	:in std_logic_vector(64 downto 0);
 	
-	LOADER_ADR	:in std_logic_vector(18 downto 0);
+	LOADER_ADR	:in std_logic_vector(19 downto 0);	-- bit 19: dictionary ROM
 	LOADER_WDAT	:in std_logic_vector(7 downto 0);
 	LOADER_OE	:in std_logic;
 	LOADER_WR	:in std_logic;
 	LOADER_ACK	:out std_logic;
 	LOADER_DONE	:in std_logic;
+	--'1' when a 512KB dictionary ROM of the MA was loaded. Set by
+	--the loader on clk21m before boot.rom, while the CPU is still held in reset.
+	JISYO_EN	:in std_logic := '0';
 	--RAM type from the OSD (clk21m): "00" Fx, "01" Mx, "10" 512KB, "11" 1MB (RAMFILL, RAMTYPECTL)
 	RAMTYPE		:in std_logic_vector(1 downto 0) := "00";
 	
@@ -257,6 +260,8 @@ port(
 	GADR_MSEL	:out std_logic;
 	
 	EXTTYPE		:in std_logic_vector(1 downto 0);
+	JISYO_EN	:in std_logic;
+	JISYO_RD	:out std_logic;
 	HS			:in std_logic;
 
 	P31_RMODE	:in std_logic;
@@ -753,6 +758,9 @@ port(
 end component;
 
 component KNJWAIT
+generic(
+	N8		:integer range 0 to 3 := 3
+);
 port(
 	SEL		:in std_logic;
 	CPUMD	:in std_logic;
@@ -1887,12 +1895,14 @@ signal	M1_WAITn	:std_logic;
 signal	V1S4M		:std_logic;
 signal	TRAM_WAITn	:std_logic;
 signal	KNJ_WAITn	:std_logic;
+signal	JIS_WAITn	:std_logic;
 signal	KNJWSEL		:std_logic;
 signal	TRWSEL		:std_logic;
 signal	WAIT_nb		:std_logic;
 signal	WAIT_other	:std_logic;
 signal	GV_WAITn	:std_logic;
 signal	GVSEL		:std_logic;
+signal	JISYO_RD	:std_logic;
 signal	GVEN		:std_logic;
 signal	GVRET		:std_logic;
 signal	GV_other	:std_logic;
@@ -2506,6 +2516,8 @@ begin
 	GADR_MSEL	=>GWME,
 	
 	EXTTYPE		=>FILL_RTYPE,
+	JISYO_EN	=>JISYO_EN,
+	JISYO_RD	=>JISYO_RD,
 	HS			=>cHS,
 
 	P31_RMODE	=>RMODE,
@@ -2544,7 +2556,7 @@ begin
 
 	RAMADR<=
 			ADDR_N88(RAMAWIDTH-1 downto 23) & CLR_ADR when CLR_OE='1' else
-			ADDR_N88(RAMAWIDTH-1 downto 19) & LOADER_ADR when LOADER_OEr='1' else
+			ADDR_N88(RAMAWIDTH-1 downto 20) & LOADER_ADR when LOADER_OEr='1' else
 			VMAP_RADR when TCNV_BUSUSE='1' else
 			MAP_RADR;
 	RAM_WDAT<=	CLR_WDAT when CLR_OE='1' else 
@@ -2562,11 +2574,11 @@ begin
 	
 	FRAMADDR<=LOADER_ADR(12 downto 0);
 	FRAMWDAT<=LOADER_WDAT;
-	FRAMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 13)=ADDR_FONT(18 downto 13) else '0';
+	FRAMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(19 downto 13)=ADDR_FONT(19 downto 13) else '0';
 	--8x8 font for 24kHz and 15kHz timing, from the kanji ROM. Loaded whatever the timing.
-	FRAM8WR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 11)=ADDR_FONT8(18 downto 11) else '0';
+	FRAM8WR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(19 downto 11)=ADDR_FONT8(19 downto 11) else '0';
 	--Sub CPU ROM, kept in block RAM with the sub CPU RAM (SUBMEM).
-	SUBROMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(18 downto 13)=ADDR_SUBROM(18 downto 13) else '0';
+	SUBROMWR<=	LOADER_WE when LOADER_OEr='1' and LOADER_ADR(19 downto 13)=ADDR_SUBROM(19 downto 13) else '0';
 
 	GALU	:GraphALU
 port map(
@@ -3112,7 +3124,7 @@ port map(
 );
 
 
-	WAIT_nb<=	not RAM_WAIT when RAM_CE='1' else
+	WAIT_nb<=	(not RAM_WAIT) and JIS_WAITn when RAM_CE='1' else
 				TRAM_WAITn when TRAM_CE='1' else
 				(not RAM_WAIT) and KNJ_WAITn when KANJI1RD='1' or KANJI2RD='1' else
 				IO_WAIT and SLOW_WAITn;
@@ -3355,10 +3367,13 @@ port map(
 	-- Wait states on the kanji ROM ports, as measured on a real FH: 2 at 8MHz.
 	KNJWSEL<=KANJI1RD or KANJI2RD;
 	KNJW	:KNJWAIT port map(KNJWSEL,CPUMD,KNJ_WAITn,rclk,cpuce_f,CPU_rstnr);
+	-- Reads of the dictionary ROM, as measured on a MA2: one wait state more
+	-- than a main RAM read at 8MHz (2 in all), none at 4MHz.
+	JISW	:KNJWAIT generic map(2) port map(JISYO_RD,CPUMD,JIS_WAITn,rclk,cpuce_f,CPU_rstnr);
 	M1W		:M1WAIT port map(M1_n,MREQ_n,WAIT_other,V1S4M,M1_WAITn,rclk,cpuce_f,CPU_rstnr);
 	-- Wait states on graphic VRAM reads and writes, as measured on a real FH:
 	-- V1H and V2, and V1S when the ALU is in use or in the high-speed mode.
-	GVSEL<='1' when RAM_CE='1' and CPUADR(15 downto 14)="11" and GWME='0' and (RD_n='0' or WR_n='0') else '0';
+	GVSEL<='1' when RAM_CE='1' and CPUADR(15 downto 14)="11" and GWME='0' and JISYO_RD='0' and (RD_n='0' or WR_n='0') else '0';
 	-- 40h bit 4 selects the V1S graphic high-speed mode. On a real FH it removes the
 	-- slowdown of a selected graphic VRAM and gives its accesses the V1H/V2 wait.
 	-- Only V1S with the graphic screen on, as measured; N keeps the normal mode.
