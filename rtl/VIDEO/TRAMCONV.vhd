@@ -27,7 +27,7 @@ generic(
 	--the display, so the hold changes by more). Not for rows taken while the CPU is
 	--slowed down.
 	V1SBYTE4	:integer	:=486;
-	V1SBYTE8	:integer	:=434;
+	V1SBYTE8	:integer	:=427;
 	--8MHz: a row taken while the CPU is slowed down is followed by up to SHNUM
 	--short holds, SHPERIOD steps apart from the row request plus 0 to
 	--2**SHJITBITS-1 steps; each ends SHDW steps after its own request, or 2 steps
@@ -41,7 +41,14 @@ generic(
 	--8MHz: a row taken while the CPU is not slowed down is held M1GAIN/16 steps
 	--longer for each M1 above M1BASE among the last 128 CPU bus cycles
 	M1BASE		:integer	:=60;
-	M1GAIN		:integer	:=35;
+	M1GAIN		:integer	:=6;
+	--8MHz: and ODDG1/16 or ODDG3/16 steps longer for each CPU bus cycle in the last
+	--full 256 CPU T whose time to the next bus cycle is 1 or 3 T modulo 4 (MA2: a
+	--bus cycle of an odd number of T costs the CPU more while the display runs),
+	--less ODDBASE steps
+	ODDG1		:integer	:=85;
+	ODDG3		:integer	:=107;
+	ODDBASE		:integer	:=147;
 	--V1S: channel 2 off for DUCLK* clocks of the display while the CRTC runs is a DMA
 	--underrun: no text and no transfer until the next CRTC command. 4MHz 15kHz 200us,
 	--others 400us (a real PC-8801FH: 4MHz 15kHz underruns from about half a row of
@@ -122,6 +129,8 @@ port(
 	
 	CPUBUS		:in std_logic	:='0';	-- a CPU bus cycle (BUSSEL)
 	CPUM1n		:in std_logic	:='1';
+	CPUCE		:in std_logic	:='0';	-- a CPU T
+	CPUBUSST	:in std_logic	:='0';	-- the first T of a CPU bus cycle
 	CRTRST		:in std_logic	:='0';	-- toggles on each CRTC RESET command (CRTCREGS)
 	CRTCON		:in std_logic	:='1';	-- the CRTC display is started
 	DMAON		:in std_logic	:='1';	-- 8257 channel 2 is enabled
@@ -271,6 +280,14 @@ signal	m1hist		:std_logic_vector(127 downto 0);
 signal	m1cnt		:integer range 0 to 128;
 signal	lCPUBUS		:std_logic;
 signal	m1adj		:integer range -8192 to 8191;
+--CPU bus cycles by their T to the next one modulo 4 (none for 16 T or more):
+--ODDG1 or ODDG3 for each in the 256 CPU T counted so far
+signal	bstcnt		:integer range 0 to 15;
+signal	rBUSST		:std_logic;	-- CPUBUSST a clk later (it holds for a CPU T)
+signal	lBUSST		:std_logic;	-- rBUSST at the CPU T before (T80 keeps T1 for two T in an IN or OUT)
+signal	clT			:integer range 0 to 255;
+signal	oddacc		:integer range 0 to 256*(ODDG1+ODDG3)/3;	-- (a cycle takes 3 T at least)
+signal	oddadj		:integer range -8192 to 8191;	-- steps for the last full 256, less ODDBASE
 --Bytes a row and the hold shortening for them, a step or more behind SETH and ATTRLEN
 --(they change only with a CRTC set)
 signal	SETHs		:std_logic_vector(6 downto 0);
@@ -554,6 +571,44 @@ begin
 				elsif(CPUM1n='1' and m1hist(127)='1')then
 					m1cnt<=m1cnt-1;
 				end if;
+			end if;
+		end if;
+	end process;
+	--CPU bus cycles by their T to the next one, in blocks of 256 CPU T
+	process(clk,rstn)
+	variable cl	:integer range 0 to 3;
+	variable a	:integer range 0 to 256*(ODDG1+ODDG3)/3;
+	begin
+		if(rstn='0')then
+			bstcnt<=15;
+			rBUSST<='0';
+			lBUSST<='0';
+			clT<=0;
+			oddacc<=0;
+			oddadj<=0;
+		elsif(clk' event and clk='1')then
+			rBUSST<=CPUBUSST;
+			if(CPUCE='1')then
+				cl:=0;
+				lBUSST<=rBUSST;
+				if(rBUSST='1' and lBUSST='0')then
+					if(bstcnt<15)then
+						cl:=(bstcnt+1) mod 4;
+					end if;
+					bstcnt<=0;
+				elsif(bstcnt<15)then
+					bstcnt<=bstcnt+1;
+				end if;
+				a:=oddacc;
+				if(cl=1)then a:=a+ODDG1; end if;
+				if(cl=3)then a:=a+ODDG3; end if;
+				if(clT=255)then
+					oddadj<=a/16-ODDBASE;
+					oddacc<=0;
+				else
+					oddacc<=a;
+				end if;
+				clT<=(clT+1) mod 256;
 			end if;
 		end if;
 	end process;
@@ -1342,7 +1397,7 @@ begin
 							capSTR<=GVSTRs;
 							if(GVSTRs='0' and capCPUMD='1')then
 								--rounds toward zero
-								m1adj<=((m1cnt-M1BASE)*M1GAIN)/16;
+								m1adj<=((m1cnt-M1BASE)*M1GAIN)/16+oddadj;
 							else
 								m1adj<=0;
 							end if;

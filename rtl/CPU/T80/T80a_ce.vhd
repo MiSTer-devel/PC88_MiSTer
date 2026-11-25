@@ -103,6 +103,11 @@ entity T80a_ce is
 		MRD			: out std_logic;
 		-- the M cycle (MCycle of T80), to tell one cycle from the next
 		MCYC		: out std_logic_vector(2 downto 0);
+		-- '1' in T1 of an M cycle that uses the bus (an M1, an INT or NMI
+		-- acknowledge, or a memory or I/O read or write), not while the bus is
+		-- released. T1 lasts more than one T in an IN, an OUT and an INT
+		-- acknowledge: take the rising edge to count a cycle once
+		BUSST		: out std_logic;
 		-- '1' in the first T of an M1 (not an INT acknowledge, not while the
 		-- bus is released). This includes the M1 after a DD/FD/ED/CB prefix,
 		-- an NMI acknowledge and the M1s of HALT. The state read from REG and
@@ -178,6 +183,7 @@ begin
 
 	MRD <= '1' when MCycle /= "001" and NoRead = '0' and Write = '0' and IORQ = '0' and BUSAK_n_i = '1' else '0';
 	MCYC <= MCycle;
+	BUSST <= '1' when TState = "001" and (MCycle = "001" or NoRead = '0') and BUSAK_n_i = '1' else '0';
 
 	BND <= '1' when MCycle = "001" and TState = "001" and IntCycle_n = '1' and BUSAK_n_i = '1' else '0';
 	REGX(103 downto 82) <= IORQ_n_i & Req_Inhibit & WR_n_i & MREQ & RD & Wait_s & DI_Reg & DO;
