@@ -303,7 +303,8 @@ component T80a_ce
         M1T5        : out std_logic;
         M1T6        : out std_logic;
         MRD         : out std_logic;
-        MCYC        : out std_logic_vector(2 downto 0)
+        MCYC        : out std_logic_vector(2 downto 0);
+        BUSST       : out std_logic
     );
 end component;
 
@@ -1045,6 +1046,8 @@ port(
 	
 	CPUBUS		:in std_logic;
 	CPUM1n		:in std_logic;
+	CPUCE		:in std_logic;
+	CPUBUSST	:in std_logic;
 	CRTRST		:in std_logic;
 	CRTCON		:in std_logic;
 	DMAON		:in std_logic;
@@ -1919,6 +1922,7 @@ signal	CPUM1T5		:std_logic;
 signal	CPUM1T6		:std_logic;
 signal	CPUMRD		:std_logic;
 signal	CPUMCYC		:std_logic_vector(2 downto 0);
+signal	CPUBUSST	:std_logic;
 signal	GVSTXA		:std_logic;
 signal	GVSTRr		:std_logic;
 signal	GVS_WAITn	:std_logic;
@@ -2400,7 +2404,8 @@ begin
 		M1T5	=>CPUM1T5,
 		M1T6	=>CPUM1T6,
 		MRD		=>CPUMRD,
-		MCYC	=>CPUMCYC
+		MCYC	=>CPUMCYC,
+		BUSST	=>CPUBUSST
 	);
 
 	IORQ_n	<=IORQ_np	when BUSACK_n='1' else '1';
@@ -3039,6 +3044,8 @@ port map(
 	
 	CPUBUS		=>BUSSEL,
 	CPUM1n		=>M1_n,
+	CPUCE		=>cpuce_r,
+	CPUBUSST	=>CPUBUSST,
 	CRTRST		=>CRTC_RST,
 	CRTCON		=>CRTCen,
 	DMAON		=>TDMAEN,
