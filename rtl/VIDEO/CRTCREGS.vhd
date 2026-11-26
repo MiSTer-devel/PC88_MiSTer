@@ -1,5 +1,6 @@
 LIBRARY	IEEE;
 USE	IEEE.STD_LOGIC_1164.ALL;
+USE	IEEE.STD_LOGIC_ARITH.ALL;
 USE	IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity CRTCREGS is
@@ -42,6 +43,7 @@ port(
 	SETL	:out std_logic_vector(5 downto 0);
 	SETR	:out std_logic_vector(4 downto 0);
 	SETV	:out std_logic_vector(2 downto 0);
+	SETVR	:out std_logic_vector(8 downto 0);	-- (V+1)*(R+1), the retrace lines, taken with the set
 	SETH	:out std_logic_vector(6 downto 0);
 	SETZ	:out std_logic_vector(4 downto 0);
 	SETOK	:out std_logic;
@@ -183,6 +185,7 @@ begin
 							SETL<=sL;
 							SETR<=sR;
 							SETV<=sV;
+							SETVR<=conv_std_logic_vector((conv_integer(sV)+1)*(conv_integer(sR)+1),9);
 							SETH<=sH;
 							SETZ<=sZ;
 							SETOK<='1';
