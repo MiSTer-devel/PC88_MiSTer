@@ -73,6 +73,7 @@ port(
 	SETL		:in std_logic_vector(5 downto 0)	:=(others=>'0');
 	SETR		:in std_logic_vector(4 downto 0)	:=(others=>'0');
 	SETV		:in std_logic_vector(2 downto 0)	:=(others=>'0');
+	SETVR		:in std_logic_vector(8 downto 0)	:=(others=>'0');
 	SETH		:in std_logic_vector(6 downto 0)	:="1001110";	-- characters a row - 2
 	SETZ		:in std_logic_vector(4 downto 0)	:="11000";	-- horizontal retrace - 2
 	SETOK		:in std_logic	:='0';
@@ -432,7 +433,7 @@ begin
 	--is sampled (VCOMP comes 1 clock after the wrap, the next dot 3 or 4 after it).
 	nROWS<=conv_integer(SETL)+1;
 	nCHRL<=conv_integer(SETR)+1;
-	nVRET<=(conv_integer(SETV)+1)*(conv_integer(SETR)+1);
+	nVRET<=conv_integer(SETVR);
 	nHCHR<=conv_integer(SETH)+2;
 	nHIV<=conv_integer(SETZ)+2;
 	vretmin<=VRETMIN15 when VT15='1' else VRETMIN24;
