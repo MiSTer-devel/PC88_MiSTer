@@ -1288,7 +1288,10 @@ begin
 							STATE<=ST_REFRSH;
 							REFCNT<=REFINT-1;
 						else
-							if(FDEJOB=JOB_RD)then
+							-- The FD emulator reads ahead as the disk turns, motor on or off,
+							-- with no client waiting for it: a waiting main CPU access goes first,
+							-- or a disk in a drive slows the CPU by up to 0.25%.
+							if(FDEJOB=JOB_RD and CPUJOB=JOB_NOP)then
 								STATE<=ST_FDEREAD;
 							elsif(FDEJOB=JOB_WR)then
 								STATE<=ST_FDEWRITE;
